@@ -8,7 +8,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
         int startIdx,
         int endIdx,
         IObjectTypeTreeReader treeReader,
-        bool withDebugReader = false)
+        bool withDebugReader)
     {
         using var _ = Util.PerfScope("ReadObjectRange", new (0, 255, 0));
 

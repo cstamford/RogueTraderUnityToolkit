@@ -1,5 +1,4 @@
-﻿
-using CommandLine;
+﻿using CommandLine;
 using RogueTraderUnityToolkit;
 using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Loaders;
@@ -16,11 +15,18 @@ if (argsResult.Tag == ParserResultType.NotParsed) return;
 
 Args arguments = argsResult.Value;
 
-Log.Write($"Collecting files from {string.Join(", ", arguments.ExportPaths)} ...");
+bool exportToDir = arguments.ExportPath != null;
+bool exportToStdOut = !exportToDir && arguments.ExportStdOut;
+
+if (exportToDir) throw new("Not yet implemented.");
+
+bool withDebugger = Debugger.IsAttached;
+
+Log.Write($"Collecting files from {string.Join(", ", arguments.ImportPaths)} ...");
 
 IEnumerable<FileInfo> files = [];
 
-foreach (string path in arguments.ExportPaths)
+foreach (string path in arguments.ImportPaths)
 {
     FileInfo info = new(path);
     bool isDir = (info.Attributes & FileAttributes.Directory) != 0;
@@ -38,10 +44,11 @@ Log.Write($"Collected {files.Count()} files.");
 // If we don't, we can waste a lot of time at the end waiting for one very big object to parse.
 files = files.OrderByDescending(file => file.Length);
 
-#if DEBUG
-Log.Write("DEBUG: Randomizing order and capping input count.", ConsoleColor.Yellow);
-files = files.Shuffle().Take(250);
-#endif
+if (withDebugger)
+{
+    Log.Write("DEBUG: Randomizing order and capping input count.", ConsoleColor.Yellow);
+    files = files.Shuffle().Take(250);
+}
 
 int fileCountLoaded = 0;
 int assetCountLoaded = 0;
@@ -68,10 +75,10 @@ IAssetLoader[] diskFileLoaders =
 
 ParallelOptions parallelOpts = new();
 
-#if DEBUG
-Log.Write("DEBUG: Running on a single thread.", ConsoleColor.Yellow);
-parallelOpts.MaxDegreeOfParallelism = 1;
-#endif
+if (arguments.ThreadCount > 0)
+{
+    parallelOpts.MaxDegreeOfParallelism = arguments.ThreadCount;
+}
 
 Parallel.ForEach(files, parallelOpts, fileInfo =>
 {
@@ -100,7 +107,11 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
                 bundleMemory,
                 out SerializedFile? file))
             {
-                LogDebug.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
+                if (arguments.Debug)
+                {
+                    Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
+                }
+
                 return;
             }
             
@@ -110,16 +121,19 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
             int instances = file.ObjectInstances.Length;
             Interlocked.Add(ref assetCountPending, instances);
             
-            using BufferedStream bufferedStream = new(new NullStream());
+            using BufferedStream bufferedStream = new(exportToDir ? throw new() :
+                    exportToStdOut ? Console.OpenStandardOutput() : new NullStream());
+
             using StreamWriter bufferedStreamWriter = new(bufferedStream);
             
             IObjectTypeTreeReader treeReader = new TypeTreeTextReader(bufferedStreamWriter, () =>
             {
                 Interlocked.Increment(ref assetCountLoaded);
                 Interlocked.Decrement(ref assetCountPending);
+                if (withDebugger) bufferedStreamWriter.Flush();
             });
 
-            fileReader.ReadObjectRange(0, instances, treeReader);
+            fileReader.ReadObjectRange(0, instances, treeReader, withDebugReader: arguments.Debug);
         }
     }
     catch (Exception e)
@@ -206,10 +220,11 @@ bool TryLoadSerializedFileFromNode(
             return mms;
         });
 
-#if DEBUG
-    info.UserData = overlapMem;
-#endif
-
+    if (withDebugger)
+    {
+        info.UserData = overlapMem;
+    }
+    
     IEnumerable<IAssetLoader> loader = [new SerializedFileLoader()];
 
     if (!TryLoadAssetFromInfo(loader, info, out ISerializedAsset? asset))
@@ -281,30 +296,28 @@ bool TryLoadAssetFromInfo(
     
     return false;
 
-    bool CanReadSafe(IAssetLoader loader, SerializedAssetInfo info)
+    bool CanReadSafe(IAssetLoader loaderToTest, SerializedAssetInfo infoToTest)
     {
         try
         {
-            return loader.CanRead(info);
+            return loaderToTest.CanRead(infoToTest);
         }
-#if DEBUG
         catch (Exception e)
         {
-            Log.Write(e.Message, ConsoleColor.DarkGray);
-            
-            foreach (LogEntry entry in e.StackTrace!
-                .Split(Environment.NewLine)
-                .Take(2)
-                .Select(x => new LogEntry(x.Trim(), ConsoleColor.DarkGray)))
+            if (arguments.Debug)
             {
-                Log.Write(indent: 4, entry);
+                Log.Write(e.Message, ConsoleColor.DarkGray);
+            
+                foreach (LogEntry entry in e.StackTrace!
+                    .Split(Environment.NewLine)
+                    .Take(2)
+                    .Select(x => new LogEntry(x.Trim(), ConsoleColor.DarkGray)))
+                {
+                    Log.Write(indent: 4, entry);
+                } 
             }
 
+            return false;
         }
-#else
-        catch { /* intentionally ignored */ }
-#endif
-
-        return false;
     }
 }

@@ -11,14 +11,14 @@ public sealed class ObjectParserDebug(
         in ObjectTypeTree tree)
     {
         _indentStack.Push(_indent);
-        LogDebug.Write(_indent++ * _spacesPerIndent, "BeginTree", ConsoleColor.Green);
+        Log.Write(_indent++ * _spacesPerIndent, "BeginTree", ConsoleColor.Green);
     }
 
     public void EndTree(
         in ObjectTypeTree tree)
     {
         _indent = _indentStack.Pop();
-        LogDebug.Write(_indent * _spacesPerIndent, "EndTree", ConsoleColor.Green);   
+        Log.Write(_indent * _spacesPerIndent, "EndTree", ConsoleColor.Green);   
         
         if (_indentStack.Count == 0)
         {
@@ -36,7 +36,7 @@ public sealed class ObjectParserDebug(
         int nodeNameIdx = nodeString.IndexOf(node.Name, StringComparison.Ordinal);
         Debug.Assert(nodeNameIdx != -1);
 
-        LogDebug.Write(_indent * _spacesPerIndent,
+        Log.Write(_indent * _spacesPerIndent,
             new LogEntry(nodeString[..nodeNameIdx], _col),
             new LogEntry(node.Name, ConsoleColor.White),
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
@@ -47,7 +47,7 @@ public sealed class ObjectParserDebug(
         in ObjectParserReader nodeReader)
     {
         string value = nodeReader.ReadPrimitiveAsString(node);
-        LogDebug.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry("ReadPrimitive", ConsoleColor.Blue),
             new LogEntry($" {Range()} => ", _col),
             new LogEntry(value, ConsoleColor.Blue));
@@ -71,7 +71,7 @@ public sealed class ObjectParserDebug(
             remainingBytes = remainingElements * dataNode.Size;
         }
 
-        LogDebug.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadPrimitiveArray", ConsoleColor.DarkYellow),
             new LogEntry($" {dataNode.Type}[{arrayLength}]"),
             new LogEntry($" {Range(remainingBytes)} => [", _col),
@@ -84,7 +84,7 @@ public sealed class ObjectParserDebug(
         in ObjectParserNode dataNode,
         int arrayLength)
     {
-        LogDebug.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadComplexArray", ConsoleColor.Yellow),
             new LogEntry($" {dataNode.TypeName}[{arrayLength}]", _col),
             new LogEntry($" {Range()} => [", _col),
@@ -109,7 +109,7 @@ public sealed class ObjectParserDebug(
             remainingBytes = remainingElements;
         }
 
-        LogDebug.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadString", ConsoleColor.Cyan),
             new LogEntry($" char[{stringLength}]", _col),
             new LogEntry($" {Range(remainingBytes)} => \"", _col),
@@ -121,7 +121,7 @@ public sealed class ObjectParserDebug(
         in ObjectParserNode node,
         long refId, string cls, string ns, string asm)
     {
-        LogDebug.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadRefObjectRegistry", ConsoleColor.Green),
             new LogEntry($" {Range()} => [", _col),
             new LogEntry($"{refId} {asm}:{ns}.{cls}", ConsoleColor.Green),
@@ -133,7 +133,7 @@ public sealed class ObjectParserDebug(
         int alignedBytes)
     {
         bool didAlign = alignedBytes != 0;
-        LogDebug.Write(_indent * _spacesPerIndent,
+        Log.Write(_indent * _spacesPerIndent,
             new LogEntry($"{node.TypeName} Align4", didAlign ? ConsoleColor.Magenta : _col),
             new LogEntry(didAlign ? $" {Range()}" : string.Empty, _col));
     }
