@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Unity", "RogueTraderUnityToolkit.Unity\RogueTraderUnityToolkit.Unity.csproj", "{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Core", "RogueTraderUnityToolkit.Core\RogueTraderUnityToolkit.Core.csproj", "{3879A3AA-0D8E-4B3F-8483-DD61156C0119}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit", "RogueTraderUnityToolkit\RogueTraderUnityToolkit.csproj", "{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3879A3AA-0D8E-4B3F-8483-DD61156C0119}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3879A3AA-0D8E-4B3F-8483-DD61156C0119}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3879A3AA-0D8E-4B3F-8483-DD61156C0119}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3879A3AA-0D8E-4B3F-8483-DD61156C0119}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
