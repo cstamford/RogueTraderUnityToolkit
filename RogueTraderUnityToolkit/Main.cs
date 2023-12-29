@@ -1,9 +1,9 @@
 ﻿using CommandLine;
 using RogueTraderUnityToolkit;
 using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.Loaders;
-using RogueTraderUnityToolkit.Readers;
+using RogueTraderUnityToolkit.Processors;
 using RogueTraderUnityToolkit.Unity;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 
@@ -14,12 +14,6 @@ ParserResult<Args> argsResult = Parser.Default.ParseArguments<Args>(args);
 if (argsResult.Tag == ParserResultType.NotParsed) return;
 
 Args arguments = argsResult.Value;
-
-bool exportToDir = arguments.ExportPath != null;
-bool exportToStdOut = !exportToDir && arguments.ExportStdOut;
-
-if (exportToDir) throw new("Not yet implemented.");
-
 bool withDebugger = Debugger.IsAttached;
 
 Log.Write($"Collecting files from {string.Join(", ", arguments.ImportPaths)}");
@@ -47,7 +41,7 @@ files = files.OrderByDescending(file => file.Length);
 if (withDebugger)
 {
     Log.Write("DEBUG: Randomizing order and capping input count.", ConsoleColor.Yellow);
-    //files = files.Shuffle().Take(250);
+    files = files.Shuffle().Take(250);
 }
 
 int fileCountLoaded = 0;
@@ -70,7 +64,13 @@ TimeSpan loadStartTime = sw.Elapsed;
 IAssetLoader[] diskFileLoaders =
 [
     new AssetBundleLoader(),
-    new SerializedResourceFileLoader()
+    new ResourceFileLoader()
+];
+
+IAssetLoader[] bundleLoaders =
+[
+    new SerializedFileLoader(),
+    new ResourceFileLoader()
 ];
 
 ParallelOptions parallelOpts = new();
@@ -80,13 +80,15 @@ if (arguments.ThreadCount > 0)
     parallelOpts.MaxDegreeOfParallelism = arguments.ThreadCount;
 }
 
+ConcurrentBag<ISerializedAsset> assets = [];
+IAssetProcessor processor = SelectProcessor();
+
 Parallel.ForEach(files, parallelOpts, fileInfo =>
 {
     if (!TryLoadAssetFromPath(
         diskFileLoaders,
         fileInfo,
         out MemoryMappedFile? bundleFile,
-        out SerializedAssetInfo? bundleInfo,
         out ISerializedAsset? bundleAsset))
     {
         Log.Write($"Unable to load {fileInfo.Name}", ConsoleColor.Yellow);
@@ -99,60 +101,32 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
         if (bundle == null) return;
 
         IRelocatableMemoryRegion[] bundleMemory = PrepMemoryForBundle(bundle);
-        
+
         foreach (AssetBundleNode bundleNode in bundle.Manifest.Nodes)
         {
-            if (!TryLoadSerializedFileFromNode(
+            if (!TryLoadAssetFromNode(
+                bundleLoaders,
                 bundle,
                 bundleNode,
                 bundleMemory,
-                out SerializedFile? file))
+                out ISerializedAsset asset))
             {
-                if (arguments.Debug)
-                {
-                    Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
-                }
 
+                Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
                 continue;
             }
             
-            Debug.Assert(file != null);
-            SerializedFileReader fileReader = new(file);
-            
-            Stream stream = new NullStream();
+            processor.Process(
+                arguments,
+                bundle,
+                asset,
+                out int processed,
+                out int skipped,
+                out int failed);
 
-            if (exportToDir)
-            {
-                /*
-                string exportDir = Path.Combine(
-                    arguments.ExportPath,
-                    file.Info.Parent.Identifier,
-                    $"{file.Info.Identifier}.txt");
-                    */
-
-            }
-            else if (exportToStdOut)
-            {
-                stream = Console.OpenStandardOutput();
-            }
-            
-            fileReader.ReadObjectRange(
-                treeReader: new TypeTreeTextExporter() { Stream = stream },
-                withDebugReader: arguments.Debug,
-                startIdx: 0,
-                endIdx: file.ObjectInstances.Length,
-                fnStartedOne: (i, end) =>
-                {
-                    Interlocked.Increment(ref assetCountPending);
-                },
-                fnFinishedOne: (i, end) =>
-                {
-                    Interlocked.Increment(ref assetCountLoaded);
-                    Interlocked.Decrement(ref assetCountPending);
-                    
-                    stream.WriteByte((byte)'\n');
-                    stream.WriteByte((byte)'\n');
-                });
+            Interlocked.Add(ref assetCountLoaded, processed);
+            Interlocked.Add(ref assetCountSkipped, skipped);
+            Interlocked.Add(ref assetCountFailed, failed);
         }
     }
     catch (Exception e)
@@ -173,10 +147,18 @@ ConsoleColor color = assetCountFailed > 0 ? ConsoleColor.Red : assetCountSkipped
 
 Log.Write(
     new LogEntry($"Loaded {assetCountLoaded} assets in {sw.Elapsed.Subtract(loadStartTime).TotalSeconds:f2} seconds ("),
-    new LogEntry($"{assetCountSkipped} warnings, {assetCountFailed} errors", color),
+    new LogEntry($"{assetCountSkipped} skipped, {assetCountFailed} failed", color),
     new LogEntry(")"));
 
+processor.End(arguments, [..assets]);
+
 return;
+
+IAssetProcessor SelectProcessor()
+{
+    /* TODO switch on mode */
+    return new AnalyseTrees();
+}
 
 IRelocatableMemoryRegion[] PrepMemoryForBundle(AssetBundle bundle)
 {
@@ -196,11 +178,12 @@ IRelocatableMemoryRegion[] PrepMemoryForBundle(AssetBundle bundle)
     return regionsMem;
 }
 
-bool TryLoadSerializedFileFromNode(
+bool TryLoadAssetFromNode(
+    IEnumerable<IAssetLoader> loaders,
     AssetBundle bundle,
     AssetBundleNode node,
     IReadOnlyList<IRelocatableMemoryRegion> memory,
-    out SerializedFile? file)
+    out ISerializedAsset asset)
 {
     IRelocatableMemoryRegion[] overlapMem = [.. bundle.Regions
         .WithIndex()
@@ -229,7 +212,7 @@ bool TryLoadSerializedFileFromNode(
 
     SerializedAssetInfo info = new(
         parent: bundle,
-        identifier: node.Path.String,
+        identifier: node.Path.ToString(),
         size: node.Size,
         fnOpen: (offset, length) =>
         {
@@ -244,33 +227,22 @@ bool TryLoadSerializedFileFromNode(
         info.UserData = overlapMem;
     }
     
-    IEnumerable<IAssetLoader> loader = [new SerializedFileLoader()];
-
-    if (!TryLoadAssetFromInfo(loader, info, out ISerializedAsset? asset))
-    {
-        file = null;
-        return false;
-    }
-
-    file = asset as SerializedFile;
-    return file != null;
+    return TryLoadAssetFromInfo(loaders, info, out asset);
 }
 
 bool TryLoadAssetFromPath(
     IEnumerable<IAssetLoader> loaders,
     FileInfo fileInfo,
     out MemoryMappedFile? file,
-    out SerializedAssetInfo? info,
     out ISerializedAsset? asset)
 {
     file = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
-    info = new(parent: null, identifier: fileInfo.Name, size: fileInfo.Length, file.CreateViewStream);
+    SerializedAssetInfo info = new(parent: null, identifier: fileInfo.Name, size: fileInfo.Length, file.CreateViewStream);
 
     if (!TryLoadAssetFromInfo(loaders, info, out asset))
     {
         file.Dispose();
         file = null;
-        info = null;
         return false;
     }
 
@@ -280,7 +252,7 @@ bool TryLoadAssetFromPath(
 bool TryLoadAssetFromInfo(
     IEnumerable<IAssetLoader> loaders,
     SerializedAssetInfo info,
-    out ISerializedAsset? asset)
+    out ISerializedAsset asset)
 {
     using SuperluminalPerf.EventMarker _ = Util.PerfScope("TryLoadAssetFromInfo", new(0, 128, 128));
 
@@ -294,13 +266,13 @@ bool TryLoadAssetFromInfo(
         {
             asset = loader.Read(info);
             Interlocked.Increment(ref assetCountLoaded);
+            assets.Add(asset);
             return true;
         }
         catch (Exception e)
         {
             Log.Write($"Failed to load {info.Identifier} because:\n{e}", ConsoleColor.Red);
             Interlocked.Increment(ref assetCountFailed);
-            asset = null;
         }
         finally
         {
@@ -310,9 +282,9 @@ bool TryLoadAssetFromInfo(
     else
     {
         Interlocked.Increment(ref assetCountSkipped);
-        asset = null;
     }
     
+    asset = default!;
     return false;
 
     bool CanReadSafe(IAssetLoader loaderToTest, SerializedAssetInfo infoToTest)
@@ -339,4 +311,28 @@ bool TryLoadAssetFromInfo(
             return false;
         }
     }
+}
+
+public interface IAssetLoader
+{
+    public bool CanRead(SerializedAssetInfo info);
+    public ISerializedAsset Read(SerializedAssetInfo info);
+}
+
+public readonly struct AssetBundleLoader : IAssetLoader
+{
+    public bool CanRead(SerializedAssetInfo info) => AssetBundle.CanRead(info);
+    public ISerializedAsset Read(SerializedAssetInfo info) => AssetBundle.Read(info);
+}
+
+public readonly struct SerializedFileLoader : IAssetLoader
+{
+    public bool CanRead(SerializedAssetInfo info) => SerializedFile.CanRead(info);
+    public ISerializedAsset Read(SerializedAssetInfo info) => SerializedFile.Read(info);
+}
+
+public readonly struct ResourceFileLoader : IAssetLoader
+{
+    public bool CanRead(SerializedAssetInfo info) => ResourceFile.CanRead(info);
+    public ISerializedAsset Read(SerializedAssetInfo info) => ResourceFile.Read(info);
 }

@@ -5,8 +5,8 @@ using System.Text;
 namespace RogueTraderUnityToolkit.Unity;
 
 public readonly record struct ObjectParserNode(
-    StringPool.Entry Name,
-    StringPool.Entry TypeName,
+    AsciiString Name,
+    AsciiString TypeName,
     ObjectParserType Type,
     ObjectParserNodeFlags Flags,
     ushort Index,
@@ -33,8 +33,8 @@ public readonly record struct ObjectParserNode(
         ref ObjectTypeNode node = ref nodes[nodeIdx];
 
         ResolveFromNames(node, localBuffer,
-            out StringPool.Entry name,
-            out StringPool.Entry typeName,
+            out AsciiString name,
+            out AsciiString typeName,
             out ObjectParserType type);
 
         ResolveHierarchy(node, nodes, nodeIdx,
@@ -59,8 +59,8 @@ public readonly record struct ObjectParserNode(
     private static void ResolveFromNames(
         in ObjectTypeNode node,
         ReadOnlyMemory<byte> localBuffer,
-        out StringPool.Entry name,
-        out StringPool.Entry typeName,
+        out AsciiString name,
+        out AsciiString typeName,
         out ObjectParserType type)
     {
         name = FetchName(node.OffsetName, localBuffer, out ReadOnlyMemory<byte> _);
@@ -81,7 +81,7 @@ public readonly record struct ObjectParserNode(
         type = compactType;
     }
 
-    private static StringPool.Entry FetchName(
+    private static AsciiString FetchName(
         uint offset,
         ReadOnlyMemory<byte> localBuffer,
         out ReadOnlyMemory<byte> bufferRead)
@@ -100,7 +100,7 @@ public readonly record struct ObjectParserNode(
             Debug.Assert(found);
         }
 
-        return StringPool.Fetch(bufferRead);
+        return AsciiStringPool.Fetch(bufferRead);
     }
 
     private static void ResolveHierarchy(
@@ -172,8 +172,9 @@ public readonly record struct ObjectParserNode(
         return flags;
     }
 
-    public override string ToString() => $"{Name.String} ({TypeName.String}) " +
+    public override string ToString() => $"{Name.ToString()} ({TypeName.ToString()}) " +
                                          $"{Type}/{Size} " +
+                                         $"level:{Level} " + 
                                          $"idx:{Index} " +
                                          $"child:{FirstChildIdx} " +
                                          $"sibling:{FirstSiblingIdx} " +

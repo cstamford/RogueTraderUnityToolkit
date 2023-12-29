@@ -37,9 +37,9 @@ public interface IObjectTypeTreeReader
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
-        StringPool.Entry cls,
-        StringPool.Entry ns,
-        StringPool.Entry asm);
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm);
 
     public void Align(
         in ObjectParserNode node,
@@ -88,9 +88,9 @@ public sealed class ObjectTypeTreeNullReader : IObjectTypeTreeReader
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
-        StringPool.Entry cls,
-        StringPool.Entry ns,
-        StringPool.Entry asm)
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm)
     { }
 
     public void Align(
@@ -157,9 +157,9 @@ public sealed class ObjectTypeTreeMultiReader(
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
-        StringPool.Entry cls,
-        StringPool.Entry ns,
-        StringPool.Entry asm)
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm)
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadRefObjectRegistry(node, refId, cls, ns, asm); }
     }

@@ -33,7 +33,7 @@ public sealed class ObjectParserDebug(
         _indent = node.Level;
 
         string nodeString = node.ToString();
-        string nodeNameString = node.Name.String;
+        string nodeNameString = node.Name.ToString();
         int nodeNameIdx = nodeString.IndexOf(nodeNameString, StringComparison.Ordinal);
         Debug.Assert(nodeNameIdx != -1);
 
@@ -99,7 +99,7 @@ public sealed class ObjectParserDebug(
         int stringLength)
     {
         const int maxLen = 32;
-        string str = nodeReader.ReadString(node, stringLength, maxLen).String;
+        string str = nodeReader.ReadString(node, stringLength, maxLen).ToString();
 
         int remainingElements = stringLength - maxLen;
         int remainingBytes = 0;
@@ -121,9 +121,9 @@ public sealed class ObjectParserDebug(
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
-        StringPool.Entry cls,
-        StringPool.Entry ns,
-        StringPool.Entry asm)
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm)
     {
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadRefObjectRegistry", ConsoleColor.Green),
@@ -223,9 +223,9 @@ public sealed class ObjectParserDebugWrapper(
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
-        StringPool.Entry cls,
-        StringPool.Entry ns,
-        StringPool.Entry asm)
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm)
     {
         if (Enabled) _reader.ReadRefObjectRegistry(node, refId, cls, ns, asm);
     }

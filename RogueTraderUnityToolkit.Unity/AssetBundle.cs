@@ -40,7 +40,7 @@ public sealed record AssetBundle(
         {
             manifest = AssetBundleManifest.Read(reader);
         }
-        
+
         reader.AlignTo(16);
 
         long fileOffset = stream.Position;
@@ -61,7 +61,7 @@ public sealed record AssetBundle(
             fileOffset += block.CompressedSize;
             memoryOffset += block.UncompressedSize;
         }
-        
+
         return new(
             Header: header,
             Manifest: manifest,
@@ -72,12 +72,14 @@ public sealed record AssetBundle(
     }
 
     private SerializedAssetInfo _info = default!;
+    
+    public override string ToString() => $"{_info} ({Manifest.Nodes.Length} containers)";
 }
 
 public readonly record struct AssetBundleHeader(
     int Version,
-    StringPool.Entry UnityVersion1,
-    StringPool.Entry UnityVersion2,
+    AsciiString UnityVersion1,
+    AsciiString UnityVersion2,
     long Size,
     int CompressedSize,
     int UncompressedSize,
@@ -89,8 +91,8 @@ public readonly record struct AssetBundleHeader(
         if (!CheckMagicMatches(reader)) throw new("Magic does not match");
 
         int version = reader.ReadS32();
-        StringPool.Entry unityVersion1 = reader.ReadStringUntilNull();
-        StringPool.Entry unityVersion2 = reader.ReadStringUntilNull();
+        AsciiString unityVersion1 = reader.ReadStringUntilNull();
+        AsciiString unityVersion2 = reader.ReadStringUntilNull();
         long size = reader.ReadS64();
         int compressedSize = reader.ReadS32();
         int uncompressedSize = reader.ReadS32();
@@ -173,14 +175,14 @@ public readonly record struct AssetBundleNode(
     long Offset,
     long Size,
     int Flags,
-    StringPool.Entry Path)
+    AsciiString Path)
 {
     public static AssetBundleNode Read(EndianBinaryReader reader)
     {
         long offset = reader.ReadS64();
         long size = reader.ReadS64();
         int flags = reader.ReadS32();
-        StringPool.Entry path = reader.ReadStringUntilNull();
+        AsciiString path = reader.ReadStringUntilNull();
 
         return new(
             Offset: offset,

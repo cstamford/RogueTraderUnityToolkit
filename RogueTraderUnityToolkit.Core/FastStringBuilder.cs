@@ -3,32 +3,29 @@ using System.Runtime.CompilerServices;
 
 namespace RogueTraderUnityToolkit.Core;
 
-public sealed class FastStringBuilder
+public sealed class FastStringBuilder(
+    byte[] buffer)
 {
-    public byte[] Buffer
+    public int Length
     {
-        get => _buf;
-        set => _buf = value;
+        get => _len;
+        set => _len = value;
     }
-    
-    public int Index
-    {
-        get => _idx;
-        set => _idx = value;
-    }
+
+    public ReadOnlySpan<byte> Span => buffer.AsSpan()[.._len];
     
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public void Append(StringPool.Entry str)
+    public void Append(AsciiString str)
     {
         ReadOnlySpan<byte> stringBytes = str.Bytes.Span;
-        stringBytes.CopyTo(_buf.AsSpan(_idx, str.Length));
-        _idx += stringBytes.Length;
+        stringBytes.CopyTo(buffer.AsSpan(_len, str.Length));
+        _len += stringBytes.Length;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Append(char ch)
     {
-        _buf[_idx++] = (byte)ch;
+        buffer[_len++] = (byte)ch;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -46,15 +43,14 @@ public sealed class FastStringBuilder
 
         int len = (int)(end - start);
 
-        fixed (byte* toBuf = _buf)
+        fixed (byte* toBuf = buffer)
         {
-            System.Buffer.MemoryCopy(start, toBuf + _idx, len, len);
+            Buffer.MemoryCopy(start, toBuf + _len, len, len);
         }
 
-        _idx += len;
-        Debug.Assert(_idx < _buf.Length);
+        _len += len;
+        Debug.Assert(_len < buffer.Length);
     }
-
-    private byte[] _buf = default!;
-    private int _idx;
+    
+    private int _len;
 }

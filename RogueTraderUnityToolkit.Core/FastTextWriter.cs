@@ -228,7 +228,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public void Write(StringPool.Entry str)
+    public void Write(AsciiString str)
     {
         stream.Write(str.Bytes.Span);
     }

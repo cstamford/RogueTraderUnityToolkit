@@ -14,7 +14,7 @@ const int runCount = 4;
 
 string executablePath = args[0];
 string executableArgs = string.Join(" ", args[1..].Select(x => $"\"{x}\""));
-string executableHash = CalculateMD5(executablePath);
+string executableHash = CalculateMd5(executablePath);
 string outputDataPath = "historical.csv";
 
 ProcessStartInfo executablePsi = new()
@@ -72,11 +72,7 @@ Console.WriteLine($"min: {min:F2}, max: {max:F2}, avg: {avg:F2}, sd: {sd:F6}");
 
 List<BenchmarkRecord> historicalData = ReadRecords(outputDataPath);
 historicalData.RemoveAt(historicalData.Count - 1); // remove last, since we just wrote it
-
-PlotBenchmarkData(
-    outputDataPath,
-    currentRunEntries,
-    historicalData);
+PlotBenchmarkData(currentRunEntries, historicalData);
 
 return;
 
@@ -141,7 +137,7 @@ static List<BenchmarkRecord> ReadRecords(string csvPath)
     return recordReturns;
 }
 
-static string CalculateMD5(string filePath)
+static string CalculateMd5(string filePath)
 {
     using MD5 md5 = MD5.Create();
     using FileStream stream = File.OpenRead(filePath);
@@ -150,7 +146,6 @@ static string CalculateMD5(string filePath)
 }
 
 static void PlotBenchmarkData(
-    string csvPath,
     BenchmarkRecordEntry[] currentEntries,
     List<BenchmarkRecord> historicalEntries)
 {
@@ -218,3 +213,4 @@ record struct BenchmarkRecordCsv(
     DateTime? StartTime,
     string? ExecutableHash,
     int? RunCount);
+    

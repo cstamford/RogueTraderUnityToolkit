@@ -196,13 +196,13 @@ public record struct ObjectParser
 
         refId = _reader.ReadS64();
 
-        StringPool.Entry cls = _reader.ReadString(_reader.ReadS32());
+        AsciiString cls = _reader.ReadString(_reader.ReadS32());
         _reader.AlignTo(4);
 
-        StringPool.Entry ns = _reader.ReadString(_reader.ReadS32());
+        AsciiString ns = _reader.ReadString(_reader.ReadS32());
         _reader.AlignTo(4);
 
-        StringPool.Entry asm = _reader.ReadString(_reader.ReadS32());
+        AsciiString asm = _reader.ReadString(_reader.ReadS32());
         _reader.AlignTo(4);
 
         for (int i = 0; i < _references.Length; ++i)

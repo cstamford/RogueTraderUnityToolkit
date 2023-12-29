@@ -10,7 +10,7 @@ namespace RogueTraderUnityToolkit.Unity
         SerializedFileObjectFileRef[] ObjectFileRefs,
         SerializedFileReferences[] References,
         SerializedFileTypeReference[] TypeReferences,
-        StringPool.Entry Comment) 
+        AsciiString Comment) 
         : ISerializedAsset
     {
         public SerializedAssetInfo Info => _info;
@@ -35,7 +35,7 @@ namespace RogueTraderUnityToolkit.Unity
             SerializedFileObjectFileRef[] objectFileRefs = reader.ReadArray(SerializedFileObjectFileRef.Read);
             SerializedFileReferences[] references = reader.ReadArray(SerializedFileReferences.Read);
             SerializedFileTypeReference[] typeReferences = reader.ReadArray(SerializedFileTypeReference.Read);
-            StringPool.Entry comment = reader.ReadStringUntilNull();
+            AsciiString comment = reader.ReadStringUntilNull();
 
             return new(
                 Header: header,
@@ -52,6 +52,8 @@ namespace RogueTraderUnityToolkit.Unity
         }
     
         private SerializedAssetInfo _info = default!;
+        
+        public override string ToString() => $"{_info} ({ObjectInstances.Length} objects)";
     }
 
     public readonly record struct SerializedFileHeader(
@@ -99,13 +101,13 @@ namespace RogueTraderUnityToolkit.Unity
     }
 
     public readonly record struct SerializedFileTarget(
-        StringPool.Entry Version,
+        AsciiString Version,
         uint Platform,
         bool WithTypeInfo)
     {
         public static SerializedFileTarget Read(EndianBinaryReader reader)
         {
-            StringPool.Entry version = reader.ReadStringUntilNull();
+            AsciiString version = reader.ReadStringUntilNull();
             uint platform = reader.ReadU32();
             bool withTypeInfo = reader.ReadB8();
 
@@ -224,17 +226,17 @@ namespace RogueTraderUnityToolkit.Unity
     }
 
     public readonly record struct SerializedFileReferences(
-        StringPool.Entry Path,
+        AsciiString Path,
         Guid Guid,
         int Format,
-        StringPool.Entry PathUnity)
+        AsciiString PathUnity)
     {
         public static SerializedFileReferences Read(EndianBinaryReader reader)
         {
-            StringPool.Entry path = reader.ReadStringUntilNull();
+            AsciiString path = reader.ReadStringUntilNull();
             Guid guid = reader.ReadGuid();
             int format = reader.ReadS32();
-            StringPool.Entry pathUnity = reader.ReadStringUntilNull();
+            AsciiString pathUnity = reader.ReadStringUntilNull();
 
             return new(
                 Path: path,
@@ -247,17 +249,17 @@ namespace RogueTraderUnityToolkit.Unity
     public readonly record struct SerializedFileTypeReference(
         SerializedFileObjectInfo Info,
         ObjectTypeTree Tree,
-        StringPool.Entry Class,
-        StringPool.Entry Namespace,
-        StringPool.Entry Assembly)
+        AsciiString Class,
+        AsciiString Namespace,
+        AsciiString Assembly)
     {
         public static SerializedFileTypeReference Read(EndianBinaryReader reader)
         {
             SerializedFileObjectInfo info = SerializedFileObjectInfo.Read(reader);
             ObjectTypeTree tree = ObjectTypeTree.Read(reader);
-            StringPool.Entry cls = reader.ReadStringUntilNull();
-            StringPool.Entry ns = reader.ReadStringUntilNull();
-            StringPool.Entry asm = reader.ReadStringUntilNull();
+            AsciiString cls = reader.ReadStringUntilNull();
+            AsciiString ns = reader.ReadStringUntilNull();
+            AsciiString asm = reader.ReadStringUntilNull();
 
             return new(
                 Info: info,

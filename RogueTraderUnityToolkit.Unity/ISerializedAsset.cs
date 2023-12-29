@@ -14,8 +14,10 @@ public sealed class SerializedAssetInfo(
     public ISerializedAsset? Parent => parent;
     public string Identifier => identifier;
     public long Size => size;
-    
+
     public object? UserData { get; set; }
-    
+
     public Stream Open(long offset = 0, long length = 0) => fnOpen(offset, length);
+
+    public override string ToString() => $"{parent?.Info}/{identifier}".TrimStart('/');
 }
