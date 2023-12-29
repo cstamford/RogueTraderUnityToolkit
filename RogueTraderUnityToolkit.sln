@@ -6,6 +6,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Cor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit", "RogueTraderUnityToolkit\RogueTraderUnityToolkit.csproj", "{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark", "Benchmark\Benchmark.csproj", "{17E32860-59D7-4CE8-A51C-346E9612FA22}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +28,13 @@ Global
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

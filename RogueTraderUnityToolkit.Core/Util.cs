@@ -6,16 +6,16 @@ namespace RogueTraderUnityToolkit.Core;
 
 public static class Util
 {
-    public static int FastFindNull(ReadOnlySpan<byte> buffer, int offset = 0)
+    public static int FastFindByte(byte b, ReadOnlySpan<byte> buffer, int offset = 0)
     {
-        Vector<byte> nullVector = new(0);
+        Vector<byte> byteVector = new(b);
         int vectorSize = Vector<byte>.Count;
         int blocks = buffer.Length / vectorSize;
 
         for (int i = offset / vectorSize * vectorSize; i < blocks * vectorSize; i += vectorSize)
         {
             Vector<byte> v = new(buffer.Slice(i, vectorSize));
-            Vector<byte> equals = Vector.Equals(v, nullVector);
+            Vector<byte> equals = Vector.Equals(v, byteVector);
 
             if (!equals.Equals(Vector<byte>.Zero))
             {
@@ -33,7 +33,7 @@ public static class Util
 
                     for (int k = Math.Max(currentBlock, offset); k < nextBlock; ++k)
                     {
-                        if (buffer[k] == 0) return k;
+                        if (buffer[k] == b) return k;
                     }
                 }
             }
@@ -43,7 +43,7 @@ public static class Util
 
         for (int i = Math.Max(lastBlock, offset); i < buffer.Length; i++)
         {
-            if (buffer[i] == 0) return i;
+            if (buffer[i] == b) return i;
         }
 
         return -1;

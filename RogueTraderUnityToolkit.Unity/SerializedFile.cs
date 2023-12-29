@@ -10,7 +10,7 @@ namespace RogueTraderUnityToolkit.Unity
         SerializedFileObjectFileRef[] ObjectFileRefs,
         SerializedFileReferences[] References,
         SerializedFileTypeReference[] TypeReferences,
-        string Comment) 
+        StringPool.Entry Comment) 
         : ISerializedAsset
     {
         public SerializedAssetInfo Info => _info;
@@ -19,7 +19,7 @@ namespace RogueTraderUnityToolkit.Unity
         {
             using Stream stream = info.Open(0, 48);
             EndianBinaryReader reader = new(stream, 0, 48);
-            return SerializedFileHeader.Read(reader).TotalSize == info.Size;
+            return SerializedFileHeader.CheckLengthAndVersionMatches(reader, info.Size);
         }
 
         public static SerializedFile Read(SerializedAssetInfo info)
@@ -35,7 +35,7 @@ namespace RogueTraderUnityToolkit.Unity
             SerializedFileObjectFileRef[] objectFileRefs = reader.ReadArray(SerializedFileObjectFileRef.Read);
             SerializedFileReferences[] references = reader.ReadArray(SerializedFileReferences.Read);
             SerializedFileTypeReference[] typeReferences = reader.ReadArray(SerializedFileTypeReference.Read);
-            string comment = reader.ReadStringUntilNull();
+            StringPool.Entry comment = reader.ReadStringUntilNull();
 
             return new(
                 Header: header,
@@ -85,17 +85,27 @@ namespace RogueTraderUnityToolkit.Unity
                 DataOffset: dataOffset);
         }
 
+        public static bool CheckLengthAndVersionMatches(EndianBinaryReader reader, long fileLength)
+        {
+            reader.Seek(8);
+            int version = reader.ReadS32();
+            reader.Seek(12);
+            long length = reader.ReadS64();
+
+            return version == _version && length == fileLength;
+        }
+
         private const int _version = 22;
     }
 
     public readonly record struct SerializedFileTarget(
-        string Version,
+        StringPool.Entry Version,
         uint Platform,
         bool WithTypeInfo)
     {
         public static SerializedFileTarget Read(EndianBinaryReader reader)
         {
-            string version = reader.ReadStringUntilNull();
+            StringPool.Entry version = reader.ReadStringUntilNull();
             uint platform = reader.ReadU32();
             bool withTypeInfo = reader.ReadB8();
 
@@ -214,17 +224,17 @@ namespace RogueTraderUnityToolkit.Unity
     }
 
     public readonly record struct SerializedFileReferences(
-        string Path,
+        StringPool.Entry Path,
         Guid Guid,
         int Format,
-        string PathUnity)
+        StringPool.Entry PathUnity)
     {
         public static SerializedFileReferences Read(EndianBinaryReader reader)
         {
-            string path = reader.ReadStringUntilNull();
+            StringPool.Entry path = reader.ReadStringUntilNull();
             Guid guid = reader.ReadGuid();
             int format = reader.ReadS32();
-            string pathUnity = reader.ReadStringUntilNull();
+            StringPool.Entry pathUnity = reader.ReadStringUntilNull();
 
             return new(
                 Path: path,
@@ -237,17 +247,17 @@ namespace RogueTraderUnityToolkit.Unity
     public readonly record struct SerializedFileTypeReference(
         SerializedFileObjectInfo Info,
         ObjectTypeTree Tree,
-        string Class,
-        string Namespace,
-        string Assembly)
+        StringPool.Entry Class,
+        StringPool.Entry Namespace,
+        StringPool.Entry Assembly)
     {
         public static SerializedFileTypeReference Read(EndianBinaryReader reader)
         {
             SerializedFileObjectInfo info = SerializedFileObjectInfo.Read(reader);
             ObjectTypeTree tree = ObjectTypeTree.Read(reader);
-            string cls = reader.ReadStringUntilNull();
-            string ns = reader.ReadStringUntilNull();
-            string asm = reader.ReadStringUntilNull();
+            StringPool.Entry cls = reader.ReadStringUntilNull();
+            StringPool.Entry ns = reader.ReadStringUntilNull();
+            StringPool.Entry asm = reader.ReadStringUntilNull();
 
             return new(
                 Info: info,

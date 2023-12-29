@@ -22,4 +22,8 @@ public sealed class NullStream : Stream
     public override void SetLength(long value) { }
 
     public override void Write(byte[] buffer, int offset, int count) { }
+
+    public override void Write(ReadOnlySpan<byte> buffer) { }
+
+    public override void WriteByte(byte value) { }
 }

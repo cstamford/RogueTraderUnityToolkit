@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using RogueTraderUnityToolkit.Core;
+using System.Text;
 
 namespace RogueTraderUnityToolkit.Unity;
 
@@ -15,7 +16,7 @@ public sealed record AssetBundle(
     {
         using Stream stream = info.Open(0, 16);
         EndianBinaryReader reader = new(stream, 0, 16);
-        return reader.ReadStringUntilNull() == AssetBundleHeader.UnityFs;
+        return AssetBundleHeader.CheckMagicMatches(reader);
     }
 
     public static AssetBundle Read(SerializedAssetInfo info)
@@ -74,33 +75,27 @@ public sealed record AssetBundle(
 }
 
 public readonly record struct AssetBundleHeader(
-    string Magic,
     int Version,
-    string UnityVersion1,
-    string UnityVersion2,
+    StringPool.Entry UnityVersion1,
+    StringPool.Entry UnityVersion2,
     long Size,
     int CompressedSize,
     int UncompressedSize,
     int Flags)
 {
-    public static string UnityFs => "UnityFS";
 
     public static AssetBundleHeader Read(EndianBinaryReader reader)
     {
-        string magic = reader.ReadStringUntilNull();
+        if (!CheckMagicMatches(reader)) throw new("Magic does not match");
+
         int version = reader.ReadS32();
-        string unityVersion1 = reader.ReadStringUntilNull();
-        string unityVersion2 = reader.ReadStringUntilNull();
+        StringPool.Entry unityVersion1 = reader.ReadStringUntilNull();
+        StringPool.Entry unityVersion2 = reader.ReadStringUntilNull();
         long size = reader.ReadS64();
         int compressedSize = reader.ReadS32();
         int uncompressedSize = reader.ReadS32();
         int flags = reader.ReadS32();
-
-        if (magic != UnityFs)
-        {
-            throw new($"Expected magic {UnityFs} but got {magic}.");
-        }
-
+        
         if (version != _version)
         {
             throw new($"Expected version {_version} but got {version}.");
@@ -114,7 +109,6 @@ public readonly record struct AssetBundleHeader(
         AssetBundleUtil.ValidateCompression(flags, uncompressedSize, compressedSize);
 
         return new(
-            Magic: magic,
             Version: version,
             UnityVersion1: unityVersion1,
             UnityVersion2: unityVersion2,
@@ -123,7 +117,15 @@ public readonly record struct AssetBundleHeader(
             UncompressedSize: uncompressedSize,
             Flags: flags);
     }
+
+    public static bool CheckMagicMatches(EndianBinaryReader reader)
+    {
+        Span<byte> buffer = stackalloc byte[_magicBytes.Length];
+        reader.ReadBytes(buffer);
+        return buffer.SequenceEqual(_magicBytes);
+    }
     
+    private static readonly byte[] _magicBytes = [ .. Encoding.ASCII.GetBytes("UnityFS"), 0 ];
     private const int _version = 8;
     private const string _unityVersion = "2022.3.7f1";
 }
@@ -171,14 +173,14 @@ public readonly record struct AssetBundleNode(
     long Offset,
     long Size,
     int Flags,
-    string Path)
+    StringPool.Entry Path)
 {
     public static AssetBundleNode Read(EndianBinaryReader reader)
     {
         long offset = reader.ReadS64();
         long size = reader.ReadS64();
         int flags = reader.ReadS32();
-        string path = reader.ReadStringUntilNull();
+        StringPool.Entry path = reader.ReadStringUntilNull();
 
         return new(
             Offset: offset,

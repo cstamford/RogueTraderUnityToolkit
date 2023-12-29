@@ -5,12 +5,14 @@ namespace RogueTraderUnityToolkit.Unity;
 public readonly struct SerializedFileReader(SerializedFile file)
 {
     public void ReadObjectRange(
+        IObjectTypeTreeReader treeReader,
+        bool withDebugReader,
         int startIdx,
         int endIdx,
-        IObjectTypeTreeReader treeReader,
-        bool withDebugReader)
+        Action<int, int> fnStartedOne,
+        Action<int, int> fnFinishedOne)
     {
-        using var _ = Util.PerfScope("ReadObjectRange", new (0, 255, 0));
+        using SuperluminalPerf.EventMarker _ = Util.PerfScope("ReadObjectRange", new (0, 255, 0));
 
         long offsetStart = file.Info.Size;
         long offsetEnd = 0;
@@ -38,8 +40,10 @@ public readonly struct SerializedFileReader(SerializedFile file)
             ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
             int objectBase = (int)(instance.Offset - offsetStart);
 
+            fnStartedOne(i, endIdx);
             reader.Position = objectBase;
             parser.Read(file.Objects[instance.TypeIdx], instance, file.TypeReferences, reader, treeReader);
+            fnFinishedOne(i, endIdx);
  
             if (parser.Offset != instance.Size)
             {

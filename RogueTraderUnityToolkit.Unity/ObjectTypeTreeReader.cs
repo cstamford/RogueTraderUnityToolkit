@@ -1,4 +1,6 @@
-﻿namespace RogueTraderUnityToolkit.Unity;
+﻿using RogueTraderUnityToolkit.Core;
+
+namespace RogueTraderUnityToolkit.Unity;
 
 public interface IObjectTypeTreeReader
 {
@@ -34,7 +36,10 @@ public interface IObjectTypeTreeReader
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm);
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm);
 
     public void Align(
         in ObjectParserNode node,
@@ -82,7 +87,10 @@ public sealed class ObjectTypeTreeNullReader : IObjectTypeTreeReader
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm)
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm)
     { }
 
     public void Align(
@@ -148,7 +156,10 @@ public sealed class ObjectTypeTreeMultiReader(
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm)
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm)
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadRefObjectRegistry(node, refId, cls, ns, asm); }
     }

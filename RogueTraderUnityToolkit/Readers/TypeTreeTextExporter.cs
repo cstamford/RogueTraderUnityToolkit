@@ -1,18 +1,27 @@
-﻿using RogueTraderUnityToolkit.Unity;
+﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Unity;
+using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace RogueTraderUnityToolkit.Readers;
 
-public sealed class TypeTreeTextReader(
-    TextWriter writer,
-    Action fnFinishedOne)
+public sealed class TypeTreeTextExporter
     : IObjectTypeTreeReader
 {
+    public Stream Stream
+    {
+        set => _writer = new(value);
+    }
+    
     public void BeginTree(
         in ObjectTypeTree tree)
     {
+        if (_treeNodeStacks.Count == 0)
+        {
+            _builder.Buffer = ArrayPool<byte>.Shared.Rent(1024);
+        }
+        
         _treeNodeStacks.Push([]);
         _treeArrayStacks.Push([]);
     }
@@ -25,13 +34,13 @@ public sealed class TypeTreeTextReader(
 
         if (_treeNodeStacks.Count == 0)
         {
-            fnFinishedOne();
-
             _treeNodeStacks.Clear();
             _treeArrayStacks.Clear();
             _arrayIndices.Clear();
-            _localBuilder.Length = 0;
-
+            
+            ArrayPool<byte>.Shared.Return(_builder.Buffer);
+            _builder.Index = 0;
+            
             return;
         }
 
@@ -46,86 +55,90 @@ public sealed class TypeTreeTextReader(
     {
         if (PopNodeFrames(node, out NodeFrame nodeFrame))
         {
-            _localBuilder.Length = nodeFrame.LocalBuilderLength;
-            _localBuilder.Append(':');
-            _localBuilder.Append(node.Name);
+            _builder.Index = nodeFrame.BuilderIndex;
+            _builder.Append(':');
+            _builder.Append(node.Name);
         }
         else
         {
-            _localBuilder.Append('$');
-            _localBuilder.Append('[');
-            _localBuilder.Append(node.TypeName);
-            _localBuilder.Append(']');
+            _builder.Append('$');
+            _builder.Append('[');
+            _builder.Append(node.TypeName);
+            _builder.Append(']');
         }
 
         if (PopArrayFrames(node, out ArrayFrame arrayFrame) &&
             node.Index == arrayFrame.ArrayDataNodeIndex)
         {
-            _localBuilder.Append('[');
-            _localBuilder.Append(_arrayIndices[arrayFrame.ArrayIndexListOffset]++);
-            _localBuilder.Append(']');
+            _builder.Append('[');
+            _builder.Append(_arrayIndices[arrayFrame.ArrayIndexListOffset]++);
+            _builder.Append(']');
         }
 
-        TreeNodeStack.Push(new(LocalBuilderLength: _localBuilder.Length, NodeLevel: node.Level));
+        TreeNodeStack.Push(new(
+            BuilderIndex: (ushort)_builder.Index,
+            NodeLevel: node.Level));
     }
 
     public void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
     {
-        writer.Write(_localBuilder);
-        writer.Write('$');
-        writer.Write(node.Type);
-        writer.Write(" = ");
+        _writer.Write(_builder.Buffer.AsSpan(0, _builder.Index));
+        _writer.Write('$');
+        _writer.Write(_typePoolEntries[node.Type]);
+        _writer.Write(' ');
+        _writer.Write('=');
+        _writer.Write(' ');
 
         switch (node.Type)
         {
             case ObjectParserType.U64:
-                writer.Write(nodeReader.ReadU64(node));
+                _writer.Write(nodeReader.ReadU64(node));
                 break;
 
             case ObjectParserType.U32:
-                writer.Write(nodeReader.ReadU32(node));
+                _writer.Write(nodeReader.ReadU32(node));
                 break;
 
             case ObjectParserType.U16:
-                writer.Write(nodeReader.ReadU16(node));
+                _writer.Write(nodeReader.ReadU16(node));
                 break;
 
             case ObjectParserType.U8:
-                writer.Write(nodeReader.ReadU8(node));
+                _writer.Write(nodeReader.ReadU8(node));
                 break;
 
             case ObjectParserType.S64:
-                writer.Write(nodeReader.ReadS64(node));
+                _writer.Write(nodeReader.ReadS64(node));
                 break;
 
             case ObjectParserType.S32:
-                writer.Write(nodeReader.ReadS32(node));
+                _writer.Write(nodeReader.ReadS32(node));
                 break;
 
             case ObjectParserType.S16:
-                writer.Write(nodeReader.ReadS16(node));
+                _writer.Write(nodeReader.ReadS16(node));
                 break;
 
             case ObjectParserType.S8:
-                writer.Write(nodeReader.ReadS8(node));
+                _writer.Write(nodeReader.ReadS8(node));
                 break;
 
             case ObjectParserType.F64:
-                writer.Write(nodeReader.ReadF64(node));
+                _writer.Write(nodeReader.ReadF64(node));
                 break;
 
             case ObjectParserType.F32:
-                writer.Write(nodeReader.ReadF32(node));
+                _writer.Write(nodeReader.ReadF32(node));
                 break;
 
             case ObjectParserType.Bool:
-                writer.Write(nodeReader.ReadBool(node));
+                _writer.Write(nodeReader.ReadBool(node));
                 break;
 
             case ObjectParserType.Char:
-                writer.Write(nodeReader.ReadChar(node));
+                _writer.Write(nodeReader.ReadChar(node));
                 break;
 
             default:
@@ -133,7 +146,7 @@ public sealed class TypeTreeTextReader(
                 break;
         }
 
-        writer.Write('\n');
+        _writer.Write('\n');
     }
 
     public void ReadPrimitiveArray(
@@ -142,20 +155,17 @@ public sealed class TypeTreeTextReader(
         in ObjectParserReader nodeReader,
         int arrayLength)
     {
-        const int maxLenPrimArray = 16;
-        int trimmed = arrayLength - maxLenPrimArray;
-
-        writer.Write(_localBuilder);
-        writer.Write('$');
-        writer.Write(node.Type);
-        writer.Write('<');
-        writer.Write(arrayLength);
-        writer.Write('>');
-        writer.Write(" = [");
-        writer.Write(nodeReader.ReadPrimitiveArrayAsString(node, arrayLength, maxLenPrimArray));
-        writer.Write(']');
-        if (trimmed > 0) writer.Write($"... <{trimmed} skipped>");
-        writer.Write('\n');
+        _writer.Write(_builder.Buffer.AsSpan(0, _builder.Index));
+        _writer.Write('$');
+        _writer.Write(_typePoolEntries[node.Type]);
+        _writer.Write('<');
+        _writer.Write(arrayLength);
+        _writer.Write('>');
+        _writer.Write(' ');
+        _writer.Write('=');
+        _writer.Write(' ');
+        _writer.Write(_dataNotIncluded);
+        _writer.Write('\n');
     }
 
     public void ReadComplexArray(
@@ -176,37 +186,72 @@ public sealed class TypeTreeTextReader(
         in ObjectParserReader nodeReader,
         int stringLength)
     {
-        const int maxLenString = 256;
-        int trimmed = stringLength - maxLenString;
-
-        writer.Write(_localBuilder);
-        writer.Write('$');
-        writer.Write(node.Type);
-        writer.Write('<');
-        writer.Write(stringLength);
-        writer.Write('>');
-        writer.Write(" = \"");
-        writer.Write(nodeReader.ReadString(node, stringLength, maxLenString));
-        writer.Write('\"');
-        if (trimmed > 0) writer.Write($" <{trimmed} skipped>");
-        writer.Write('\n');
+        _writer.Write(_builder.Buffer.AsSpan(0, _builder.Index));
+        _writer.Write('$');
+        _writer.Write(_typePoolEntries[node.Type]);
+        _writer.Write('<');
+        _writer.Write(stringLength);
+        _writer.Write('>');
+        _writer.Write(' ');
+        _writer.Write('=');
+        _writer.Write(' ');
+        _writer.Write('\"');
+        _writer.Write(nodeReader.ReadString(node, stringLength, readLength: 128));
+        _writer.Write('\"');
+        _writer.Write('\n');
     }
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm)
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm)
     {
-        writer.Write(_localBuilder);
-        writer.Write('$');
-        writer.Write(node.Type);
-        writer.Write($" = [rid:{refId:X}, managed:\"{asm}:{ns}.{cls}\"]");
-        writer.Write('\n');
+        _writer.Write(_builder.Buffer.AsSpan(0, _builder.Index));
+        _writer.Write('$');
+        _writer.Write(_typePoolEntries[node.Type]);
+        _writer.Write(' ');
+        _writer.Write('=');
+        _writer.Write(' ');
+        _writer.Write('[');
+        _writer.Write(' ');
+        _writer.Write(refId);
+        _writer.Write(',');
+        _writer.Write(' ');
+        _writer.Write(asm);
+        _writer.Write(',');
+        _writer.Write(' ');
+        _writer.Write(ns);
+        _writer.Write(',');
+        _writer.Write(' ');
+        _writer.Write(cls);
+        _writer.Write(' ');
+        _writer.Write(']');
+        _writer.Write('\n');
     }
 
     public void Align(
         in ObjectParserNode node,
         int alignedBytes)
     { }
+    
+    private Stack<NodeFrame> TreeNodeStack => _treeNodeStacks.Peek();
+    private Stack<ArrayFrame> TreeArrayStack => _treeArrayStacks.Peek();
+    
+    private FastTextWriter _writer;
+
+    private readonly FastStringBuilder _builder = new();
+    private readonly Stack<Stack<NodeFrame>> _treeNodeStacks = [];
+    private readonly Stack<Stack<ArrayFrame>> _treeArrayStacks = [];
+    private readonly List<uint> _arrayIndices = [];
+
+    private static StringPool.Entry _dataNotIncluded = StringPool.Fetch("[ (data not included) ]");
+
+    private static Dictionary<ObjectParserType, StringPool.Entry> _typePoolEntries =
+        Enum.GetValues<ObjectParserType>()
+            .Zip(Enum.GetNames<ObjectParserType>(), (value, name) => (value, StringPool.Fetch(name)))
+            .ToDictionary();
 
     private bool PopNodeFrames(
         in ObjectParserNode node,
@@ -257,21 +302,14 @@ public sealed class TypeTreeTextReader(
 
         return hasFrame;
     }
-
+    
     private record struct NodeFrame(
-        int LocalBuilderLength,
+        ushort BuilderIndex,
         byte NodeLevel);
 
     private record struct ArrayFrame(
         ushort ArrayDataNodeIndex,
         byte ArrayNodeLevel,
         byte ArrayIndexListOffset);
-
-    private Stack<NodeFrame> TreeNodeStack => _treeNodeStacks.Peek();
-    private Stack<ArrayFrame> TreeArrayStack => _treeArrayStacks.Peek();
-
-    private readonly Stack<Stack<NodeFrame>> _treeNodeStacks = [];
-    private readonly Stack<Stack<ArrayFrame>> _treeArrayStacks = [];
-    private readonly List<int> _arrayIndices = [];
-    private readonly StringBuilder _localBuilder = new();
 }
+

@@ -14,7 +14,7 @@ public class LruCache<TKey, TValue>(int maxSize)
 
     public TValue Pin(TKey key, out int pinCount)
     {
-        using var _ = Util.PerfScope("LruCache.Pin", new(128, 128, 0));
+        using SuperluminalPerf.EventMarker _ = Util.PerfScope("LruCache.Pin", new(128, 128, 0));
 
         TValue? value;
 
@@ -93,7 +93,7 @@ public class LruCache<TKey, TValue>(int maxSize)
         {
             Debug.Assert(!_loaded);
 
-            using var _ = Util.PerfScope("LruCacheDataLoad", new(128, 128, 0));
+            using SuperluminalPerf.EventMarker _ = Util.PerfScope("LruCacheDataLoad", new(128, 128, 0));
             _value = fnLoadValue();
             _loaded = true;
         }
@@ -102,7 +102,7 @@ public class LruCache<TKey, TValue>(int maxSize)
         {
             Debug.Assert(_loaded);
 
-            using var _ = Util.PerfScope("LruCacheDataUnload", new(128, 128, 0));
+            using SuperluminalPerf.EventMarker _ = Util.PerfScope("LruCacheDataUnload", new(128, 128, 0));
             _value!.Dispose();
             _loaded = false;
         }

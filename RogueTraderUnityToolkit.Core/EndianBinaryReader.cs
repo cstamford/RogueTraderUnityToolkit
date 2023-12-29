@@ -140,18 +140,18 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public string ReadString(int len)
+    public StringPool.Entry ReadString(int len)
     {
         byte[] memory = ArrayPool<byte>.Shared.Rent(len);
         Memory<byte> memorySlice = memory.AsMemory()[..len];
         ReadBytes(memorySlice.Span);
-        string str = StringPool.Fetch(memorySlice);
+        StringPool.Entry str = StringPool.Fetch(memorySlice);
         ArrayPool<byte>.Shared.Return(memory);
         return str;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public unsafe string ReadStringUntilNull()
+    public StringPool.Entry ReadStringUntilNull()
     {
         const int blockSize = 32;
         Span<byte> scratch = stackalloc byte[blockSize];
@@ -167,7 +167,7 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
             Span<byte> scratchSlice = scratch[..bytesToRead];
             ReadBytes(scratchSlice);
 
-            int nullIdx = Util.FastFindNull(scratchSlice);
+            int nullIdx = Util.FastFindByte(0, scratchSlice);
 
             if (nullIdx != -1)
             {
@@ -179,9 +179,9 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
         }
 
         Position = startPos;
-        string str = ReadString(stringLength);
+        StringPool.Entry entry = ReadString(stringLength);
         Seek(1); // skip over the null terminator
-        return str;
+        return entry;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

@@ -1,5 +1,4 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using System.Text;
 
 namespace RogueTraderUnityToolkit.Unity;
 
@@ -12,22 +11,19 @@ public static class UnityTypeNames
 
         while (true)
         {
-            int nextNull = Util.FastFindNull(buffer, head);
+            int nextNull = Util.FastFindByte(0, buffer, head);
             if (nextNull == -1) break;
 
             ReadOnlyMemory<byte> memory = _typeNameBinaryData.AsMemory()[head..nextNull];
             _offsetLookupBytes.Add(head, memory);
-            _offsetLookup.Add(head, Encoding.ASCII.GetString(memory.Span));
 
             head = nextNull + 1;
         }
     }
 
-    public static IReadOnlyDictionary<int, string> OffsetLookup => _offsetLookup;
-    public static IReadOnlyDictionary<int, ReadOnlyMemory<byte>> OffsetLookupBytes => _offsetLookupBytes;
-    public static ReadOnlyMemory<byte> Data => _typeNameBinaryData;
-
-    private static readonly Dictionary<int, string> _offsetLookup = [];
+    public static bool TryGetValue(int offset, out ReadOnlyMemory<byte> bytes) =>
+        _offsetLookupBytes.TryGetValue(offset, out bytes);
+    
     private static readonly Dictionary<int, ReadOnlyMemory<byte>> _offsetLookupBytes = [];
 
     #region codegen

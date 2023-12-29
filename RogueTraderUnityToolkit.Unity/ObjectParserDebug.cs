@@ -33,12 +33,13 @@ public sealed class ObjectParserDebug(
         _indent = node.Level;
 
         string nodeString = node.ToString();
-        int nodeNameIdx = nodeString.IndexOf(node.Name, StringComparison.Ordinal);
+        string nodeNameString = node.Name.String;
+        int nodeNameIdx = nodeString.IndexOf(nodeNameString, StringComparison.Ordinal);
         Debug.Assert(nodeNameIdx != -1);
 
         Log.Write(_indent * _spacesPerIndent,
             new LogEntry(nodeString[..nodeNameIdx], _col),
-            new LogEntry(node.Name, ConsoleColor.White),
+            new LogEntry(nodeNameString, ConsoleColor.White),
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
     }
 
@@ -59,7 +60,7 @@ public sealed class ObjectParserDebug(
         in ObjectParserReader nodeReader,
         int arrayLength)
     {
-        int maxLen = 4;
+        const int maxLen = 4;
         string str = nodeReader.ReadPrimitiveArrayAsString(node, arrayLength, maxLen);
 
         int remainingElements = arrayLength - maxLen;
@@ -97,8 +98,8 @@ public sealed class ObjectParserDebug(
         in ObjectParserReader nodeReader,
         int stringLength)
     {
-        int maxLen = 32;
-        string str = nodeReader.ReadString(node, stringLength, maxLen);
+        const int maxLen = 32;
+        string str = nodeReader.ReadString(node, stringLength, maxLen).String;
 
         int remainingElements = stringLength - maxLen;
         int remainingBytes = 0;
@@ -119,7 +120,10 @@ public sealed class ObjectParserDebug(
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm)
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm)
     {
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadRefObjectRegistry", ConsoleColor.Green),
@@ -218,7 +222,10 @@ public sealed class ObjectParserDebugWrapper(
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
-        long refId, string cls, string ns, string asm)
+        long refId,
+        StringPool.Entry cls,
+        StringPool.Entry ns,
+        StringPool.Entry asm)
     {
         if (Enabled) _reader.ReadRefObjectRegistry(node, refId, cls, ns, asm);
     }

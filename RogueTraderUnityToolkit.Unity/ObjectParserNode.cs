@@ -1,11 +1,12 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using System.Diagnostics;
 using System.Text;
 
 namespace RogueTraderUnityToolkit.Unity;
 
 public readonly record struct ObjectParserNode(
-    string Name,
-    string TypeName,
+    StringPool.Entry Name,
+    StringPool.Entry TypeName,
     ObjectParserType Type,
     ObjectParserNodeFlags Flags,
     ushort Index,
@@ -32,8 +33,8 @@ public readonly record struct ObjectParserNode(
         ref ObjectTypeNode node = ref nodes[nodeIdx];
 
         ResolveFromNames(node, localBuffer,
-            out string name,
-            out string typeName,
+            out StringPool.Entry name,
+            out StringPool.Entry typeName,
             out ObjectParserType type);
 
         ResolveHierarchy(node, nodes, nodeIdx,
@@ -58,8 +59,8 @@ public readonly record struct ObjectParserNode(
     private static void ResolveFromNames(
         in ObjectTypeNode node,
         ReadOnlyMemory<byte> localBuffer,
-        out string name,
-        out string typeName,
+        out StringPool.Entry name,
+        out StringPool.Entry typeName,
         out ObjectParserType type)
     {
         name = FetchName(node.OffsetName, localBuffer, out ReadOnlyMemory<byte> _);
@@ -80,7 +81,7 @@ public readonly record struct ObjectParserNode(
         type = compactType;
     }
 
-    private static string FetchName(
+    private static StringPool.Entry FetchName(
         uint offset,
         ReadOnlyMemory<byte> localBuffer,
         out ReadOnlyMemory<byte> bufferRead)
@@ -88,14 +89,17 @@ public readonly record struct ObjectParserNode(
         const uint inGlobalBuffer = 1u << 31;
         int realOffset = (int)(offset & ~inGlobalBuffer);
 
-        if ((offset & inGlobalBuffer) != 0)
+        if ((offset & inGlobalBuffer) == 0)
         {
-            bufferRead = UnityTypeNames.OffsetLookupBytes[realOffset];
-            return UnityTypeNames.OffsetLookup[realOffset];
+            int nullTerminator = Util.FastFindByte(0, localBuffer.Span, realOffset);
+            bufferRead = localBuffer[realOffset..nullTerminator];
+        }
+        else
+        {
+            bool found = UnityTypeNames.TryGetValue(realOffset, out bufferRead);
+            Debug.Assert(found);
         }
 
-        int nullTerminator = Util.FastFindNull(localBuffer.Span, realOffset);
-        bufferRead = localBuffer[realOffset..nullTerminator];
         return StringPool.Fetch(bufferRead);
     }
 
@@ -168,10 +172,13 @@ public readonly record struct ObjectParserNode(
         return flags;
     }
 
-    public override string ToString() 
-        => $"{Name} ({TypeName} {Type}/{Size} idx:{Index} child:{FirstChildIdx} sibling:{FirstSiblingIdx} flags:{Flags})";
+    public override string ToString() => $"{Name.String} ({TypeName.String}) " +
+                                         $"{Type}/{Size} " +
+                                         $"idx:{Index} " +
+                                         $"child:{FirstChildIdx} " +
+                                         $"sibling:{FirstSiblingIdx} " +
+                                         $"flags:{Flags})";
 }
-
 
 public enum ObjectParserType : byte
 {

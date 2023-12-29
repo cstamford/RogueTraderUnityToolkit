@@ -195,7 +195,7 @@ public readonly ref struct ObjectParserReader(
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public string ReadString(
+    public StringPool.Entry ReadString(
         in ObjectParserNode node,
         int stringLength,
         int readLength = -1)

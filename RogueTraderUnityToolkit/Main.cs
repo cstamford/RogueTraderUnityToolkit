@@ -22,7 +22,7 @@ if (exportToDir) throw new("Not yet implemented.");
 
 bool withDebugger = Debugger.IsAttached;
 
-Log.Write($"Collecting files from {string.Join(", ", arguments.ImportPaths)} ...");
+Log.Write($"Collecting files from {string.Join(", ", arguments.ImportPaths)}");
 
 IEnumerable<FileInfo> files = [];
 
@@ -47,7 +47,7 @@ files = files.OrderByDescending(file => file.Length);
 if (withDebugger)
 {
     Log.Write("DEBUG: Randomizing order and capping input count.", ConsoleColor.Yellow);
-    files = files.Shuffle().Take(250);
+    //files = files.Shuffle().Take(250);
 }
 
 int fileCountLoaded = 0;
@@ -86,17 +86,18 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
         diskFileLoaders,
         fileInfo,
         out MemoryMappedFile? bundleFile,
-        out SerializedAssetInfo? _,
+        out SerializedAssetInfo? bundleInfo,
         out ISerializedAsset? bundleAsset))
     {
+        Log.Write($"Unable to load {fileInfo.Name}", ConsoleColor.Yellow);
         return;
     }
     
     try
     {
         AssetBundle? bundle = bundleAsset as AssetBundle;
-        Debug.Assert(bundle != null);
-        
+        if (bundle == null) return;
+
         IRelocatableMemoryRegion[] bundleMemory = PrepMemoryForBundle(bundle);
         
         foreach (AssetBundleNode bundleNode in bundle.Manifest.Nodes)
@@ -112,28 +113,46 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
                     Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
                 }
 
-                return;
+                continue;
             }
             
             Debug.Assert(file != null);
             SerializedFileReader fileReader = new(file);
             
-            int instances = file.ObjectInstances.Length;
-            Interlocked.Add(ref assetCountPending, instances);
-            
-            using BufferedStream bufferedStream = new(exportToDir ? throw new() :
-                    exportToStdOut ? Console.OpenStandardOutput() : new NullStream());
+            Stream stream = new NullStream();
 
-            using StreamWriter bufferedStreamWriter = new(bufferedStream);
-            
-            IObjectTypeTreeReader treeReader = new TypeTreeTextReader(bufferedStreamWriter, () =>
+            if (exportToDir)
             {
-                Interlocked.Increment(ref assetCountLoaded);
-                Interlocked.Decrement(ref assetCountPending);
-                if (withDebugger) bufferedStreamWriter.Flush();
-            });
+                /*
+                string exportDir = Path.Combine(
+                    arguments.ExportPath,
+                    file.Info.Parent.Identifier,
+                    $"{file.Info.Identifier}.txt");
+                    */
 
-            fileReader.ReadObjectRange(0, instances, treeReader, withDebugReader: arguments.Debug);
+            }
+            else if (exportToStdOut)
+            {
+                stream = Console.OpenStandardOutput();
+            }
+            
+            fileReader.ReadObjectRange(
+                treeReader: new TypeTreeTextExporter() { Stream = stream },
+                withDebugReader: arguments.Debug,
+                startIdx: 0,
+                endIdx: file.ObjectInstances.Length,
+                fnStartedOne: (i, end) =>
+                {
+                    Interlocked.Increment(ref assetCountPending);
+                },
+                fnFinishedOne: (i, end) =>
+                {
+                    Interlocked.Increment(ref assetCountLoaded);
+                    Interlocked.Decrement(ref assetCountPending);
+                    
+                    stream.WriteByte((byte)'\n');
+                    stream.WriteByte((byte)'\n');
+                });
         }
     }
     catch (Exception e)
@@ -210,7 +229,7 @@ bool TryLoadSerializedFileFromNode(
 
     SerializedAssetInfo info = new(
         parent: bundle,
-        identifier: node.Path,
+        identifier: node.Path.String,
         size: node.Size,
         fnOpen: (offset, length) =>
         {
@@ -263,7 +282,7 @@ bool TryLoadAssetFromInfo(
     SerializedAssetInfo info,
     out ISerializedAsset? asset)
 {
-    using var _ = Util.PerfScope("TryLoadAssetFromInfo", new(0, 128, 128));
+    using SuperluminalPerf.EventMarker _ = Util.PerfScope("TryLoadAssetFromInfo", new(0, 128, 128));
 
     IAssetLoader? loader = loaders.FirstOrDefault(loader => CanReadSafe(loader, info));
 

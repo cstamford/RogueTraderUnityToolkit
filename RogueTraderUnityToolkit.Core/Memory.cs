@@ -37,4 +37,14 @@ public static class Memory
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static IntPtr AlignTo(IntPtr value, int alignment) => value + (alignment - 1) & ~(alignment - 1);
+
+    public static bool MayBeAsciiString(ReadOnlySpan<byte> span)
+    {
+        foreach (byte t in span)
+        {
+            if (t > 0x7F) return false;
+        }
+
+        return true;
+    }
 }

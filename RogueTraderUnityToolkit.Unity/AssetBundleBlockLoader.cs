@@ -11,7 +11,7 @@ public struct AssetBundleBlockLoader(
 {
     public ReadOnlyMemory<byte> Load()
     {
-        using var _ = Util.PerfScope("LoadBlockMemory", new(0, 128, 128));
+        using SuperluminalPerf.EventMarker _ = Util.PerfScope("LoadBlockMemory", new(0, 128, 128));
 
         using Stream stream = bundleInfo.Open(region.FileOffset, region.FileLength);
         EndianBinaryReader reader = new(stream);
