@@ -82,19 +82,17 @@ public static class AnalyseTreesReport
             {
                 int idx;
 
-                ReadOnlySpan<AnalyseTreesNodePathEntry> parents = path.Parents.Span;
-                for (idx = parents.Length - 1; idx >= 0; --idx)
+                AnalyseTreesAllocation pathMem = path.Allocation;
+                
+                for (idx = pathMem.Length - 1; idx >= 0; --idx)
                 {
-                    if (parents[idx].TypeName == targetTypeName) break;
+                    if (pathMem[idx].TypeName == targetTypeName) break;
                 }
 
                 if (idx != -1)
                 {
                     // Make a new path, from where we overlapped as far as possible.
-                    int lengthOfRef = parents.Length - idx - 1;
-                    AnalyseTreesNodePathEntry[] newPath = new AnalyseTreesNodePathEntry[lengthOfRef];
-                    parents[(idx+1)..].CopyTo(newPath);
-                    refs.Add(new(newPath, path.Self, -1));
+                    refs.Add(new(path.Allocation[(idx + 1)..], path.Self));
                 }
             }
         }

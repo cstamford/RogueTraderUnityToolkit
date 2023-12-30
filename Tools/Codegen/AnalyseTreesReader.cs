@@ -1,17 +1,28 @@
-﻿
-using RogueTraderUnityToolkit.Core;
+﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
-using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Codegen;
 
-public sealed class AnalyseTreesReader(
-    IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+public sealed class AnalyseTreesReader 
     : ObjectTypeTreeStackReader<ushort>
 {
+    public AnalyseTreesReader(
+        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    {
+        _allData = data;
+
+        _fnAddPathEntry = (key) =>
+        {
+            _pinnedMemory.Add(key.Allocation.Handle);
+            return 1;
+        };
+
+        _fnUpdatePathEntry = (_, value) => ++value;
+    }
+
     public void StartFile(SerializedFileTypeReference[] references)
     {
         _references = references;
@@ -19,13 +30,13 @@ public sealed class AnalyseTreesReader(
 
     public void StartObject(UnityObjectType type)
     {
-        _data = data[type];
+        _data = _allData[type];
         _pathCache.Clear();
 
-        for (int i = 0; i < _borrowedMemory.Count; ++i)
+        foreach (AnalyseTreesMemoryHandle handle in _borrowedMemory)
         {
-            if (_pinnedMemory.Contains(i)) continue;
-            _pool.Return(_borrowedMemory[i].Item1);
+            if (_pinnedMemory.Contains(handle)) continue;
+            _allocator.Return(handle);
         }
         
         _borrowedMemory.Clear();
@@ -56,15 +67,18 @@ public sealed class AnalyseTreesReader(
 
         if (TreeDepth == 1 && IsFirstArrayIndex)
         {
+            // You might be tempted to make these lambdas.
+            // That would be wonderful, wouldn't it?
+            // NOPE.
+            // Not gonna happen.
+            // C# allocates 40gb of junk through a full export if these are lambdas...
+
             _data.PathRefs.AddOrUpdate(
                 CalculatePath(node, tree),
-                (key) => {
-                    _pinnedMemory.Add(key.BorrowedMemoryIdx);
-                    return 1;
-                },
-                (_, value) => ++value);
+                _fnAddPathEntry,
+                _fnUpdatePathEntry);
         }
-        
+
         TreeNodeStack.Pop();
     }
 
@@ -82,7 +96,7 @@ public sealed class AnalyseTreesReader(
             x.Namespace == ns &&
             x.Assembly == asm);
         
-        _data = data[reference.Info.Type];
+        _data = _allData[reference.Info.Type];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -98,9 +112,8 @@ public sealed class AnalyseTreesReader(
         int parentCount = TreeNodeStack.Count - 1;
         Span<ushort> indices = stackalloc ushort[parentCount];
 
-        int borrowedMemoryIdx = _borrowedMemory.Count;
-        AnalyseTreesNodePathEntry[] pathEntries = _pool.Rent(parentCount);
-        _borrowedMemory.Add((pathEntries, parentCount));
+        AnalyseTreesAllocation allocation = _allocator.Rent(parentCount);
+        _borrowedMemory.Add(allocation.Handle);
 
         int pathIdx = parentCount - 1;
         
@@ -108,18 +121,16 @@ public sealed class AnalyseTreesReader(
         {
             if (nodeIndex == ourIdx) continue;
             ref ObjectParserNode treeNode = ref tree[nodeIndex];
-            pathEntries[pathIdx] = new(treeNode.Name, treeNode.TypeName, treeNode.Type);
+            allocation[pathIdx] = new(treeNode.Name, treeNode.TypeName, treeNode.Type);
             indices[pathIdx] = nodeIndex;
             --pathIdx;
         }
 
         // The path is now in the form [ parent ..., self ].
-        AnalyseTreesNodePath ourPath = new(pathEntries.AsMemory(0, parentCount), us, borrowedMemoryIdx);
+        AnalyseTreesNodePath ourPath = new(allocation, us);
         Debug.Assert(ourPath.Parents.Length == TreeNodeStack.Count - 1);
         
-        Debug.Assert(!_pathCache.Any(x => x.Key > ourIdx));
-        
-        ConstructPathForParents(pathEntries, borrowedMemoryIdx, indices);
+        ConstructPathForParents(allocation, indices);
         ConstructPathForLeafSiblings(node, tree, ourPath);
         _pathCache.Add(node.Index, ourPath);
         
@@ -128,36 +139,23 @@ public sealed class AnalyseTreesReader(
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ConstructPathForParents(
-        AnalyseTreesNodePathEntry[] mem,
-        int memIdx,
+        AnalyseTreesAllocation alloc,
         ReadOnlySpan<ushort> indices)
     {
         for (int i = 0; i < indices.Length; ++i)
         {
             int nodeArraySelfIdx = indices.Length - i - 1;
             ushort nodeIdx = indices[nodeArraySelfIdx];
-            AnalyseTreesNodePathEntry us = mem[nodeArraySelfIdx];
-            
-            if (_pathCache.TryGetValue(nodeIdx, out AnalyseTreesNodePath existingPath))
+
+            if (_pathCache.TryGetValue(nodeIdx, out AnalyseTreesNodePath _))
             {
-                // Parent already done by another sibling.
-
-                int existingMemIdx = existingPath.BorrowedMemoryIdx;
-                (AnalyseTreesNodePathEntry[] existingMem, int existingLen) = _borrowedMemory[existingMemIdx];
-
-                // However! This might be a better option.
-                // We want to take the longest node possible, so as many nodes as possible share the same allocation.
-                if (existingLen <= indices.Length)
-                {
-                    continue;
-                }
-                
-                Debug.Assert(us == existingMem[nodeArraySelfIdx]);
-                _pathCache[nodeIdx] = new(existingMem.AsMemory(0, nodeArraySelfIdx), us, existingMemIdx);
-                continue;
+                // Parent path already done by another sibling.
+                return;
             }
-            
-            _pathCache.Add(nodeIdx, new(mem.AsMemory(0, nodeArraySelfIdx), us, memIdx));
+
+            AnalyseTreesNodePathEntry us = alloc[nodeArraySelfIdx];
+            AnalyseTreesAllocation ourParents = alloc.Slice(0, nodeArraySelfIdx);
+            _pathCache.Add(nodeIdx, new(ourParents, us));
         }
     }
     
@@ -198,10 +196,14 @@ public sealed class AnalyseTreesReader(
     private PerTypeTreeData _data = default!;
     private SerializedFileTypeReference[] _references = default!;
     
+    private readonly Func<AnalyseTreesNodePath, int> _fnAddPathEntry;
+    private readonly Func<AnalyseTreesNodePath, int, int> _fnUpdatePathEntry;
+    
+    private readonly IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> _allData;
     private readonly Dictionary<ushort, AnalyseTreesNodePath> _pathCache = [];
-    private readonly List<(AnalyseTreesNodePathEntry[], int)> _borrowedMemory = [];
-    private readonly HashSet<int> _pinnedMemory = [];
-    private readonly ArrayPool<AnalyseTreesNodePathEntry> _pool = ArrayPool<AnalyseTreesNodePathEntry>.Create();
+    private readonly List<AnalyseTreesMemoryHandle> _borrowedMemory = [];
+    private readonly HashSet<AnalyseTreesMemoryHandle> _pinnedMemory = [];
+    private readonly AnalyseTreesPathAllocator _allocator = new();
 }
 
 public readonly record struct AnalyseTreesNodePathEntry(
@@ -213,11 +215,12 @@ public readonly record struct AnalyseTreesNodePathEntry(
 }
 
 public record struct AnalyseTreesNodePath(
-    ReadOnlyMemory<AnalyseTreesNodePathEntry> Parents,
-    AnalyseTreesNodePathEntry Self,
-    int BorrowedMemoryIdx)
+    AnalyseTreesAllocation Allocation,
+    AnalyseTreesNodePathEntry Self)
     : IComparable<AnalyseTreesNodePath>
 {
+    public ReadOnlyMemory<AnalyseTreesNodePathEntry> Parents => Allocation.Memory;
+
     public bool Equals(AnalyseTreesNodePath rhs)
     {
         if (Self.Name != rhs.Self.Name) return false;

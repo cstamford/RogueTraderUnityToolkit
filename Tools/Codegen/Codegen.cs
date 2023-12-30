@@ -111,8 +111,8 @@ static void ProcessSerializedFile(SerializedFile file, AnalyseTreesReader treeRe
     }
 }
 
-AnalyseTreesReport.OutputReportToLog(perTypeTreeData);
-Console.ReadLine();
+//AnalyseTreesReport.OutputReportToLog(perTypeTreeData);
+//Console.ReadLine();
 return;
 
 public sealed record class PerTypeTreeData(
