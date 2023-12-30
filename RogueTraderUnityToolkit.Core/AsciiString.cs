@@ -6,7 +6,7 @@ public readonly record struct AsciiString(
     byte BlockIdx,
     byte BlockData,
     ushort BlockOffset)
-    : IEquatable<string>
+    : IEquatable<string>, IComparable<AsciiString>
 {
     public int Length => AsciiStringPool.GetLength(this);
     public ReadOnlyMemory<byte> Bytes => AsciiStringPool.GetBytes(this);
@@ -36,5 +36,7 @@ public readonly record struct AsciiString(
         }
     }
 
+    public int CompareTo(AsciiString rhs) => Bytes.Span.SequenceCompareTo(rhs.Bytes.Span);
+    
     public override string ToString() => AsciiStringPool.GetCSharpString(this);
 }

@@ -26,7 +26,7 @@ public sealed class ObjectParserDebug(
         }
     }
 
-    public void Visit(
+    public void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
@@ -43,6 +43,11 @@ public sealed class ObjectParserDebug(
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
     }
 
+    public void EndNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
+    { }
+    
     public void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
@@ -181,11 +186,18 @@ public sealed class ObjectParserDebugWrapper(
         if (Enabled) _reader.EndTree(tree);
     }
 
-    public void Visit(
+    public void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
-        if (Enabled) _reader.Visit(node, tree);
+        if (Enabled) _reader.BeginNode(node, tree);
+    }
+    
+    public void EndNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
+    {
+        if (Enabled) _reader.EndNode(node, tree);
     }
 
     public void ReadPrimitive(

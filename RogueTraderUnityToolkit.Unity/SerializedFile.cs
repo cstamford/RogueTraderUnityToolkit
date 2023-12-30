@@ -17,8 +17,9 @@ namespace RogueTraderUnityToolkit.Unity
     
         public static bool CanRead(SerializedAssetInfo info)
         {
-            using Stream stream = info.Open(0, 48);
-            EndianBinaryReader reader = new(stream, 0, 48);
+            if (info.Size < 32) return false;
+            using Stream stream = info.Open(0, 32);
+            EndianBinaryReader reader = new(stream, 0, 32);
             return SerializedFileHeader.CheckLengthAndVersionMatches(reader, info.Size);
         }
 
@@ -30,7 +31,15 @@ namespace RogueTraderUnityToolkit.Unity
             EndianBinaryReader reader = new(stream, header.IsBigEndian);
 
             SerializedFileTarget target = SerializedFileTarget.Read(reader);
-            SerializedFileObject[] objectTypes = reader.ReadArray(SerializedFileObject.Read);
+            
+            int objectLen = reader.ReadS32();
+            SerializedFileObject[] objectTypes = new SerializedFileObject[objectLen];
+
+            for (int i = 0; i < objectLen; ++i)
+            {
+                objectTypes[i] = SerializedFileObject.Read(reader, target.WithTypeTree);
+            }
+            
             SerializedFileObjectInstance[] objectInstances = reader.ReadArray(SerializedFileObjectInstance.Read);
             SerializedFileObjectFileRef[] objectFileRefs = reader.ReadArray(SerializedFileObjectFileRef.Read);
             SerializedFileReferences[] references = reader.ReadArray(SerializedFileReferences.Read);
@@ -103,49 +112,55 @@ namespace RogueTraderUnityToolkit.Unity
     public readonly record struct SerializedFileTarget(
         AsciiString Version,
         uint Platform,
-        bool WithTypeInfo)
+        bool WithTypeTree)
     {
         public static SerializedFileTarget Read(EndianBinaryReader reader)
         {
             AsciiString version = reader.ReadStringUntilNull();
             uint platform = reader.ReadU32();
-            bool withTypeInfo = reader.ReadB8();
+            bool withTypeTree = reader.ReadB8();
 
-            if (version != _version)
+            if (!_supportedVersions.Contains(version))
             {
-                throw new($"Expected version {_version} but got {version}.");
+                throw new($"Got unexpected version {version}. It might still work but it hasn't been tested!");
             }
 
-            if (platform != _platform)
+            if (!_supportedPlatforms.Contains(platform))
             {
-                throw new($"Expected unityVersion {_platform} but got {platform}.");
-            }
-
-            if (!withTypeInfo)
-            {
-                throw new($"Serialized file without type info, cannot read.");
+                throw new($"Got unexpected platform {platform}. It might still work but it hasn't been tested!");
             }
 
             return new(
                 Version: version,
                 Platform: platform,
-                WithTypeInfo: withTypeInfo);
+                WithTypeTree: withTypeTree);
         }
 
-        private const string _version = "2022.3.7f1";
-        private const uint _platform = 19;
+        private static readonly HashSet<AsciiString> _supportedVersions = 
+        [ 
+            AsciiStringPool.Fetch("2022.3.7f1"u8.ToArray()),
+            AsciiStringPool.Fetch("2022.3.6f1"u8.ToArray())
+        ];
+
+        private static readonly HashSet<uint> _supportedPlatforms = [5, 19];
     }
 
     public readonly record struct SerializedFileObject(
         SerializedFileObjectInfo Info,
-        ObjectTypeTree Tree,
+        ObjectTypeTree? Tree,
         int[] Dependencies)
     {
-        public static SerializedFileObject Read(EndianBinaryReader reader)
+        public static SerializedFileObject Read(EndianBinaryReader reader, bool withTypeTree)
         {
             SerializedFileObjectInfo info = SerializedFileObjectInfo.Read(reader);
-            ObjectTypeTree tree = ObjectTypeTree.Read(reader);
-            int[] dependencies = reader.ReadArray(x => x.ReadS32());
+            ObjectTypeTree? tree = null;
+            int[] dependencies = Array.Empty<int>();
+
+            if (withTypeTree)
+            {
+                tree = ObjectTypeTree.Read(reader);
+                dependencies = reader.ReadArray(x => x.ReadS32());
+            }
 
             return new(
                 Info: info,

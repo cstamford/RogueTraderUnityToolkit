@@ -3,7 +3,7 @@ using System.Buffers;
 
 namespace RogueTraderUnityToolkit.Unity;
 
-public readonly record struct ObjectTypeTree(
+public record class ObjectTypeTree(
     ObjectParserNode[] Nodes)
 {
     public static ObjectTypeTree Read(EndianBinaryReader reader)

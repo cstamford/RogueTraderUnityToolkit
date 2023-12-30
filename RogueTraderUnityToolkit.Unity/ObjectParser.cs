@@ -27,6 +27,8 @@ public record struct ObjectParser
         _reader = reader;
         _extReader = extReader;
 
+        Debug.Assert(type.Tree != null);
+
         _extReader.BeginTree(type.Tree);
         Read(type.Tree, type.Tree.Root, 0);
         _extReader.EndTree(type.Tree);
@@ -40,8 +42,8 @@ public record struct ObjectParser
     {
         bool isRoot = node.Index == 0;
         bool isRootTree = treeDepth == 0;
-
-        _extReader.Visit(node, tree);
+        
+        using var _ = _extReader.Visit(tree, node.Index);
 
         // leaf
         if (node.IsPrimitive)
@@ -235,4 +237,28 @@ public record struct ObjectParser
     private SerializedFileTypeReference[] _references;
     private EndianBinaryReader _reader;
     private IObjectTypeTreeReader _extReader;
+}
+
+public readonly struct ObjectParserNodeScopeWrapper : IDisposable
+{
+    public ObjectParserNodeScopeWrapper(
+        IObjectTypeTreeReader reader,
+        ObjectTypeTree tree,
+        ushort nodeIdx)
+    {
+        _reader = reader;
+        _tree = tree;
+        _nodeIdx = nodeIdx;
+        
+        _reader.BeginNode(_tree[_nodeIdx], _tree);
+    }
+    
+    public void Dispose()
+    {
+        _reader.EndNode(_tree[_nodeIdx], _tree);
+    }
+
+    private readonly IObjectTypeTreeReader _reader;
+    private readonly ObjectTypeTree _tree;
+    private readonly ushort _nodeIdx;
 }

@@ -4,7 +4,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
-
+ 
 namespace RogueTraderUnityToolkit.Processors;
 
 public readonly struct ExportTrees : IAssetProcessor
@@ -70,14 +70,14 @@ public readonly struct ExportTrees : IAssetProcessor
 public sealed class ExportTreesReader(
     Stream stream,
     byte[] buffer) :
-    AssetProcessorTypeTreeReader<ushort>
+    ObjectTypeTreeStackReader<ushort>
 {
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public override void Visit(
+    public override void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
-        base.Visit(node, tree);
+        base.BeginNode(node, tree);
         
         if (TryPopNodeFrames(node.Level, out ushort length))
         {
@@ -87,7 +87,7 @@ public sealed class ExportTreesReader(
         }
         else
         {
-            if (IsFirstTree) _builder.Length = 0;
+            if (TreeDepth == 1) _builder.Length = 0;
             
             _builder.Append('$');
             _builder.Append('[');
@@ -99,7 +99,7 @@ public sealed class ExportTreesReader(
             node.Index == arrayFrame.ArrayDataNodeIndex)
         {
             _builder.Append('[');
-            _builder.Append(GetIndex(arrayFrame));
+            _builder.Append(TopmostArrayIndex);
             _builder.Append(']');
         }
 

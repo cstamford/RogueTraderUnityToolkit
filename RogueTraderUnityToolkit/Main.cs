@@ -157,7 +157,7 @@ return;
 IAssetProcessor SelectProcessor()
 {
     /* TODO switch on mode */
-    return new AnalyseTrees();
+    return new ExportTrees();
 }
 
 IRelocatableMemoryRegion[] PrepMemoryForBundle(AssetBundle bundle)

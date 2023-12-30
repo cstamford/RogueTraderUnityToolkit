@@ -217,7 +217,6 @@ public enum ObjectParserNodeFlags : byte
     HasSize = 1 << 5
 }
 
-
 public static class ObjectParserNodeUtil
 {
     static ObjectParserNodeUtil()
