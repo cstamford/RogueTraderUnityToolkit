@@ -1,7 +1,6 @@
 ﻿using Codegen;
 using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
-using System.Collections.Concurrent;
 using System.IO.MemoryMappedFiles;
 
 SuperluminalPerf.Initialize();
@@ -32,68 +31,115 @@ parallelOpts.MaxDegreeOfParallelism = 1;
 files = files.Take(50);
 #endif
 
-Dictionary<UnityObjectType, PerTypeTreeData> perTypeTreeData = new();
+Dictionary<UnityObjectType, PerTypeTreeData> perTypeTreeData = Enum
+    .GetValues<UnityObjectType>()
+    .ToDictionary(x => x, _ => new PerTypeTreeData());
 
-foreach (UnityObjectType type in Enum.GetValues<UnityObjectType>())
-{
-    perTypeTreeData[type] = new();
-}
-
-ThreadLocal<AnalyseTreesReader> readers = new(() => new(perTypeTreeData));
+Dictionary<UnityObjectType, SemaphoreSlim> perTypeTreeDataLocks = perTypeTreeData
+    .Keys
+    .ToDictionary(x => x, _ => new SemaphoreSlim(1, 1));
 
 Parallel.ForEach(files
         .Where(file => file.Length != 0)
         .OrderByDescending(file => file.Length),
-    parallelOpts, fileInfo =>
-{
-    using MemoryMappedFile diskFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
-    SerializedAssetInfo diskFileInfo = new(null, fileInfo.Name, fileInfo.Length, diskFile.CreateViewStream);
-    
-    AnalyseTreesReader treeReader = readers.Value!;
-
-    if (AssetBundle.CanRead(diskFileInfo))
+    parallelOpts,
+    () =>
     {
-        AssetBundle bundle = AssetBundle.Read(diskFileInfo);
-        IRelocatableMemoryRegion[] memory = bundle.CreateRelocatableMemoryRegions();
-
-        foreach (AssetBundleNode node in bundle.Manifest.Nodes)
-        {
-            SerializedAssetInfo nodeInfo = bundle.CreateAssetInfoForNode(node, memory);
+        AnalyseTreesPathAllocator allocator = new();
+        Dictionary<UnityObjectType, PerTypeTreeData> data = Enum
+            .GetValues<UnityObjectType>()
+            .ToDictionary(x => x, _ => new PerTypeTreeData());
+        AnalyseTreesReader reader = new(allocator, data);
+        return new ThreadLocalWorkData(reader, data);
+    },
+    (fileInfo, _, workData) =>
+    {
+        using MemoryMappedFile diskFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
+        SerializedAssetInfo diskFileInfo = new(null, fileInfo.Name, fileInfo.Length, diskFile.CreateViewStream);
         
-            if (!SerializedFile.CanRead(nodeInfo))
+        if (AssetBundle.CanRead(diskFileInfo))
+        {
+            AssetBundle bundle = AssetBundle.Read(diskFileInfo);
+            IRelocatableMemoryRegion[] memory = bundle.CreateRelocatableMemoryRegions();
+
+            foreach (AssetBundleNode node in bundle.Manifest.Nodes)
             {
-#if DEBUG
-                Log.Write($"Skipping {nodeInfo} (probably a resource file)", ConsoleColor.Yellow);
-#endif
+                SerializedAssetInfo nodeInfo = bundle.CreateAssetInfoForNode(node, memory);
+            
+                if (!SerializedFile.CanRead(nodeInfo))
+                {
+    #if DEBUG
+                    Log.Write($"Skipping {nodeInfo} (probably a resource file)", ConsoleColor.Yellow);
+    #endif
+                    continue;
+                }
+
+                SerializedFile serializedFile = SerializedFile.Read(nodeInfo);
+                ProcessSerializedFile(serializedFile, workData);
+            }
+        }
+        else if (SerializedFile.CanRead(diskFileInfo))
+        {
+            SerializedFile serializedFile = SerializedFile.Read(diskFileInfo);
+            ProcessSerializedFile(serializedFile, workData);
+        }
+        else
+        {
+            Log.Write($"Skipping {diskFileInfo}", ConsoleColor.DarkGray);
+        }
+
+        return workData;
+    },
+    workData =>
+    {
+        Queue<UnityObjectType> typesToProcess = new(workData.Data.Keys);
+
+        while (typesToProcess.TryDequeue(out UnityObjectType type))
+        {
+            SemaphoreSlim workLock = perTypeTreeDataLocks[type];
+
+            if (workLock.Wait(0))
+            {
+                perTypeTreeData[type].IncObjectCount(workData.Data[type].ObjectCount);
+
+                Dictionary<AnalyseTreesNodePath, int> ourPathRefs = workData.Data[type].PathRefs;
+                Dictionary<AnalyseTreesNodePath, int> theirPathRefs = perTypeTreeData[type].PathRefs;
+                
+                foreach ((AnalyseTreesNodePath path, int count) in ourPathRefs)
+                {
+                    if (theirPathRefs.TryGetValue(path, out int existingCount))
+                    {
+                        theirPathRefs[path] = existingCount + count;
+                    }
+                    else
+                    {
+                        theirPathRefs.Add(path, count);
+                    }
+                }
+                
+                workLock.Release();
                 continue;
             }
-
-            SerializedFile serializedFile = SerializedFile.Read(nodeInfo);
-            ProcessSerializedFile(serializedFile, treeReader);
+            
+            typesToProcess.Enqueue(type);
         }
-    }
-    else if (SerializedFile.CanRead(diskFileInfo))
-    {
-        SerializedFile serializedFile = SerializedFile.Read(diskFileInfo);
-        ProcessSerializedFile(serializedFile, treeReader);
-    }
-    else
-    {
-        Log.Write($"Skipping {diskFileInfo}", ConsoleColor.DarkGray);
-        return;
-    }
-});
+    });
 
-static void ProcessSerializedFile(SerializedFile file, AnalyseTreesReader treeReader)
+AnalyseTreesReport.OutputReportToLog(perTypeTreeData);
+AnalyseTreesReport.DumpComplexTypesJson(perTypeTreeData);
+Console.ReadLine();
+return;
+
+static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workData)
 {
     SerializedFileReader fileReader = new(file);
 
     if (file.Target.WithTypeTree)
     {
-        treeReader.StartFile(file.TypeReferences);
+        workData.Reader.StartFile(file.TypeReferences);
         
         fileReader.ReadObjectRange(
-            treeReader: treeReader,
+            treeReader: workData.Reader,
             withDebugReader: false,
             startIdx: 0,
             endIdx: file.ObjectInstances.Length,
@@ -101,7 +147,7 @@ static void ProcessSerializedFile(SerializedFile file, AnalyseTreesReader treeRe
             {
                 int typeIdx = file.ObjectInstances[i].TypeIdx;
                 UnityObjectType type = file.Objects[typeIdx].Info.Type;
-                treeReader.StartObject(type);
+                workData.Reader.StartObject(type);
             },
             fnFinishedOne: (_, _) => { });
     }
@@ -111,17 +157,18 @@ static void ProcessSerializedFile(SerializedFile file, AnalyseTreesReader treeRe
     }
 }
 
-//AnalyseTreesReport.OutputReportToLog(perTypeTreeData);
-//Console.ReadLine();
-return;
+public readonly record struct ThreadLocalWorkData(
+    AnalyseTreesReader Reader,
+    Dictionary<UnityObjectType, PerTypeTreeData> Data);
+    
 
 public sealed record class PerTypeTreeData(
-    ConcurrentDictionary<AnalyseTreesNodePath, int> PathRefs)
+    Dictionary<AnalyseTreesNodePath, int> PathRefs)
 {
     public PerTypeTreeData() : this([]) { }
 
     public int ObjectCount => _objectCount;
-    public void IncObjectCount() => Interlocked.Increment(ref _objectCount);
+    public void IncObjectCount(int count) => Interlocked.Add(ref _objectCount, count);
     private int _objectCount;
 
     public override string ToString() => $"{ObjectCount} objects";

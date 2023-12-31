@@ -11,7 +11,13 @@ public static class AnalyseTreesReport
     {
         WriteUnityTypeBreakdown(data);
         WriteUnityTypeFieldAccesses(data);
-        WriteComplexTypeLayouts(data);
+    }
+
+    public static void DumpComplexTypesJson(
+        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    {
+        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes = CalculateComplexTypes(data);
+        DumpComplexTypesJson(complexTypes);
     }
 
     private static void WriteUnityTypeBreakdown(
@@ -61,22 +67,22 @@ public static class AnalyseTreesReport
         }
     }
 
-    private static void WriteComplexTypeLayouts(
+    private static Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> CalculateComplexTypes(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
         List<AnalyseTreesNodePath> allPaths = data
             .SelectMany(x => x.Value.PathRefs.Select(y => y.Key))
             .ToList();
         
-        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypePathOverlaps = [];
+        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes = [];
 
         foreach (AnalyseTreesNodePath path in allPaths
             .Where(x => x.Self.Type == ObjectParserType.Complex))
         {
-            complexTypePathOverlaps.TryAdd(path.Self.TypeName, []);
+            complexTypes.TryAdd(path.Self.TypeName, []);
         }
 
-        foreach ((AsciiString targetTypeName, HashSet<AnalyseTreesNodePath> refs) in complexTypePathOverlaps)
+        foreach ((AsciiString targetTypeName, HashSet<AnalyseTreesNodePath> refs) in complexTypes)
         {
             foreach (AnalyseTreesNodePath path in allPaths)
             {
@@ -96,23 +102,32 @@ public static class AnalyseTreesReport
                 }
             }
         }
-        
-        File.WriteAllText("D:\\RogueTraderModding\\complexTypePathOverlaps.json",
-            JsonSerializer.Serialize(complexTypePathOverlaps.Select(x => new
+
+        return complexTypes;
+    }
+
+    private static void DumpComplexTypesJson(
+        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes)
+    {
+        var formattedData = complexTypes.Select(x => new
         {
             TypeName = x.Key.ToString(),
             References = x.Value
                 .Where(y => y.Parents.IsEmpty) // first level only
                 .Select(y => new
-                { 
+                {
                     Name = y.ToString(),
-                    Type = y.Self.Type == ObjectParserType.Complex
-                        ? y.Self.TypeName.ToString()
-                        : y.Self.Type.ToString()
+                    Type = y.Self.Type == ObjectParserType.Complex ? y.Self.TypeName.ToString() : y.Self.Type.ToString()
                 })
                 .OrderBy(y => y.Name)
                 .ToArray()
-        }), new JsonSerializerOptions { WriteIndented = true }));
+        }).OrderByDescending(x => x.References.Length);
+
+        JsonSerializerOptions opts = new JsonSerializerOptions { WriteIndented = true };
+        
+        File.WriteAllText(
+            "D:\\RogueTraderModding\\complexTypes.json",
+            JsonSerializer.Serialize(formattedData, opts));
     }
     
     private static ConsoleColor GetParserTypeColour(ObjectParserType type) => type switch

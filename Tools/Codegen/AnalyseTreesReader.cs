@@ -10,17 +10,11 @@ public sealed class AnalyseTreesReader
     : ObjectTypeTreeStackReader<ushort>
 {
     public AnalyseTreesReader(
+        AnalyseTreesPathAllocator allocator,
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
+        _allocator = allocator;
         _allData = data;
-
-        _fnAddPathEntry = (key) =>
-        {
-            _pinnedMemory.Add(key.Allocation.Handle);
-            return 1;
-        };
-
-        _fnUpdatePathEntry = (_, value) => ++value;
     }
 
     public void StartFile(SerializedFileTypeReference[] references)
@@ -47,7 +41,7 @@ public sealed class AnalyseTreesReader
         in ObjectTypeTree tree)
     {
         base.BeginTree(tree);
-        _data.IncObjectCount();
+        _data.IncObjectCount(1);
     }
 
     public override void BeginNode(
@@ -67,16 +61,17 @@ public sealed class AnalyseTreesReader
 
         if (TreeDepth == 1 && IsFirstArrayIndex)
         {
-            // You might be tempted to make these lambdas.
-            // That would be wonderful, wouldn't it?
-            // NOPE.
-            // Not gonna happen.
-            // C# allocates 40gb of junk through a full export if these are lambdas...
-
-            _data.PathRefs.AddOrUpdate(
-                CalculatePath(node, tree),
-                _fnAddPathEntry,
-                _fnUpdatePathEntry);
+            AnalyseTreesNodePath path = CalculatePath(node, tree);
+            
+            if (_data.PathRefs.TryGetValue(path, out int existingCount))
+            {
+                _data.PathRefs[path] = existingCount + 1;
+            }
+            else
+            {
+                _data.PathRefs.Add(path, 1);
+                _pinnedMemory.Add(path.Allocation.Handle);
+            }
         }
 
         TreeNodeStack.Pop();
@@ -195,15 +190,12 @@ public sealed class AnalyseTreesReader
 
     private PerTypeTreeData _data = default!;
     private SerializedFileTypeReference[] _references = default!;
-    
-    private readonly Func<AnalyseTreesNodePath, int> _fnAddPathEntry;
-    private readonly Func<AnalyseTreesNodePath, int, int> _fnUpdatePathEntry;
-    
+
     private readonly IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> _allData;
     private readonly Dictionary<ushort, AnalyseTreesNodePath> _pathCache = [];
     private readonly List<AnalyseTreesMemoryHandle> _borrowedMemory = [];
     private readonly HashSet<AnalyseTreesMemoryHandle> _pinnedMemory = [];
-    private readonly AnalyseTreesPathAllocator _allocator = new();
+    private readonly AnalyseTreesPathAllocator _allocator;
 }
 
 public readonly record struct AnalyseTreesNodePathEntry(
