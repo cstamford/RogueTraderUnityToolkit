@@ -51,8 +51,8 @@ Parallel.ForEach(files
 
         IAnalyseTreeReader reader = true switch
         {
-            true => new RawTreeDumper(Console.OpenStandardOutput()),
-            false => new AnalyseTreesReader(new AnalyseTreesPathAllocator(), data)
+            false => new RawTreeDumper(Console.OpenStandardOutput()),
+            true => new AnalyseTreesReader(new AnalyseTreesPathAllocator(), data)
         };
         
         return new ThreadLocalWorkData(reader, data);

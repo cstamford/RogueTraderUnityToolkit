@@ -98,7 +98,7 @@ public sealed class AnalyseTreesReader(
         ushort ourIdx = node.Index;
         if (_pathCache.TryGetValue(ourIdx, out AnalyseTreesNodePath path)) return path;
 
-        AnalyseTreesNodePathEntry us = new(node.Name, node.TypeName, node.Type);
+        AnalyseTreesNodePathEntry us = new(node);
 
         int parentCount = TreeNodeStack.Count - 1;
         Span<ushort> indices = stackalloc ushort[parentCount];
@@ -112,7 +112,7 @@ public sealed class AnalyseTreesReader(
         {
             if (nodeIndex == ourIdx) continue;
             ref ObjectParserNode treeNode = ref tree[nodeIndex];
-            allocation[pathIdx] = new(treeNode.Name, treeNode.TypeName, treeNode.Type);
+            allocation[pathIdx] = new(treeNode);
             indices[pathIdx] = nodeIndex;
             --pathIdx;
         }
@@ -164,7 +164,7 @@ public sealed class AnalyseTreesReader(
             ref ObjectParserNode siblingNode = ref tree[siblingIdx];
             if (siblingNode.FirstChildIdx != 0) break;
             
-            AnalyseTreesNodePathEntry siblingEntry = new(siblingNode.Name, siblingNode.TypeName, siblingNode.Type);
+            AnalyseTreesNodePathEntry siblingEntry = new(siblingNode);
             _pathCache.Add(siblingNode.Index, basePath with { Self = siblingEntry });
 
             nodeIdx = siblingIdx;
@@ -195,8 +195,14 @@ public sealed class AnalyseTreesReader(
 public readonly record struct AnalyseTreesNodePathEntry(
     AsciiString Name,
     AsciiString TypeName,
-    ObjectParserType Type)
+    ObjectParserType Type,
+    ObjectParserNodeFlags Flags)
 {
+    public AnalyseTreesNodePathEntry(
+        in ObjectParserNode node)
+        : this(node.Name, node.TypeName, node.Type, node.Flags)
+    { }
+    
     public override string ToString() => Name.ToString();
 }
 

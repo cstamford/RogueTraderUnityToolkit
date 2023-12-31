@@ -16,9 +16,15 @@ public static class AnalyseTreesReport
     public static void DumpComplexTypesJson(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
-        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes = CalculateComplexTypes(data);
-        DumpComplexTypesJson(complexTypes);
+        ComplexTypeReport complexTypes = CalculateComplexTypes(data);
+        DumpComplexTypesJson(@"D:\RogueTraderModding\complexTypes.json", complexTypes);
+        DumpComplexTypesRefcounts(@"D:\RogueTraderModding\complexTypesRefcounts.txt", complexTypes);
     }
+
+    private readonly record struct ComplexTypeReport(
+        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> TypesMap,
+        Dictionary<AsciiString, int> TypeReferenceCount
+    );
 
     private static void WriteUnityTypeBreakdown(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
@@ -67,7 +73,7 @@ public static class AnalyseTreesReport
         }
     }
 
-    private static Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> CalculateComplexTypes(
+    private static ComplexTypeReport CalculateComplexTypes(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
         List<AnalyseTreesNodePath> allPaths = data
@@ -75,11 +81,15 @@ public static class AnalyseTreesReport
             .ToList();
         
         Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes = [];
+        Dictionary<AsciiString, int> complexTypeReferences = [];
 
-        foreach (AnalyseTreesNodePath path in allPaths
-            .Where(x => x.Self.Type == ObjectParserType.Complex))
+        foreach (AnalyseTreesNodePath path in allPaths.Where(x => 
+            x.Self.Type == ObjectParserType.Complex ||
+            (x.Self.Flags & ObjectParserNodeFlags.IsBuiltin) != 0))
         {
-            complexTypes.TryAdd(path.Self.TypeName, []);
+            AsciiString typeName = path.Self.TypeName;
+            complexTypes.TryAdd(typeName, []);
+            if (!complexTypeReferences.TryAdd(typeName, 1)) ++complexTypeReferences[typeName];
         }
 
         foreach ((AsciiString targetTypeName, HashSet<AnalyseTreesNodePath> refs) in complexTypes)
@@ -103,31 +113,36 @@ public static class AnalyseTreesReport
             }
         }
 
-        return complexTypes;
+        return new(complexTypes, complexTypeReferences);
     }
 
-    private static void DumpComplexTypesJson(
-        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes)
+    private static void DumpComplexTypesJson(string path, ComplexTypeReport report)
     {
-        var formattedData = complexTypes.Select(x => new
-        {
-            TypeName = x.Key.ToString(),
-            References = x.Value
-                .Where(y => y.Parents.IsEmpty) // first level only
-                .Select(y => new
-                {
-                    Name = y.ToString(),
-                    Type = y.Self.Type == ObjectParserType.Complex ? y.Self.TypeName.ToString() : y.Self.Type.ToString()
-                })
-                .OrderBy(y => y.Name)
-                .ToArray()
-        }).OrderByDescending(x => x.References.Length);
-
-        JsonSerializerOptions opts = new JsonSerializerOptions { WriteIndented = true };
+        File.WriteAllText(path,
+            JsonSerializer.Serialize(report.TypesMap.Select(x => new
+            {
+                TypeName = x.Key.ToString(),
+                References = x.Value
+                    .Where(y => y.Parents.IsEmpty) // first level only
+                    .Select(y => new
+                    {
+                        Name = y.ToString(),
+                        Type = y.Self.Type == ObjectParserType.Complex ? y.Self.TypeName.ToString() : y.Self.Type.ToString()
+                    })
+                    .OrderBy(y => y.Name)
+                    .ToArray()
+            }).OrderByDescending(x => x.References.Length), _opts));
         
-        File.WriteAllText(
-            "D:\\RogueTraderModding\\complexTypes.json",
-            JsonSerializer.Serialize(formattedData, opts));
+        Log.Write($"Exported complex type report to {path}", ConsoleColor.Cyan);
+    }
+
+    private static void DumpComplexTypesRefcounts(string path, ComplexTypeReport report)
+    {
+        File.WriteAllLines(path, report.TypeReferenceCount
+            .OrderByDescending(x => x.Value)
+            .Select(x => $"{x.Key} {x.Value}"));
+        
+        Log.Write($"Exported complex type refcounts to {path}", ConsoleColor.Cyan);
     }
     
     private static ConsoleColor GetParserTypeColour(ObjectParserType type) => type switch
@@ -151,4 +166,6 @@ public static class AnalyseTreesReport
     };
 
     private static float Percent(int num, int max) => num / (float)max * 100;
+    
+    private static readonly JsonSerializerOptions _opts = new JsonSerializerOptions { WriteIndented = true };
 }
