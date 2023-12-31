@@ -163,51 +163,39 @@ public readonly record struct AnalyseTreesNodePathEntry(
         in ObjectParserNode node)
         : this(node.Name, node.TypeName, node.Type, node.Flags)
     { }
-    
+
     public override string ToString() => Name.ToString();
 }
 
-public record struct AnalyseTreesNodePath(
+public readonly record struct AnalyseTreesNodePath(
     AnalyseTreesAllocation Allocation,
-    AnalyseTreesNodePathEntry Self)
+    AnalyseTreesNodePathEntry Self,
+    int HashCode)
     : IComparable<AnalyseTreesNodePath>
 {
-    public ReadOnlyMemory<AnalyseTreesNodePathEntry> Parents => Allocation.Memory;
-
-    public bool Equals(AnalyseTreesNodePath rhs)
-    {
-        if (Self.Name != rhs.Self.Name) return false;
-        if (Parents.Length != rhs.Parents.Length) return false;
-
-        ReadOnlySpan<AnalyseTreesNodePathEntry> lhsSpan = Parents.Span;
-        ReadOnlySpan<AnalyseTreesNodePathEntry> rhsSpan = rhs.Parents.Span;
-
-        for (int i = 0; i < Parents.Length; i++)
-        {
-            if (lhsSpan[i].Name != rhsSpan[i].Name) return false;
-        }
-
-        return true;
-    }
-
-    public int CompareTo(AnalyseTreesNodePath rhs)
-        => string.Compare(ToString(), rhs.ToString(), StringComparison.Ordinal);
-
-    public override int GetHashCode() => _hashCode == 0 ? MakeHashCode() : _hashCode;
-    
-    private int _hashCode;
-
-    private int MakeHashCode()
+    public AnalyseTreesNodePath(
+        AnalyseTreesAllocation allocation,
+        AnalyseTreesNodePathEntry self)
+        : this(allocation, self, 0)
     {
         HashCode hash = new();
         foreach (AnalyseTreesNodePathEntry entry in Parents.Span)
         {
-            hash.Add(entry.Name);
+            hash.Add(entry);
         }
         hash.Add(Self);
-        _hashCode = hash.ToHashCode();
-        return _hashCode;
+        HashCode = hash.ToHashCode();
     }
+    
+    public ReadOnlyMemory<AnalyseTreesNodePathEntry> Parents => Allocation.Memory;
+
+    public bool Equals(AnalyseTreesNodePath rhs) => 
+        Self == rhs.Self && Parents.Span.SequenceEqual(rhs.Parents.Span);
+
+    public int CompareTo(AnalyseTreesNodePath rhs) => 
+        string.CompareOrdinal(ToString(), rhs.ToString());
+    
+    public override int GetHashCode() => HashCode;
     
     public override string ToString()
     {

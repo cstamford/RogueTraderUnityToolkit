@@ -112,10 +112,6 @@ public static class AnalyseTreesReport
                     .Select(x => x.Key)
                     .Order())
                 {
-                    if (thisGroupId != 0 && path.Self.Name == "Base")
-                    {
-                        int a = 5;
-                    }
                     writer.Write(' '.Repeat(8));
                     WritePath(path);
                 }
