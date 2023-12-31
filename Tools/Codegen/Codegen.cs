@@ -45,11 +45,16 @@ Parallel.ForEach(files
     parallelOpts,
     () =>
     {
-        AnalyseTreesPathAllocator allocator = new();
         Dictionary<UnityObjectType, PerTypeTreeData> data = Enum
             .GetValues<UnityObjectType>()
             .ToDictionary(x => x, _ => new PerTypeTreeData());
-        AnalyseTreesReader reader = new(allocator, data);
+
+        IAnalyseTreeReader reader = true switch
+        {
+            true => new RawTreeDumper(Console.OpenStandardOutput()),
+            false => new AnalyseTreesReader(new AnalyseTreesPathAllocator(), data)
+        };
+        
         return new ThreadLocalWorkData(reader, data);
     },
     (fileInfo, _, workData) =>
@@ -133,10 +138,10 @@ return;
 static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workData)
 {
     SerializedFileReader fileReader = new(file);
-
+    
     if (file.Target.WithTypeTree)
     {
-        workData.Reader.StartFile(file.TypeReferences);
+        workData.Reader.StartFile(file);
         
         fileReader.ReadObjectRange(
             treeReader: workData.Reader,
@@ -158,7 +163,7 @@ static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workD
 }
 
 public readonly record struct ThreadLocalWorkData(
-    AnalyseTreesReader Reader,
+    IAnalyseTreeReader Reader,
     Dictionary<UnityObjectType, PerTypeTreeData> Data);
     
 

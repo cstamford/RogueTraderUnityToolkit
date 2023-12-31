@@ -6,31 +6,27 @@ using System.Text;
 
 namespace Codegen;
 
-public sealed class AnalyseTreesReader 
-    : ObjectTypeTreeStackReader<ushort>
+public sealed class AnalyseTreesReader(
+    AnalyseTreesPathAllocator allocator,
+    IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    : ObjectTypeTreeStackReader<ushort>, IAnalyseTreeReader
 {
-    public AnalyseTreesReader(
-        AnalyseTreesPathAllocator allocator,
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    public void StartFile(
+        SerializedFile file)
     {
-        _allocator = allocator;
-        _allData = data;
+        _references = file.TypeReferences;
     }
 
-    public void StartFile(SerializedFileTypeReference[] references)
+    public void StartObject(
+        UnityObjectType type)
     {
-        _references = references;
-    }
-
-    public void StartObject(UnityObjectType type)
-    {
-        _data = _allData[type];
+        _data = data[type];
         _pathCache.Clear();
 
         foreach (AnalyseTreesMemoryHandle handle in _borrowedMemory)
         {
             if (_pinnedMemory.Contains(handle)) continue;
-            _allocator.Return(handle);
+            allocator.Return(handle);
         }
         
         _borrowedMemory.Clear();
@@ -91,7 +87,7 @@ public sealed class AnalyseTreesReader
             x.Namespace == ns &&
             x.Assembly == asm);
         
-        _data = _allData[reference.Info.Type];
+        _data = data[reference.Info.Type];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -107,7 +103,7 @@ public sealed class AnalyseTreesReader
         int parentCount = TreeNodeStack.Count - 1;
         Span<ushort> indices = stackalloc ushort[parentCount];
 
-        AnalyseTreesAllocation allocation = _allocator.Rent(parentCount);
+        AnalyseTreesAllocation allocation = allocator.Rent(parentCount);
         _borrowedMemory.Add(allocation.Handle);
 
         int pathIdx = parentCount - 1;
@@ -191,11 +187,9 @@ public sealed class AnalyseTreesReader
     private PerTypeTreeData _data = default!;
     private SerializedFileTypeReference[] _references = default!;
 
-    private readonly IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> _allData;
     private readonly Dictionary<ushort, AnalyseTreesNodePath> _pathCache = [];
     private readonly List<AnalyseTreesMemoryHandle> _borrowedMemory = [];
     private readonly HashSet<AnalyseTreesMemoryHandle> _pinnedMemory = [];
-    private readonly AnalyseTreesPathAllocator _allocator;
 }
 
 public readonly record struct AnalyseTreesNodePathEntry(
