@@ -67,10 +67,7 @@ public readonly struct ExportTrees : IAssetProcessor
     public void End(Args args, ISerializedAsset[] assets) { }
 }
 
-public sealed class ExportTreesReader(
-    Stream stream,
-    byte[] buffer) :
-    ObjectTypeTreeStackReader<ushort>
+public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectTypeTreeStackReader<ushort>
 {
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public override void BeginNode(
@@ -95,11 +92,10 @@ public sealed class ExportTreesReader(
             _builder.Append(']');
         }
         
-        if (TreeArrayStack.TryPeek(out ArrayFrame arrayFrame) &&
-            node.Index == arrayFrame.ArrayDataNodeIndex)
+        if (ArrayDepth > 0 && node.Index == ArrayDataNodeIdx)
         {
             _builder.Append('[');
-            _builder.Append(TopmostArrayIndex);
+            _builder.Append(ArrayIndex);
             _builder.Append(']');
         }
 
@@ -223,11 +219,6 @@ public sealed class ExportTreesReader(
         _writer.Write(cls);
         _writer.Write("]\n"u8);
     }
-
-    public override void Align(
-        in ObjectParserNode node,
-        int alignedBytes)
-    { }
     
     private readonly FastTextWriter _writer = new(stream);
     private readonly FastStringBuilder _builder = new(buffer);
@@ -238,5 +229,3 @@ public sealed class ExportTreesReader(
                 (value, name) => (value, Encoding.ASCII.GetBytes(name).AsMemory()))
             .ToDictionary();
 }
-
-public readonly record struct ExportTreesNodeFrame(ushort BuilderIndex);

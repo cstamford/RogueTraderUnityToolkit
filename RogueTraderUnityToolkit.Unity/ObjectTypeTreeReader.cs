@@ -1,7 +1,9 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.Unity;
 
+// Inherit from this if you need to read everything.
 public interface IObjectTypeTreeReader
 {
     public void BeginTree(
@@ -37,6 +39,11 @@ public interface IObjectTypeTreeReader
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
         int stringLength);
+    
+    public void ReadPPtr(
+        in ObjectParserNode node,
+        in ObjectParserReader nodeReader,
+        AsciiString typeName);
 
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
@@ -50,51 +57,59 @@ public interface IObjectTypeTreeReader
         int alignedBytes);
 };
 
-public sealed class ObjectTypeTreeNullReader : IObjectTypeTreeReader
+// Inherit from this if you want absolutely nothing, but want to be insulated against API changes.
+// It's always safe not to call the base functions if you inherit from this.
+public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
 {
-    public void BeginTree(
-        in ObjectTypeTree tree)
-    { } 
-
-    public void EndTree(
+    public virtual void BeginTree(
         in ObjectTypeTree tree)
     { }
 
-    public void BeginNode(
+    public virtual void EndTree(
+        in ObjectTypeTree tree)
+    { }
+
+    public virtual void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     { }
     
-    public void EndNode(
+    public virtual void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     { }
     
-    public void ReadPrimitive(
+    public virtual void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
     { }
 
-    public void ReadPrimitiveArray(
+    public virtual void ReadPrimitiveArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
         in ObjectParserReader nodeReader,
         int arrayLength)
     { }
 
-    public void ReadComplexArray(
+    public virtual void ReadComplexArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
         int arrayLength)
     { }
 
-    public void ReadString(
+    public virtual void ReadString(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
         int stringLength)
     { }
+    
+    public virtual void ReadPPtr(
+        in ObjectParserNode node,
+        in ObjectParserReader nodeReader,
+        AsciiString typeName)
+    { }
 
-    public void ReadRefObjectRegistry(
+    public virtual void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -102,15 +117,164 @@ public sealed class ObjectTypeTreeNullReader : IObjectTypeTreeReader
         AsciiString asm)
     { }
 
-    public void Align(
+    public virtual void Align(
         in ObjectParserNode node,
         int alignedBytes)
     { }
 }
 
-public sealed class ObjectTypeTreeMultiReader(
-    params IObjectTypeTreeReader[] readers) 
-    : IObjectTypeTreeReader
+// Inherit from this for some essential stuff (tree depth/index, array indices)
+public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
+{
+    public override void BeginTree(
+        in ObjectTypeTree tree)
+    {
+        ++_treeDepth;
+        _trees.Add(tree);
+        
+        Debug.Assert(_treeDepth is 1 or 2);
+        _treeIdx = _treeDepth == 1 ? 0 : _trees.Count - 1;
+    }
+
+    public override void EndTree(
+        in ObjectTypeTree tree)
+    {
+        --_treeDepth;
+        
+        // exiting root
+        if (_treeDepth == 0)
+        {
+            Debug.Assert(_nodeStack.Count == 0);
+
+            _arrayStack.Clear();
+            _arrayIndices.Clear();
+            _trees.Clear();
+            _hasNonZeroArrayIdx = false;
+        }
+        // exiting embedded tree
+        else if (_treeDepth == 1)
+        {
+            _treeIdx = 0;
+            _baseNodeLevel = 0;
+        }
+    }
+
+    public override void BeginNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
+    {
+        _nodeStack.Push(new(NodeIdx: node.Index, TreeIdx: TreeIdx));
+
+        if (TryPopArrayFrames(_baseNodeLevel + node.Level, out int _))
+        {
+            _hasNonZeroArrayIdx = CheckForNonZeroArrayIndex();
+        }
+
+        if (_arrayStack.TryPeek(out ArrayFrame array) && 
+            node.Index == array.ArrayDataNodeIndex)
+        {
+            uint idx = _arrayIndices[array.ArrayIndexListOffset];
+            _arrayIndices[array.ArrayIndexListOffset] = ++idx;
+            _hasNonZeroArrayIdx |= idx > 0;
+        }
+        
+        Debug.Assert(_trees[TreeIdx] == tree);
+        Debug.Assert(_hasNonZeroArrayIdx == CheckForNonZeroArrayIndex());
+    }
+    
+    public override void EndNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
+    {
+        _nodeStack.Pop();
+    }
+    
+    public override void ReadComplexArray(
+        in ObjectParserNode node,
+        in ObjectParserNode dataNode,
+        int arrayLength)
+    {
+        if (arrayLength == 0) return;
+        
+        _arrayStack.Push(new(
+            ArrayDataNodeIndex: dataNode.Index,
+            ArrayNodeLevel: (byte)(_baseNodeLevel + node.Level),
+            ArrayIndexListOffset: (byte)_arrayIndices.Count));
+
+        _arrayIndices.Add(~0u);
+    }
+
+    public override void ReadRefObjectRegistry(
+        in ObjectParserNode node,
+        long refId,
+        AsciiString cls,
+        AsciiString ns,
+        AsciiString asm)
+    {
+        _baseNodeLevel = (byte)(node.Level + 1);
+    }
+    
+    protected int TreeDepth => _treeDepth;
+    protected ushort TreeIdx => (ushort)_treeIdx;
+    
+    protected readonly record struct NodeFrame(ushort NodeIdx, ushort TreeIdx);
+    protected Stack<NodeFrame> NodeStack => _nodeStack;
+
+    protected ref ObjectParserNode GetNode(in NodeFrame frame) => ref _trees[frame.TreeIdx][frame.NodeIdx];
+    
+    protected ushort ArrayDataNodeIdx => _arrayStack.Peek().ArrayDataNodeIndex;
+    protected uint ArrayIndex => _arrayIndices[_arrayStack.Peek().ArrayIndexListOffset];
+    protected bool IsFirstArrayIndex => !_hasNonZeroArrayIdx;
+    
+    private bool TryPopArrayFrames(int target, out int popped)
+    {
+        popped = 0;
+        
+        if (_arrayStack.Count == 0)
+        {
+            return false;
+        }
+
+        while (_arrayStack.TryPeek(out ArrayFrame top) && target <= top.ArrayNodeLevel)
+        {
+            _arrayStack.Pop();
+            ++popped;
+        }
+
+        return popped > 0;
+    }
+
+    private bool CheckForNonZeroArrayIndex()
+    {
+        foreach (ArrayFrame frame in _arrayStack)
+        {
+            if (_arrayIndices[frame.ArrayIndexListOffset] != 0) return true;
+        }
+
+        return false;
+    }
+    
+    private readonly record struct ArrayFrame(
+        ushort ArrayDataNodeIndex,
+        byte ArrayNodeLevel,
+        byte ArrayIndexListOffset);
+    
+    private readonly Stack<NodeFrame> _nodeStack = [];
+    private readonly Stack<ArrayFrame> _arrayStack = [];
+    private readonly List<uint> _arrayIndices = [];
+    private readonly List<ObjectTypeTree> _trees = [];
+    
+    private int _treeDepth;
+    private int _treeIdx;
+    private bool _hasNonZeroArrayIdx;
+    private byte _baseNodeLevel;
+}
+
+// Does nothing.
+public sealed class ObjectTypeTreeNullReader : ObjectTypeTreeReaderBase;
+
+// Forwards calls onto multiple readers.
+public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] readers) : IObjectTypeTreeReader
 {
     public void BeginTree(
         in ObjectTypeTree tree)
@@ -170,6 +334,14 @@ public sealed class ObjectTypeTreeMultiReader(
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadString(node, nodeReader, stringLength); }
     }
 
+    public void ReadPPtr(
+        in ObjectParserNode node,
+        in ObjectParserReader nodeReader,
+        AsciiString typeName)
+    {
+        foreach (IObjectTypeTreeReader reader in readers) { reader.ReadPPtr(node, nodeReader, typeName); }
+    }
+
     public void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
@@ -186,165 +358,4 @@ public sealed class ObjectTypeTreeMultiReader(
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.Align(node, alignedBytes); }
     }
-}
-
-public abstract class ObjectTypeTreeStackReader<TNodeFrame>
-    : IObjectTypeTreeReader
-{
-    public virtual void BeginTree(
-        in ObjectTypeTree tree)
-    {
-        _treeNodeStacks.Push([]);
-        _treeArrayStacks.Push([]);
-        
-        _treeIdx = ++_treeDepth == 1 ? 0 : _treeIdx + 1;
-    }
-
-    public virtual void EndTree(
-        in ObjectTypeTree tree)
-    {
-        --_treeDepth;
-        
-        _treeNodeStacks.Pop();
-        _treeArrayStacks.Pop();
-
-        if (_treeDepth == 0)
-        {
-            _treeNodeStacks.Clear();
-            _treeArrayStacks.Clear();
-            _arrayIndices.Clear();
-        }
-    }
-
-    public virtual void BeginNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        /* inheritor must implement node stack pushing */
-
-        if (TryPopArrayFrames(node.Level, out ArrayFrame arrayFrame) &&
-            node.Index == arrayFrame.ArrayDataNodeIndex)
-        {
-            ++_arrayIndices[arrayFrame.ArrayIndexListOffset];
-        }
-    }
-
-    public virtual void EndNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        /* inheritor must implement node stack popping */
-    }
-
-    public virtual void ReadPrimitive(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader)
-    { }
-
-    public virtual void ReadPrimitiveArray(
-        in ObjectParserNode node,
-        in ObjectParserNode dataNode,
-        in ObjectParserReader nodeReader,
-        int arrayLength)
-    { }
-
-    public virtual void ReadComplexArray(
-        in ObjectParserNode node,
-        in ObjectParserNode dataNode,
-        int arrayLength)
-    {
-        if (arrayLength == 0) return;
- 
-        TreeArrayStack.Push(new(
-            ArrayDataNodeIndex: dataNode.Index,
-            ArrayNodeLevel: node.Level,
-            ArrayIndexListOffset: (byte)_arrayIndices.Count));
-
-        _arrayIndices.Add(~0u);
-    }
-
-    public virtual void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength)
-    { }
-
-    public virtual void ReadRefObjectRegistry(
-        in ObjectParserNode node,
-        long refId,
-        AsciiString cls,
-        AsciiString ns,
-        AsciiString asm)
-    { }
-
-    public virtual void Align(
-        in ObjectParserNode node,
-        int alignedBytes)
-    { }
-
-    protected bool IsFirstArrayIndex
-    {
-        get
-        {
-            // I bet you want to LINQ this, don't you? I bet you do. I did!
-            // Turns out LINQ allocates a full copy of a stack every time you do this. WTF.
-            foreach (ArrayFrame frame in TreeArrayStack)
-            {
-                if (_arrayIndices[frame.ArrayIndexListOffset] != 0) return false;
-            }
-
-            return true;
-        }
-    }
-    
-    protected int TreeDepth => _treeDepth;
-    protected int TreeIdx => _treeIdx;
-    protected uint TopmostArrayIndex => _arrayIndices[TreeArrayStack.Peek().ArrayIndexListOffset];
-    protected Stack<TNodeFrame> TreeNodeStack => _treeNodeStacks.Peek();
-    protected Stack<ArrayFrame> TreeArrayStack => _treeArrayStacks.Peek();
-    
-    protected bool TryPopNodeFrames(int target, out TNodeFrame fit)
-    {
-        Stack<TNodeFrame> stack = TreeNodeStack;
-
-        if (stack.Count == 0)
-        {
-            fit = default!;
-            return false;
-        }
-
-        while (stack.Count > target) { fit = stack.Pop(); }
-
-        fit = stack.Peek();
-        return true;
-    }
-
-    protected bool TryPopArrayFrames(int target, out ArrayFrame fit)
-    {
-        Stack<ArrayFrame> stack = TreeArrayStack;
-
-        if (stack.Count == 0)
-        {
-            fit = default;
-            return false;
-        }
-
-        while (TreeArrayStack.TryPeek(out fit) && target <= fit.ArrayNodeLevel)
-        {
-            TreeArrayStack.Pop();
-        }
-
-        return true;
-    }
-
-    protected record struct ArrayFrame(
-        ushort ArrayDataNodeIndex,
-        byte ArrayNodeLevel,
-        byte ArrayIndexListOffset);
-
-    private int _treeDepth;
-    private int _treeIdx;
-    private readonly Stack<Stack<TNodeFrame>> _treeNodeStacks = [];
-    private readonly Stack<Stack<ArrayFrame>> _treeArrayStacks = [];
-    private readonly List<uint> _arrayIndices = [];
 }

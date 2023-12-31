@@ -31,7 +31,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
 
         if (withDebugReader)
         {
-            ObjectParserDebugWrapper debug = new(() => parser.Offset);
+            ObjectParserDebug debug = new(() => parser.Offset);
             treeReader = new ObjectTypeTreeMultiReader(debug, treeReader);
         }
         

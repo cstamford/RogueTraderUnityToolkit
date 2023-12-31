@@ -1,5 +1,4 @@
-﻿using RogueTraderUnityToolkit.Core;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Codegen;

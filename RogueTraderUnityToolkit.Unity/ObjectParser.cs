@@ -82,6 +82,21 @@ public record struct ObjectParser
                     // Reference: (SpawnerAiScenario/PriorityTargetScenario) end == 2921276
                 }
             }
+            else if (node.Type == ObjectParserType.Vector)
+            {
+                
+            }
+            else if (node.Type == ObjectParserType.Map)
+            {
+                
+            }
+            // pptr -> { m_FileID, m_PathID }, type extracted from name 
+            else if (node.Type == ObjectParserType.PPTr)
+            {
+                ObjectParserReader nodeReader = ReadPPtr(node, tree, out AsciiString typeName);
+                _extReader.ReadPPtr(node, nodeReader, typeName);
+                Offset = nodeReader.End;
+            }
             else
             {
                 Debug.Assert(false);
@@ -174,6 +189,32 @@ public record struct ObjectParser
 
         stringLength = _reader.ReadS32();
         return CreateReader(ObjectParserType.String, stringLength);
+    }
+    
+    private readonly ObjectParserReader ReadPPtr(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree,
+        out AsciiString typeName)
+    {
+        Debug.Assert(node.IsBuiltin);
+        Debug.Assert(node.Type == ObjectParserType.PPTr);
+
+        const int typeNameStartIdx = 5;
+        int typeNameEndIdx = node.TypeName.Length - 1;
+        int typeNameLength = typeNameEndIdx - typeNameStartIdx;
+        
+        Debug.Assert(typeNameLength >= 1);
+
+        ReadOnlyMemory<byte> mem = node.TypeName.Bytes.Slice(typeNameStartIdx, typeNameLength);
+        typeName = AsciiStringPool.Fetch(mem);
+        
+        ref ObjectParserNode fileIdNode = ref tree[node.FirstChildIdx];
+        ref ObjectParserNode pathIdNode = ref tree[fileIdNode.FirstSiblingIdx];
+        
+        Debug.Assert(fileIdNode.Type == ObjectParserType.S32);
+        Debug.Assert(pathIdNode.Type == ObjectParserType.S64);
+        
+        return CreateReader(ObjectParserType.PPTr, fileIdNode.Size + pathIdNode.Size);
     }
 
     private readonly bool TryReadRefObjectTree(

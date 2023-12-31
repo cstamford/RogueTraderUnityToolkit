@@ -130,9 +130,60 @@ Parallel.ForEach(files
         }
     });
 
-AnalyseTreesReport.OutputReportToLog(perTypeTreeData);
-AnalyseTreesReport.DumpComplexTypesJson(perTypeTreeData);
-Console.ReadLine();
+
+ComplexTypeReport complexTypes = AnalyseTreesReport.CalculateComplexTypes(perTypeTreeData);
+
+const bool exportBreakdown = true;
+const bool exportFieldAccesses = true;
+const bool exportComplexTypeFieldAccesses = true;
+const bool exportComplexTypeMap = true;
+const bool exportComplexTypeRefcounts = true;
+
+if (exportBreakdown)
+{
+    const string path = "typeBreakdown.txt";
+    using FileStream stream = File.Create(path);
+    using StreamWriter sw = new(stream);
+    AnalyseTreesReport.WriteUnityTypeBreakdown(sw, perTypeTreeData);
+    Log.Write($"Wrote type breakdowns to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+}
+
+if (exportFieldAccesses)
+{
+    const string path = "typeFieldAccesses.txt";
+    using FileStream stream = File.Create(path);
+    using StreamWriter sw = new(stream);
+    AnalyseTreesReport.WriteUnityTypeFieldAccesses(sw, perTypeTreeData);
+    Log.Write($"Wrote type field accesses to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+}
+
+if (exportComplexTypeFieldAccesses)
+{
+    const string path = "complexTypeFieldAccesses.txt";
+    using FileStream stream = File.Create(path);
+    using StreamWriter sw = new(stream);
+    AnalyseTreesReport.WriteComplexTypesFieldAccesses(sw, complexTypes);
+    Log.Write($"Wrote complex type field accesses to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+}
+
+if (exportComplexTypeMap)
+{
+    const string path = "complexTypeMap.json";
+    using FileStream stream = File.Create(path);
+    using StreamWriter sw = new(stream);
+    AnalyseTreesReport.WriteComplexTypesJson(sw, complexTypes);
+    Log.Write($"Wrote complex type map to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+}
+
+if (exportComplexTypeRefcounts)
+{
+    const string path = "complexTypeRefcounts.txt";
+    using FileStream stream = File.Create(path);
+    using StreamWriter sw = new(stream);
+    AnalyseTreesReport.WriteComplexTypesRefcounts(sw, complexTypes);
+    Log.Write($"Wrote complex type refcounts to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+}
+
 return;
 
 static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workData)

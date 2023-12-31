@@ -206,6 +206,20 @@ public readonly ref struct ObjectParserReader(
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public void ReadPPtr(
+        in ObjectParserNode node,
+        AsciiString typeName)
+    {
+        Debug.Assert(node.Type == ObjectParserType.PPTr);
+        PrepareForRead();
+
+        int fileId = reader.ReadS32();
+        long pathId = reader.ReadS64();
+        
+        // TODO - codegen for C# type bindings so we can return PPtr<T>
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private void ReadPrimitiveInternal(
         Span<byte> buffer)
     {

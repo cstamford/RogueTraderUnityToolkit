@@ -4,8 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Codegen;
 
-public sealed class RawTreeDumper(Stream stream) 
-    : ObjectTypeTreeStackReader<ushort>, IAnalyseTreeReader
+public sealed class RawTreeDumper(Stream stream) : ObjectTypeTreeBasicReader, IAnalyseTreeReader
 {
     public void StartFile(
         SerializedFile file)

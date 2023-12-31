@@ -66,18 +66,27 @@ public readonly record struct ObjectParserNode(
         name = FetchName(node.OffsetName, localBuffer, out ReadOnlyMemory<byte> _);
         typeName = FetchName(node.OffsetTypeName, localBuffer, out ReadOnlyMemory<byte> typeNameBytes);
 
-        if (!ObjectParserNodeUtil.TryGetType(typeNameBytes.Span, out ObjectParserType compactType))
-        {
-            compactType = node.Size switch
-            {
-                8 => ObjectParserType.S64,
-                4 => ObjectParserType.S32,
-                2 => ObjectParserType.S16,
-                1 => ObjectParserType.S8,
-                _ => ObjectParserType.Complex
-            };
-        }
+        ReadOnlySpan<byte> typeNameSpan = typeNameBytes.Span;
 
+        if (!ObjectParserNodeUtil.TryGetType(typeNameSpan, out ObjectParserType compactType))
+        {
+            if (typeNameSpan.Length >= 5 && "PPtr<"u8.SequenceEqual(typeNameSpan[..5]))
+            {
+                compactType = ObjectParserType.PPTr;
+            }
+            else
+            {
+                compactType = node.Size switch
+                {
+                    8 => ObjectParserType.S64,
+                    4 => ObjectParserType.S32,
+                    2 => ObjectParserType.S16,
+                    1 => ObjectParserType.S8,
+                    _ => ObjectParserType.Complex
+                };
+            }
+        }
+        
         type = compactType;
     }
 
@@ -202,7 +211,10 @@ public enum ObjectParserType : byte
     Complex,
 
     String,
-    RefObjectTree
+    RefObjectTree,
+    Vector,
+    Map,
+    PPTr
 }
 
 [Flags]
@@ -244,7 +256,10 @@ public static class ObjectParserNodeUtil
             [Util.Hash("char")] = ObjectParserType.Char,
 
             [Util.Hash("string")] = ObjectParserType.String,
-            [Util.Hash("ReferencedObject")] = ObjectParserType.RefObjectTree
+            [Util.Hash("ReferencedObject")] = ObjectParserType.RefObjectTree,
+
+            //[Util.Hash("vector")] = ObjectParserType.Vector,
+            //[Util.Hash("map")] = ObjectParserType.Map,
         };
     }
 

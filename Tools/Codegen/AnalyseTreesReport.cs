@@ -6,74 +6,7 @@ namespace Codegen;
 
 public static class AnalyseTreesReport
 {
-    public static void OutputReportToLog(
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
-    {
-        WriteUnityTypeBreakdown(data);
-        WriteUnityTypeFieldAccesses(data);
-    }
-
-    public static void DumpComplexTypesJson(
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
-    {
-        ComplexTypeReport complexTypes = CalculateComplexTypes(data);
-        DumpComplexTypesJson(@"D:\RogueTraderModding\complexTypes.json", complexTypes);
-        DumpComplexTypesRefcounts(@"D:\RogueTraderModding\complexTypesRefcounts.txt", complexTypes);
-    }
-
-    private readonly record struct ComplexTypeReport(
-        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> TypesMap,
-        Dictionary<AsciiString, int> TypeReferenceCount
-    );
-
-    private static void WriteUnityTypeBreakdown(
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
-    {
-        int totalObjects = data.Sum(x => x.Value.ObjectCount);
-        
-        Log.Write();
-        Log.Write("**Object types**");
-        Log.Write();
-        
-        foreach ((UnityObjectType type, int count) in data
-            .Where(x => x.Value.ObjectCount > 0)
-            .OrderByDescending(x => x.Value.ObjectCount)
-            .Select(x => (x.Key, x.Value.ObjectCount)))
-        {
-            Log.Write($"{type} {Percent(count, totalObjects):F1}% ({count})");
-        }
-    }
-
-    private static void WriteUnityTypeFieldAccesses(
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
-    {
-        Log.Write();
-
-        foreach ((UnityObjectType type, PerTypeTreeData typeData) in data
-            .Where(x => x.Value.ObjectCount > 0)
-            .OrderByDescending(x => x.Value.ObjectCount)
-            .Take(10))
-        {
-            Log.WriteSingle($"** {type} **");
-            Log.Write();
-
-            foreach ((AnalyseTreesNodePath path, int accessCount) in typeData.PathRefs
-                .OrderBy(x => x.Key))
-            {
-                Log.WriteSingle($"{path} ");
-
-                AnalyseTreesNodePathEntry leaf = path.Self;
-                Log.WriteSingle($"{leaf.TypeName}", GetParserTypeColour(leaf.Type));
-
-                float percent = Percent(accessCount, typeData.ObjectCount);
-                Log.Write(percent < 100 ? $" {percent:F1}%" : string.Empty);
-            }
-
-            Log.Write();
-        }
-    }
-
-    private static ComplexTypeReport CalculateComplexTypes(
+    public static ComplexTypeReport CalculateComplexTypes(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
         List<AnalyseTreesNodePath> allPaths = data
@@ -116,56 +49,158 @@ public static class AnalyseTreesReport
         return new(complexTypes, complexTypeReferences);
     }
 
-    private static void DumpComplexTypesJson(string path, ComplexTypeReport report)
+    public static void WriteUnityTypeBreakdown(
+        TextWriter writer,
+        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
-        File.WriteAllText(path,
-            JsonSerializer.Serialize(report.TypesMap.Select(x => new
-            {
-                TypeName = x.Key.ToString(),
-                References = x.Value
-                    .Where(y => y.Parents.IsEmpty) // first level only
-                    .Select(y => new
-                    {
-                        Name = y.ToString(),
-                        Type = y.Self.Type == ObjectParserType.Complex ? y.Self.TypeName.ToString() : y.Self.Type.ToString()
-                    })
-                    .OrderBy(y => y.Name)
-                    .ToArray()
-            }).OrderByDescending(x => x.References.Length), _opts));
+        int totalObjects = data.Sum(x => x.Value.ObjectCount);
         
-        Log.Write($"Exported complex type report to {path}", ConsoleColor.Cyan);
+        foreach ((UnityObjectType type, int count) in data
+            .OrderByDescending(x => x.Value.ObjectCount)
+            .Select(x => (x.Key, x.Value.ObjectCount)))
+        {
+            writer.WriteLine($"{type} {Percent(count, totalObjects):F1}% ({count})");
+        }
     }
 
-    private static void DumpComplexTypesRefcounts(string path, ComplexTypeReport report)
+    public static void WriteUnityTypeFieldAccesses(
+        TextWriter writer,
+        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
-        File.WriteAllLines(path, report.TypeReferenceCount
-            .OrderByDescending(x => x.Value)
-            .Select(x => $"{x.Key} {x.Value}"));
-        
-        Log.Write($"Exported complex type refcounts to {path}", ConsoleColor.Cyan);
+        foreach ((UnityObjectType type, PerTypeTreeData typeData) in data
+            .OrderByDescending(x => x.Value.ObjectCount))
+        {
+            writer.WriteLine($"**{type}**");
+
+            IOrderedEnumerable<IGrouping<float, (AnalyseTreesNodePath Key, float)>> groups = typeData.PathRefs
+                .Select(x => (x.Key, Percent(x.Value, typeData.ObjectCount)))
+                .GroupBy(x => x.Item2)
+                .OrderByDescending(x => x.Key);
+
+            int numGroups = groups.Count();
+
+            if (numGroups == 0) continue;
+            
+            if (numGroups == 1)
+            {
+                foreach (AnalyseTreesNodePath path in groups
+                    .First()
+                    .Select(x => x.Key)
+                    .Order())
+                {
+                    writer.Write(' '.Repeat(4));
+                    WritePath(path);
+                }
+                
+                writer.WriteLine();
+
+                continue;
+            }
+
+            int groupId = 0;
+            
+            foreach (IGrouping<float, (AnalyseTreesNodePath Key, float)> group in groups)
+            {
+                int thisGroupId = groupId++;
+
+                writer.Write(' '.Repeat(4));
+                writer.Write(thisGroupId == 0 ? $"Common" : $"Group {thisGroupId}");
+                writer.Write($" ({group.Key:F1}%)");
+                writer.WriteLine();
+
+                foreach (AnalyseTreesNodePath path in group
+                    .Select(x => x.Key)
+                    .Order())
+                {
+                    if (thisGroupId != 0 && path.Self.Name == "Base")
+                    {
+                        int a = 5;
+                    }
+                    writer.Write(' '.Repeat(8));
+                    WritePath(path);
+                }
+
+                writer.WriteLine();
+            }
+            
+            continue;
+
+            void WritePath(AnalyseTreesNodePath path)
+            {
+                writer.Write($"{path} {path.Self.TypeName}");
+
+                if (path.Self.Type != ObjectParserType.Complex)
+                {
+                    writer.Write($" ({path.Self.Type})");
+                }
+
+                writer.WriteLine();
+            }
+        }
     }
     
-    private static ConsoleColor GetParserTypeColour(ObjectParserType type) => type switch
+    public static void WriteComplexTypesFieldAccesses(
+        TextWriter writer,
+        ComplexTypeReport report)
     {
-        ObjectParserType.U64 => ConsoleColor.Blue,
-        ObjectParserType.U32 => ConsoleColor.Blue,
-        ObjectParserType.U16 => ConsoleColor.Blue,
-        ObjectParserType.U8 => ConsoleColor.Blue,
-        ObjectParserType.S64 => ConsoleColor.Blue,
-        ObjectParserType.S32 => ConsoleColor.Blue,
-        ObjectParserType.S16 => ConsoleColor.Blue,
-        ObjectParserType.S8 => ConsoleColor.Blue,
-        ObjectParserType.F64 => ConsoleColor.Yellow,
-        ObjectParserType.F32 => ConsoleColor.Yellow,
-        ObjectParserType.Bool => ConsoleColor.Green,
-        ObjectParserType.Char => ConsoleColor.DarkCyan,
-        ObjectParserType.Complex => ConsoleColor.Magenta,
-        ObjectParserType.String => ConsoleColor.Cyan,
-        ObjectParserType.RefObjectTree => ConsoleColor.DarkRed,
-        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
-    };
+        foreach ((string type, IEnumerable<(string, string)> references) in report.TypesMap
+            .Select(x => (
+                x.Key.ToString(), 
+                x.Value.Select(y => (y.ToString(), TypeName(y.Self))).OrderBy(y => y.Item1)))
+            .OrderByDescending(x => x.Item2.Count()))
+        {
+            writer.WriteLine($"**{type}**");
 
+            foreach ((string refPath, string refType) in references)
+            {
+                writer.Write(' '.Repeat(4));
+                writer.WriteLine($"{refPath} {refType}");
+            }
+
+            writer.WriteLine();
+        }
+    }
+    
+    public static void WriteComplexTypesJson(
+        TextWriter writer,
+        ComplexTypeReport report)
+    {
+        string json = JsonSerializer.Serialize(report.TypesMap.Select(x => new
+        {
+            TypeName = x.Key.ToString(),
+            References = x.Value
+                .Where(y => y.Parents.IsEmpty) // first level paths only
+                .Select(y => new { Name = y.ToString(), Type = TypeName(y.Self) })
+                .OrderBy(y => y.Name)
+                .ToArray()
+        }).OrderByDescending(x => x.References.Length), _opts);
+        
+        writer.Write(json);
+    }
+
+    public static void WriteComplexTypesRefcounts(
+        TextWriter writer,
+        ComplexTypeReport report)
+    {
+        foreach ((AsciiString typeName, int refCount) in report
+            .TypeReferenceCount
+            .OrderByDescending(x => x.Value))
+        {
+            writer.WriteLine($"{typeName} {refCount}");
+        }
+    }
+    
     private static float Percent(int num, int max) => num / (float)max * 100;
+    
+    private static string TypeName(AnalyseTreesNodePathEntry entry) => 
+        entry.Type == ObjectParserType.Complex
+            ? entry.TypeName.ToString()
+            : entry.Type.ToString();
     
     private static readonly JsonSerializerOptions _opts = new JsonSerializerOptions { WriteIndented = true };
 }
+
+public readonly record struct ComplexTypeReport(
+    Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> TypesMap,
+    Dictionary<AsciiString, int> TypeReferenceCount
+);

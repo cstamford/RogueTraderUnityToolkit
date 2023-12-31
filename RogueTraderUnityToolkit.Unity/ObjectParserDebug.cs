@@ -3,18 +3,16 @@ using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.Unity;
 
-public sealed class ObjectParserDebug(
-    Func<int> fnReadParserOffset)
-    : IObjectTypeTreeReader
+public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectTypeTreeReaderBase
 {
-    public void BeginTree(
+    public override void BeginTree(
         in ObjectTypeTree tree)
     {
         _indentStack.Push(_indent);
         Log.Write(_indent++ * _spacesPerIndent, "BeginTree", ConsoleColor.Green);
     }
 
-    public void EndTree(
+    public override void EndTree(
         in ObjectTypeTree tree)
     {
         _indent = _indentStack.Pop();
@@ -26,7 +24,7 @@ public sealed class ObjectParserDebug(
         }
     }
 
-    public void BeginNode(
+    public override void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
@@ -42,13 +40,8 @@ public sealed class ObjectParserDebug(
             new LogEntry(nodeNameString, ConsoleColor.White),
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
     }
-
-    public void EndNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    { }
     
-    public void ReadPrimitive(
+    public override void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
     {
@@ -59,7 +52,7 @@ public sealed class ObjectParserDebug(
             new LogEntry(value, ConsoleColor.Blue));
     }
 
-    public void ReadPrimitiveArray(
+    public override void ReadPrimitiveArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
         in ObjectParserReader nodeReader,
@@ -85,7 +78,7 @@ public sealed class ObjectParserDebug(
             new LogEntry($"]", _col));
     }
 
-    public void ReadComplexArray(
+    public override void ReadComplexArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
         int arrayLength)
@@ -98,7 +91,7 @@ public sealed class ObjectParserDebug(
             new LogEntry($"]", _col));
     }
 
-    public void ReadString(
+    public override void ReadString(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
         int stringLength)
@@ -123,7 +116,7 @@ public sealed class ObjectParserDebug(
             new LogEntry($"\"", _col));
     }
 
-    public void ReadRefObjectRegistry(
+    public override void ReadRefObjectRegistry(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -137,7 +130,19 @@ public sealed class ObjectParserDebug(
             new LogEntry($"]", _col));
     }
 
-    public void Align(
+    public override void ReadPPtr(
+        in ObjectParserNode node,
+        in ObjectParserReader nodeReader,
+        AsciiString typeName)
+    {
+        Log.Write((_indent + 1) * _spacesPerIndent,
+            new LogEntry($"ReadPPTr", ConsoleColor.Green),
+            new LogEntry($" {Range()} =>", _col),
+            // TODO codegen: when we can call the base reader, get the type
+            new LogEntry($" {typeName}", ConsoleColor.Green));
+    }
+
+    public override void Align(
         in ObjectParserNode node,
         int alignedBytes)
     {
@@ -147,7 +152,6 @@ public sealed class ObjectParserDebug(
             new LogEntry(didAlign ? $" {Range()}" : string.Empty, _col));
     }
 
-    
     private int _indent;
     private readonly Stack<int> _indentStack = [];
     private const int _spacesPerIndent = 4;
@@ -167,89 +171,4 @@ public sealed class ObjectParserDebug(
 
         return message;
     }
-};
-
-// Wraps ObjectDebugReader to allow easy toggling of conditional logging
-public sealed class ObjectParserDebugWrapper(
-    Func<int> fnReadParserOffset)
-    : IObjectTypeTreeReader
-{
-    public void BeginTree(
-        in ObjectTypeTree tree)
-    {
-        if (Enabled) _reader.BeginTree(tree);
-    }
-
-    public void EndTree(
-        in ObjectTypeTree tree)
-    {
-        if (Enabled) _reader.EndTree(tree);
-    }
-
-    public void BeginNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        if (Enabled) _reader.BeginNode(node, tree);
-    }
-    
-    public void EndNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        if (Enabled) _reader.EndNode(node, tree);
-    }
-
-    public void ReadPrimitive(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader)
-    {
-        if (Enabled) _reader.ReadPrimitive(node, nodeReader);
-    }
-
-    public void ReadPrimitiveArray(
-        in ObjectParserNode node,
-        in ObjectParserNode dataNode,
-        in ObjectParserReader nodeReader,
-        int arrayLength)
-    {
-        if (Enabled) _reader.ReadPrimitiveArray(node, dataNode, nodeReader, arrayLength);
-    }
-
-    public void ReadComplexArray(
-        in ObjectParserNode node,
-        in ObjectParserNode dataNode,
-        int arrayLength)
-    {
-        if (Enabled) _reader.ReadComplexArray(node, dataNode, arrayLength);
-    }
-
-    public void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength)
-    {
-        if (Enabled) _reader.ReadString(node, nodeReader, stringLength);
-    }
-
-    public void ReadRefObjectRegistry(
-        in ObjectParserNode node,
-        long refId,
-        AsciiString cls,
-        AsciiString ns,
-        AsciiString asm)
-    {
-        if (Enabled) _reader.ReadRefObjectRegistry(node, refId, cls, ns, asm);
-    }
-
-    public void Align(
-        in ObjectParserNode node,
-        int alignedBytes)
-    {
-        if (Enabled) _reader.Align(node, alignedBytes);
-    }
-
-    private bool Enabled => true /* insert debug conditions here, like: _depth > 1*/;
-
-    private readonly ObjectParserDebug _reader = new(fnReadParserOffset);
 };
