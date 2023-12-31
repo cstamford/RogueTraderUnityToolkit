@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Text;
 
 namespace RogueTraderUnityToolkit.Core;
 
@@ -37,6 +38,10 @@ public readonly record struct AsciiString(
     }
 
     public int CompareTo(AsciiString rhs) => Bytes.Span.SequenceCompareTo(rhs.Bytes.Span);
-    
+
+    public static AsciiString FromMemory(ReadOnlyMemory<byte> memory) => AsciiStringPool.Fetch(memory);
+    public static AsciiString FromString(string str) => AsciiStringPool.Fetch(Encoding.ASCII.GetBytes(str));
+    public static AsciiString From<T>(T value) where T : notnull => FromString(value.ToString()!);
+
     public override string ToString() => AsciiStringPool.GetCSharpString(this);
 }

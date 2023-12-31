@@ -3,19 +3,19 @@ using System.Runtime.InteropServices;
 
 namespace Codegen;
 
-public class AnalyseTreesPathAllocator
+public class TreePathAllocator
 {
-    public AnalyseTreesPathAllocator()
+    public TreePathAllocator()
     {
         Debug.Assert(_chunkSize < 65535); // max offset
         AllocateNewChunk();
     }
 
-    public AnalyseTreesAllocation Rent(int size)
+    public TreePathAllocation Rent(int size)
     {
         Debug.Assert(size <= _allocAlign);
         
-        if (!_freeList.TryPop(out AnalyseTreesMemoryHandle handle))
+        if (!_freeList.TryPop(out TreePathMemoryHandle handle))
         {
             if (_chunkOffset * _allocAlign + _allocAlign > _chunkSize)
             {
@@ -34,7 +34,7 @@ public class AnalyseTreesPathAllocator
         return new(_chunks[handle.ChunkIdx].AsMemory().Slice(offset, size), handle);
     }
 
-    public void Return(AnalyseTreesMemoryHandle handle)
+    public void Return(TreePathMemoryHandle handle)
     {
         _freeList.Push(handle);
         
@@ -46,10 +46,10 @@ public class AnalyseTreesPathAllocator
     private const int _targetChunkSize = 128 * 1024; // this'll get us into the LOH
     private const int _allocAlign = 24; // max path length
     
-    private readonly int _chunkSize = _targetChunkSize / Marshal.SizeOf<AnalyseTreesNodePathEntry>();
+    private readonly int _chunkSize = _targetChunkSize / Marshal.SizeOf<TreePathEntry>();
     
-    private readonly List<AnalyseTreesNodePathEntry[]> _chunks = [];
-    private readonly Stack<AnalyseTreesMemoryHandle> _freeList = [];
+    private readonly List<TreePathEntry[]> _chunks = [];
+    private readonly Stack<TreePathMemoryHandle> _freeList = [];
 
     private ushort _chunkIdx = 0xFFFF;
     private ushort _chunkOffset;
@@ -67,7 +67,7 @@ public class AnalyseTreesPathAllocator
     {
         ++_chunkIdx;
         _chunkOffset = 0;
-        _chunks.Add(new AnalyseTreesNodePathEntry[_chunkSize]);
+        _chunks.Add(new TreePathEntry[_chunkSize]);
     }
     
 #if DEBUG
@@ -75,27 +75,25 @@ public class AnalyseTreesPathAllocator
 #endif
 }
 
-public readonly record struct AnalyseTreesAllocation(
-    Memory<AnalyseTreesNodePathEntry> Memory,
-    AnalyseTreesMemoryHandle Handle)
+public readonly record struct TreePathAllocation(
+    Memory<TreePathEntry> Memory,
+    TreePathMemoryHandle Handle)
 {
     public int Length => Memory.Length;
     
-    public AnalyseTreesAllocation Slice(int offset) =>
+    public TreePathAllocation Slice(int offset) =>
         this with { Memory = Memory[offset..] };
     
-    public AnalyseTreesAllocation Slice(int offset, int length) =>
+    public TreePathAllocation Slice(int offset, int length) =>
         this with { Memory = Memory.Slice(offset, length) };
 
-    public Span<AnalyseTreesNodePathEntry> Span => Memory.Span;
+    public Span<TreePathEntry> Span => Memory.Span;
     
-    public AnalyseTreesNodePathEntry this[int idx]
+    public TreePathEntry this[int idx]
     {
         get => Span[idx];
         set => Span[idx] = value;
     }
 }
 
-public readonly record struct AnalyseTreesMemoryHandle(
-    ushort ChunkIdx,
-    ushort ChunkOffset);
+public readonly record struct TreePathMemoryHandle(ushort ChunkIdx, ushort ChunkOffset);

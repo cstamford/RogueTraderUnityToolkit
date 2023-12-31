@@ -6,10 +6,16 @@ using System.Text;
 
 namespace Codegen;
 
-public sealed class AnalyseTreesReader(
-    AnalyseTreesPathAllocator allocator,
+public interface ITreeReader : IObjectTypeTreeReader
+{
+    public void StartFile(SerializedFile file);
+    public void StartObject(UnityObjectType type);
+}
+
+public sealed class TreeReader(
+    TreePathAllocator allocator,
     Dictionary<UnityObjectType, PerTypeTreeData> data)
-    : ObjectTypeTreeBasicReader, IAnalyseTreeReader
+    : ObjectTypeTreeBasicReader, ITreeReader
 {
     public void StartFile(
         SerializedFile file)
@@ -21,7 +27,7 @@ public sealed class AnalyseTreesReader(
         _data = data[type];
         _data.IncObjectCount(1);
 
-        foreach (AnalyseTreesMemoryHandle handle in _borrowedMemory)
+        foreach (TreePathMemoryHandle handle in _borrowedMemory)
         {
             if (_pinnedMemory.Contains(handle)) continue;
             allocator.Return(handle);
@@ -41,7 +47,7 @@ public sealed class AnalyseTreesReader(
 
         if (IsFirstArrayIndex)
         {
-            AnalyseTreesNodePath path = CalculatePath(node, tree);
+            TreePath path = CalculatePath(node, tree);
             
             if (_data.PathRefs.TryGetValue(path, out int existingCount))
             {
@@ -56,17 +62,17 @@ public sealed class AnalyseTreesReader(
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private AnalyseTreesNodePath CalculatePath(
+    private TreePath CalculatePath(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
         NodeFrame ourFrame = new(node.Index, TreeIdx);
-        if (_pathCache.TryGetValue(ourFrame, out AnalyseTreesNodePath path)) return path;
+        if (_pathCache.TryGetValue(ourFrame, out TreePath path)) return path;
         
-        AnalyseTreesNodePathEntry us = new(node);
+        TreePathEntry us = new(node);
         
         Span<NodeFrame> indices = stackalloc NodeFrame[NodeStack.Count];
-        AnalyseTreesAllocation allocation = allocator.Rent(NodeStack.Count);
+        TreePathAllocation allocation = allocator.Rent(NodeStack.Count);
         _borrowedMemory.Add(allocation.Handle);
         
         int parentIdx = NodeStack.Count - 1;
@@ -80,7 +86,7 @@ public sealed class AnalyseTreesReader(
         }
 
         // The path is now in the form [ parent ..., self ].
-        AnalyseTreesNodePath ourPath = new(allocation, us);
+        TreePath ourPath = new(allocation, us);
         Debug.Assert(ourPath.Parents.Length == NodeStack.Count);
         
         ConstructPathForParents(allocation, indices);
@@ -92,7 +98,7 @@ public sealed class AnalyseTreesReader(
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ConstructPathForParents(
-        AnalyseTreesAllocation alloc,
+        TreePathAllocation alloc,
         ReadOnlySpan<NodeFrame> indices)
     {
         for (int i = 0; i < indices.Length; ++i)
@@ -100,14 +106,14 @@ public sealed class AnalyseTreesReader(
             int nodeArraySelfIdx = indices.Length - i - 1;
             NodeFrame nodeFrame = indices[nodeArraySelfIdx];
 
-            if (_pathCache.TryGetValue(nodeFrame, out AnalyseTreesNodePath _))
+            if (_pathCache.TryGetValue(nodeFrame, out TreePath _))
             {
                 // Parent path already done by another sibling.
                 return;
             }
 
-            AnalyseTreesNodePathEntry us = alloc[nodeArraySelfIdx];
-            AnalyseTreesAllocation ourParents = alloc[..nodeArraySelfIdx];
+            TreePathEntry us = alloc[nodeArraySelfIdx];
+            TreePathAllocation ourParents = alloc[..nodeArraySelfIdx];
             _pathCache.Add(nodeFrame, new(ourParents, us));
         }
     }
@@ -116,7 +122,7 @@ public sealed class AnalyseTreesReader(
     private void ConstructPathForLeafSiblings(
         in ObjectParserNode node,
         in ObjectTypeTree tree,
-        in AnalyseTreesNodePath basePath)
+        in TreePath basePath)
     {
         int nodeIdx = node.Index;
         int siblingIdx = node.FirstSiblingIdx;
@@ -126,7 +132,7 @@ public sealed class AnalyseTreesReader(
             ref ObjectParserNode siblingNode = ref tree[siblingIdx];
             if (siblingNode.FirstChildIdx != 0) break;
             
-            AnalyseTreesNodePathEntry siblingEntry = new(siblingNode);
+            TreePathEntry siblingEntry = new(siblingNode);
             _pathCache.Add(new(siblingNode.Index, TreeIdx), basePath with { Self = siblingEntry });
 
             nodeIdx = siblingIdx;
@@ -148,64 +154,49 @@ public sealed class AnalyseTreesReader(
     
     private PerTypeTreeData _data = default!;
     
-    private readonly Dictionary<NodeFrame, AnalyseTreesNodePath> _pathCache = [];
-    private readonly List<AnalyseTreesMemoryHandle> _borrowedMemory = [];
-    private readonly HashSet<AnalyseTreesMemoryHandle> _pinnedMemory = [];
+    private readonly Dictionary<NodeFrame, TreePath> _pathCache = [];
+    private readonly List<TreePathMemoryHandle> _borrowedMemory = [];
+    private readonly HashSet<TreePathMemoryHandle> _pinnedMemory = [];
 }
 
-public readonly record struct AnalyseTreesNodePathEntry(
-    AsciiString Name,
-    AsciiString TypeName,
-    ObjectParserType Type,
-    ObjectParserNodeFlags Flags)
+public sealed class TreeReaderDebug(Stream stream) : ObjectTypeTreeBasicReader, ITreeReader
 {
-    public AnalyseTreesNodePathEntry(
-        in ObjectParserNode node)
-        : this(node.Name, node.TypeName, node.Type, node.Flags)
-    { }
-
-    public override string ToString() => Name.ToString();
-}
-
-public readonly record struct AnalyseTreesNodePath(
-    AnalyseTreesAllocation Allocation,
-    AnalyseTreesNodePathEntry Self,
-    int HashCode)
-    : IComparable<AnalyseTreesNodePath>
-{
-    public AnalyseTreesNodePath(
-        AnalyseTreesAllocation allocation,
-        AnalyseTreesNodePathEntry self)
-        : this(allocation, self, 0)
+    public void StartFile(
+        SerializedFile file)
     {
-        HashCode hash = new();
-        foreach (AnalyseTreesNodePathEntry entry in Parents.Span)
-        {
-            hash.Add(entry);
-        }
-        hash.Add(Self);
-        HashCode = hash.ToHashCode();
+        _writer.WriteLine($"#### {file.Info.Identifier} ####");
+    }
+
+    public void StartObject(
+        UnityObjectType type)
+    {
+        _writer.WriteLine();
+        _writer.WriteLine($"** {type} **");
     }
     
-    public ReadOnlyMemory<AnalyseTreesNodePathEntry> Parents => Allocation.Memory;
-
-    public bool Equals(AnalyseTreesNodePath rhs) => 
-        Self == rhs.Self && Parents.Span.SequenceEqual(rhs.Parents.Span);
-
-    public int CompareTo(AnalyseTreesNodePath rhs) => 
-        string.CompareOrdinal(ToString(), rhs.ToString());
-    
-    public override int GetHashCode() => HashCode;
-    
-    public override string ToString()
+    public override void BeginNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
     {
-        StringBuilder sb = new();
-        foreach (AnalyseTreesNodePathEntry entry in Parents.Span)
+        base.BeginNode(node, tree);
+
+        if (IsFirstArrayIndex)
         {
-            sb.Append(entry.ToString());
-            sb.Append('/');
+            _writer.WriteLine($"{' '.Repeat(_nodeLevel * 4)}{node.ToString()}");
         }
-        sb.Append(Self.ToString());
-        return sb.ToString();
+
+        ++_nodeLevel;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public override void EndNode(
+        in ObjectParserNode node,
+        in ObjectTypeTree tree)
+    {
+        base.EndNode(node, tree);
+        --_nodeLevel;
+    }
+
+    private readonly TextWriter _writer = new StreamWriter(stream) { AutoFlush = true };
+    private int _nodeLevel;
 }

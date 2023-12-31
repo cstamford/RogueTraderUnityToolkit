@@ -4,34 +4,39 @@ using System.Text.Json;
 
 namespace Codegen;
 
-public static class AnalyseTreesReport
+public static class TreeAnalysis
 {
     public static ComplexTypeReport CalculateComplexTypes(
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
-        List<AnalyseTreesNodePath> allPaths = data
-            .SelectMany(x => x.Value.PathRefs.Select(y => y.Key))
-            .ToList();
+        Dictionary<TreePath, int> allPaths = data
+            .SelectMany(x => x.Value.PathRefs)
+            .GroupBy(x => x.Key)
+            .ToDictionary(x => x.Key, x => x.Sum(item => item.Value));
         
-        Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> complexTypes = [];
+        Dictionary<AsciiString, HashSet<TreePath>> complexTypes = [];
         Dictionary<AsciiString, int> complexTypeReferences = [];
 
-        foreach (AnalyseTreesNodePath path in allPaths.Where(x => 
-            x.Self.Type == ObjectParserType.Complex ||
-            (x.Self.Flags & ObjectParserNodeFlags.IsBuiltin) != 0))
+        foreach ((TreePath path, _) in allPaths)
         {
+            bool complex = path.Self.Type == ObjectParserType.Complex;
+            bool interesting = (path.Self.Flags & ObjectParserNodeFlags.IsBuiltin) != 0;
+            
+            if (!complex && !interesting) continue;
+            
             AsciiString typeName = path.Self.TypeName;
             complexTypes.TryAdd(typeName, []);
+            
             if (!complexTypeReferences.TryAdd(typeName, 1)) ++complexTypeReferences[typeName];
         }
 
-        foreach ((AsciiString targetTypeName, HashSet<AnalyseTreesNodePath> refs) in complexTypes)
+        foreach ((AsciiString targetTypeName, HashSet<TreePath> refs) in complexTypes)
         {
-            foreach (AnalyseTreesNodePath path in allPaths)
+            foreach ((TreePath path, _) in allPaths)
             {
                 int idx;
 
-                AnalyseTreesAllocation pathMem = path.Allocation;
+                TreePathAllocation pathMem = path.Allocation;
                 
                 for (idx = pathMem.Length - 1; idx >= 0; --idx)
                 {
@@ -46,7 +51,7 @@ public static class AnalyseTreesReport
             }
         }
 
-        return new(complexTypes, complexTypeReferences);
+        return new(allPaths, complexTypes, complexTypeReferences);
     }
 
     public static void WriteUnityTypeBreakdown(
@@ -72,7 +77,7 @@ public static class AnalyseTreesReport
         {
             writer.WriteLine($"**{type}**");
 
-            IOrderedEnumerable<IGrouping<float, (AnalyseTreesNodePath Key, float)>> groups = typeData.PathRefs
+            IOrderedEnumerable<IGrouping<float, (TreePath Key, float)>> groups = typeData.PathRefs
                 .Select(x => (x.Key, Percent(x.Value, typeData.ObjectCount)))
                 .GroupBy(x => x.Item2)
                 .OrderByDescending(x => x.Key);
@@ -83,7 +88,7 @@ public static class AnalyseTreesReport
             
             if (numGroups == 1)
             {
-                foreach (AnalyseTreesNodePath path in groups
+                foreach (TreePath path in groups
                     .First()
                     .Select(x => x.Key)
                     .Order())
@@ -99,7 +104,7 @@ public static class AnalyseTreesReport
 
             int groupId = 0;
             
-            foreach (IGrouping<float, (AnalyseTreesNodePath Key, float)> group in groups)
+            foreach (IGrouping<float, (TreePath Key, float)> group in groups)
             {
                 int thisGroupId = groupId++;
 
@@ -108,7 +113,7 @@ public static class AnalyseTreesReport
                 writer.Write($" ({group.Key:F1}%)");
                 writer.WriteLine();
 
-                foreach (AnalyseTreesNodePath path in group
+                foreach (TreePath path in group
                     .Select(x => x.Key)
                     .Order())
                 {
@@ -121,7 +126,7 @@ public static class AnalyseTreesReport
             
             continue;
 
-            void WritePath(AnalyseTreesNodePath path)
+            void WritePath(TreePath path)
             {
                 writer.Write($"{path} {path.Self.TypeName}");
 
@@ -188,7 +193,7 @@ public static class AnalyseTreesReport
     
     private static float Percent(int num, int max) => num / (float)max * 100;
     
-    private static string TypeName(AnalyseTreesNodePathEntry entry) => 
+    private static string TypeName(TreePathEntry entry) => 
         entry.Type == ObjectParserType.Complex
             ? entry.TypeName.ToString()
             : entry.Type.ToString();
@@ -197,6 +202,7 @@ public static class AnalyseTreesReport
 }
 
 public readonly record struct ComplexTypeReport(
-    Dictionary<AsciiString, HashSet<AnalyseTreesNodePath>> TypesMap,
+    Dictionary<TreePath, int> AllPaths,
+    Dictionary<AsciiString, HashSet<TreePath>> TypesMap,
     Dictionary<AsciiString, int> TypeReferenceCount
 );
