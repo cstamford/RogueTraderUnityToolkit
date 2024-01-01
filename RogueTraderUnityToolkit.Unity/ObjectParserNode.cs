@@ -86,7 +86,7 @@ public readonly record struct ObjectParserNode(
                 };
             }
         }
-        
+
         type = compactType;
     }
 
@@ -171,7 +171,7 @@ public readonly record struct ObjectParserNode(
         if ((int)type > (int)ObjectParserType.Complex)
         {
             flags |= ObjectParserNodeFlags.IsBuiltin;
-        }    
+        }
 
         if (node.Size > 0)
         {
@@ -183,7 +183,7 @@ public readonly record struct ObjectParserNode(
 
     public override string ToString() => $"{Name.ToString()} ({TypeName.ToString()}) " +
                                          $"{Type}/{Size} " +
-                                         $"level:{Level} " + 
+                                         $"level:{Level} " +
                                          $"idx:{Index} " +
                                          $"child:{FirstChildIdx} " +
                                          $"sibling:{FirstSiblingIdx} " +
@@ -265,7 +265,7 @@ public static class ObjectParserNodeUtil
 
     public static bool TryGetType(ReadOnlySpan<byte> span, out ObjectParserType type) =>
         _hashToType.TryGetValue(Util.Hash(span), out type);
-    
+
     public static string Dump(this ObjectParserNode node, ObjectTypeTree tree)
     {
         int width = Util.CharWidth(tree.Length);

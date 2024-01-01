@@ -49,7 +49,7 @@ public record class CodegenStruct(
     CodegenTypeFlags Flags)
     : ICodegenType
 {
-    
+
 }
 
 [Flags]

@@ -72,7 +72,7 @@ public sealed record AssetBundle(
     }
 
     private SerializedAssetInfo _info = default!;
-    
+
     public override string ToString() => $"{_info} ({Manifest.Nodes.Length} containers)";
 }
 
@@ -97,7 +97,7 @@ public readonly record struct AssetBundleHeader(
         int compressedSize = reader.ReadS32();
         int uncompressedSize = reader.ReadS32();
         int flags = reader.ReadS32();
-        
+
         if (version != _version)
         {
             throw new($"Expected version {_version} but got {version}.");
@@ -126,7 +126,7 @@ public readonly record struct AssetBundleHeader(
         reader.ReadBytes(buffer);
         return buffer.SequenceEqual(_magicBytes);
     }
-    
+
     private static readonly byte[] _magicBytes = [ .. Encoding.ASCII.GetBytes("UnityFS"), 0 ];
     private const int _version = 8;
     private const string _unityVersion = "2022.3.7f1";

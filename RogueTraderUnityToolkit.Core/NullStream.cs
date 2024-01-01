@@ -14,7 +14,7 @@ public sealed class NullStream : Stream
     }
 
     public override void Flush() { }
-    
+
     public override int Read(Span<byte> buffer)
     {
         buffer.Clear();

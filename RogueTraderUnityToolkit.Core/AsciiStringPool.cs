@@ -11,7 +11,7 @@ public static class AsciiStringPool
     static AsciiStringPool()
     {
         _smallStringBlocks = new Memory<byte>[_blockEndIndex + 1];
-        
+
         for (int i = 0; i < _smallStringBlocks.Length; ++i)
         {
             _smallStringBlocks[i] = new byte[_blockSize];
@@ -30,7 +30,7 @@ public static class AsciiStringPool
             "m_FileID"u8.ToArray(),
         ];
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static AsciiString Fetch(ReadOnlyMemory<byte> memory)
     {
@@ -41,7 +41,7 @@ public static class AsciiStringPool
         {
             return optimizedString;
         }
-        
+
         if (memory.Length > _blockEndIndex || _currentBlockIndex == _blockEndIndex)
         {
             return _pool.GetOrAdd(hasher, static (hash, mem) =>
@@ -61,24 +61,24 @@ public static class AsciiStringPool
                 return asciiString;
             }, memory);
         }
-        
+
         return _pool.GetOrAdd(hasher, static (hash, mem) =>
         {
             _smallStringBlocksLock.Wait();
-            
+
             Debug.Assert(_currentBlockIndex <= _blockEndIndex);
-            
+
             if (_currentBlockOffset + mem.Length > _blockSize)
             {
                 ++_currentBlockIndex;
                 _currentBlockOffset = 0;
             }
-            
+
             byte blockIdx = (byte)_currentBlockIndex;
             byte blockData = (byte)mem.Length;
             ushort blockOffset = (ushort)_currentBlockOffset;
             _currentBlockOffset += mem.Length;
-            
+
             _smallStringBlocksLock.Release();
 
             Memory<byte> block = _smallStringBlocks[blockIdx].Slice(blockOffset, mem.Length);
@@ -96,7 +96,7 @@ public static class AsciiStringPool
         _blockIsLargeString => GetCSharpString(asciiString).Length,
         _ => asciiString.BlockData
     };
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadOnlyMemory<byte> GetBytes(in AsciiString asciiString) => asciiString.BlockData switch
     {
@@ -104,7 +104,7 @@ public static class AsciiStringPool
         _blockIsLargeString => _largeStrings[asciiString],
         _ => _smallStringBlocks[asciiString.BlockIdx].Slice(asciiString.BlockOffset, asciiString.BlockData)
     };
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetCSharpString(in AsciiString asciiString)
     {
@@ -115,11 +115,11 @@ public static class AsciiStringPool
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsSmallBlockString(in AsciiString asciiString) =>
         asciiString.BlockData <= _blockEndIndex;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsOptimizedString(in AsciiString asciiString) =>
         asciiString.BlockData == _blockIsOptimizedString;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsLargeString(in AsciiString asciiString) =>
         asciiString.BlockData == _blockIsLargeString;
@@ -129,16 +129,16 @@ public static class AsciiStringPool
     private static readonly SemaphoreSlim _smallStringBlocksLock = new(1, 1);
     private static readonly ConcurrentDictionary<AsciiString, Memory<byte>> _largeStrings = [];
     private static readonly Memory<byte>[] _optimizedStrings;
-    
+
     private static int _currentBlockIndex;
     private static int _currentBlockOffset;
     private static int _currentLargeStringId;
     private const int _blockSize = 65535;
-    
+
     private const int _blockEndIndex = 250;
     private const int _blockIsOptimizedString = 254;
     private const int _blockIsLargeString = 255;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static bool Optimization_SelectCommonString(int hash, int length, out AsciiString asciiString)
     {
@@ -148,7 +148,7 @@ public static class AsciiStringPool
                 Debug.Assert(length == 3);
                 asciiString = new(0, _blockIsOptimizedString, 0);
                 return true;
-        
+
             case -1533643913: // "float"
                 Debug.Assert(length == 5);
                 asciiString = new(1, _blockIsOptimizedString, 0);
@@ -158,7 +158,7 @@ public static class AsciiStringPool
                 Debug.Assert(length == 5);
                 asciiString = new(2, _blockIsOptimizedString, 0);
                 return true;
-        
+
             case 46947589: // ""
                 Debug.Assert(length == 0);
                 asciiString = new(3, _blockIsOptimizedString, 0);
@@ -198,8 +198,8 @@ public static class AsciiStringPool
         asciiString = default;
         return false;
     }
-    
-    private record class MemoryBytesHasher 
+
+    private record class MemoryBytesHasher
     {
         public ReadOnlyMemory<byte> Memory
         {
@@ -209,7 +209,7 @@ public static class AsciiStringPool
                 _memory = value;
             }
         }
-        
+
         public MemoryBytesHasher(ReadOnlyMemory<byte> memory)
         {
             _memory = memory;

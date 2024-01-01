@@ -23,7 +23,7 @@ public static class UnityTypeNames
 
     public static bool TryGetValue(int offset, out ReadOnlyMemory<byte> bytes) =>
         _offsetLookupBytes.TryGetValue(offset, out bytes);
-    
+
     private static readonly Dictionary<int, ReadOnlyMemory<byte>> _offsetLookupBytes = [];
 
     #region codegen

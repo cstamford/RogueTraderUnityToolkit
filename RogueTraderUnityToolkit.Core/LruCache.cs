@@ -81,7 +81,7 @@ public class LruCache<TKey, TValue>(int maxSize)
 
             return succeeded;
         }
-        
+
         private bool Stale => _loaded && _refs == 0;
 
         private int _refs;

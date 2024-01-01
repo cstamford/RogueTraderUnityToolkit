@@ -25,7 +25,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadU64();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public uint ReadU32(in ObjectParserNode node)
     {
@@ -35,7 +35,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadU32();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public ushort ReadU16(in ObjectParserNode node)
     {
@@ -45,7 +45,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadU16();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public byte ReadU8(in ObjectParserNode node)
     {
@@ -55,7 +55,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadU8();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public long ReadS64(in ObjectParserNode node)
     {
@@ -65,7 +65,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadS64();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public int ReadS32(in ObjectParserNode node)
     {
@@ -75,7 +75,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadS32();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public short ReadS16(in ObjectParserNode node)
     {
@@ -85,7 +85,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadS16();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public sbyte ReadS8(in ObjectParserNode node)
     {
@@ -95,7 +95,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadS8();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public double ReadF64(in ObjectParserNode node)
     {
@@ -105,7 +105,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadF64();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public float ReadF32(in ObjectParserNode node)
     {
@@ -115,7 +115,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadF32();
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public bool ReadBool(in ObjectParserNode node)
     {
@@ -127,7 +127,7 @@ public readonly ref struct ObjectParserReader(
         Debug.Assert(value is 0 or 1, "non-bool bool, memory alignment issue");
         return value != 0;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public char ReadChar(in ObjectParserNode node)
     {
@@ -137,7 +137,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return Convert.ToChar(reader.ReadByte());
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public void ReadPrimitive(
         in ObjectParserNode node,
@@ -150,7 +150,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         ReadPrimitiveInternal(buffer[..node.Size]);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void ReadPrimitiveArray(
         in ObjectParserNode node,
@@ -193,7 +193,7 @@ public readonly ref struct ObjectParserReader(
 
         fnOnReadChunk(element - drain, element);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public AsciiString ReadString(
         in ObjectParserNode node,
@@ -204,7 +204,7 @@ public readonly ref struct ObjectParserReader(
         PrepareForRead();
         return reader.ReadString(readLength != -1 ? Math.Min(stringLength, readLength) : stringLength);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public void ReadPPtr(
         in ObjectParserNode node,
@@ -215,10 +215,10 @@ public readonly ref struct ObjectParserReader(
 
         int fileId = reader.ReadS32();
         long pathId = reader.ReadS64();
-        
+
         // TODO - codegen for C# type bindings so we can return PPtr<T>
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private void ReadPrimitiveInternal(
         Span<byte> buffer)

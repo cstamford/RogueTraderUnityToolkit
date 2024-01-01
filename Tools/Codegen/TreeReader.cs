@@ -32,7 +32,7 @@ public sealed class TreeReader(
             if (_pinnedMemory.Contains(handle)) continue;
             allocator.Return(handle);
         }
-        
+
         _pathCache.Clear();
         _borrowedMemory.Clear();
         _pinnedMemory.Clear();
@@ -48,7 +48,7 @@ public sealed class TreeReader(
         if (IsFirstArrayIndex)
         {
             TreePath path = CalculatePath(node, tree);
-            
+
             if (_data.PathRefs.TryGetValue(path, out int existingCount))
             {
                 _data.PathRefs[path] = existingCount + 1;
@@ -68,15 +68,15 @@ public sealed class TreeReader(
     {
         NodeFrame ourFrame = new(node.Index, TreeIdx);
         if (_pathCache.TryGetValue(ourFrame, out TreePath path)) return path;
-        
+
         TreePathEntry us = new(node);
-        
+
         Span<NodeFrame> indices = stackalloc NodeFrame[NodeStack.Count];
         TreePathAllocation allocation = allocator.Rent(NodeStack.Count);
         _borrowedMemory.Add(allocation.Handle);
-        
+
         int parentIdx = NodeStack.Count - 1;
-        
+
         foreach (NodeFrame nodeFrame in NodeStack)
         {
             ref ObjectParserNode treeNode = ref GetNode(nodeFrame);
@@ -88,11 +88,11 @@ public sealed class TreeReader(
         // The path is now in the form [ parent ..., self ].
         TreePath ourPath = new(allocation, us);
         Debug.Assert(ourPath.Parents.Length == NodeStack.Count);
-        
+
         ConstructPathForParents(allocation, indices);
         ConstructPathForLeafSiblings(node, tree, ourPath);
         _pathCache.Add(ourFrame, ourPath);
-        
+
         return ourPath;
     }
 
@@ -117,7 +117,7 @@ public sealed class TreeReader(
             _pathCache.Add(nodeFrame, new(ourParents, us));
         }
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ConstructPathForLeafSiblings(
         in ObjectParserNode node,
@@ -126,19 +126,19 @@ public sealed class TreeReader(
     {
         int nodeIdx = node.Index;
         int siblingIdx = node.FirstSiblingIdx;
- 
+
         while (IsDirectSibling(tree, nodeIdx, siblingIdx))
         {
             ref ObjectParserNode siblingNode = ref tree[siblingIdx];
             if (siblingNode.FirstChildIdx != 0) break;
-            
+
             TreePathEntry siblingEntry = new(siblingNode);
             _pathCache.Add(new(siblingNode.Index, TreeIdx), basePath with { Self = siblingEntry });
 
             nodeIdx = siblingIdx;
             siblingIdx = siblingNode.FirstSiblingIdx;
         }
-        
+
         return;
 
         static bool IsDirectSibling(
@@ -151,9 +151,9 @@ public sealed class TreeReader(
             return nodeIdx == siblingIdx;
         }
     }
-    
+
     private PerTypeTreeData _data = default!;
-    
+
     private readonly Dictionary<NodeFrame, TreePath> _pathCache = [];
     private readonly List<TreePathMemoryHandle> _borrowedMemory = [];
     private readonly HashSet<TreePathMemoryHandle> _pinnedMemory = [];
@@ -173,7 +173,7 @@ public sealed class TreeReaderDebug(Stream stream) : ObjectTypeTreeBasicReader, 
         _writer.WriteLine();
         _writer.WriteLine($"** {type} **");
     }
-    
+
     public override void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)

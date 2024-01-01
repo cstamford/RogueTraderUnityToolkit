@@ -22,9 +22,9 @@ public static class Extensions
         ObjectParserType.Char => 1,
         _ => 0
     };
-    
+
     public static unsafe string ReadPrimitiveArrayAsString(
-        this ObjectParserReader reader, 
+        this ObjectParserReader reader,
         in ObjectParserNode node,
         int arrayLength,
         int readLength = -1,
@@ -35,15 +35,15 @@ public static class Extensions
         int chunkSize = sizePerElement * Math.Min(256, readLength != -1 ? readLength : 64);
         byte* buffer = stackalloc byte[chunkSize + sizePerElement];
         buffer = Memory.AlignTo(buffer, sizePerElement);
-        
+
         StringBuilder sb = new();
 
         reader.ReadPrimitiveArray(node, arrayLength, new(buffer, chunkSize), (start, end) =>
         {
             for (int i = 0; i < end - start; ++i)
             {
-                byte* elem = buffer + i * sizePerElement;        
-                
+                byte* elem = buffer + i * sizePerElement;
+
                 sb.Append(type switch
                 {
                     ObjectParserType.U64 => (*(ulong*)elem).ToString(),
@@ -74,7 +74,7 @@ public static class Extensions
 
         return sb.ToString();
     }
-    
+
     public static string ReadPrimitiveAsString(
         this ObjectParserReader reader,
         in ObjectParserNode node) => node.Type switch
@@ -93,23 +93,23 @@ public static class Extensions
         ObjectParserType.Char => reader.ReadChar(node).ToString(),
         _ => string.Empty
     };
-    
+
     public static IRelocatableMemoryRegion[] CreateRelocatableMemoryRegions(
         this AssetBundle bundle)
     {
         AssetBundleBlock[] blocks = bundle.Manifest.Blocks;
         IRelocatableMemoryRegion[] regionsMem = new IRelocatableMemoryRegion[blocks.Length];
-        
+
         for (int i = 0; i < blocks.Length; ++i)
         {
             ref AssetBundleBlock block = ref blocks[i];
             ref AssetBundleBlockRegion blockRegion = ref bundle.Regions[i];
-            
+
             regionsMem[i] = MemoryCache.Register(
                 new AssetBundleBlockLoader(bundle.Info, block, blockRegion),
                 (int)block.UncompressedSize, (int)blockRegion.MemoryOffset);
         }
-            
+
         return regionsMem;
     }
 
@@ -125,24 +125,24 @@ public static class Extensions
             {
                 AssetBundleBlockRegion region = x.item;
                 IRelocatableMemoryRegion regionMem = nodeMemory[x.index];
-            
+
                 long nodeAddress = node.Offset;
                 long nodeLength = node.Size;
                 long blockAddress = region.MemoryOffset;
                 long blockLength = region.MemoryLength;
-            
+
                 int start = (int)Math.Max(nodeAddress, blockAddress);
                 int end = (int)Math.Min(nodeAddress + nodeLength, blockAddress + blockLength);
-            
+
                 int offset = (int)(start - blockAddress);
                 int length = end - start;
-            
+
                 Debug.Assert(offset >= 0 && offset <= blockLength);
                 Debug.Assert(length > 0 && length <= blockLength);
-            
+
                 return regionMem.Slice(offset, length);
             })];
-        
+
         SerializedAssetInfo info = new(
             parent: bundle,
             identifier: node.Path.ToString(),
@@ -154,7 +154,7 @@ public static class Extensions
                 if (length != 0) return mms.Slice(0, length);
                 return mms;
             });
-        
+
         if (Debugger.IsAttached)
         {
             info.UserData = overlapMem;
@@ -162,7 +162,7 @@ public static class Extensions
 
         return info;
     }
-    
+
     public static ObjectParserNodeScopeWrapper Visit(
         this IObjectTypeTreeReader reader,
         ObjectTypeTree tree,

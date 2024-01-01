@@ -16,7 +16,7 @@ foreach (string path in paths)
 {
     FileInfo info = new(path);
     bool isDir = (info.Attributes & FileAttributes.Directory) != 0;
-        
+
     files = isDir ?
         files.Concat(Directory
             .EnumerateFiles(info.FullName, "*", SearchOption.AllDirectories)
@@ -54,14 +54,14 @@ Parallel.ForEach(files
             false => new TreeReaderDebug(Console.OpenStandardOutput()),
             true => new TreeReader(new TreePathAllocator(), data)
         };
-        
+
         return new ThreadLocalWorkData(reader, data);
     },
     (fileInfo, _, workData) =>
     {
         using MemoryMappedFile diskFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
         SerializedAssetInfo diskFileInfo = new(null, fileInfo.Name, fileInfo.Length, diskFile.CreateViewStream);
-        
+
         if (AssetBundle.CanRead(diskFileInfo))
         {
             AssetBundle bundle = AssetBundle.Read(diskFileInfo);
@@ -70,7 +70,7 @@ Parallel.ForEach(files
             foreach (AssetBundleNode node in bundle.Manifest.Nodes)
             {
                 SerializedAssetInfo nodeInfo = bundle.CreateAssetInfoForNode(node, memory);
-            
+
                 if (!SerializedFile.CanRead(nodeInfo))
                 {
 #if DEBUG
@@ -109,7 +109,7 @@ Parallel.ForEach(files
 
                 Dictionary<TreePath, int> ourPathRefs = workData.Data[type].PathRefs;
                 Dictionary<TreePath, int> theirPathRefs = perTypeTreeData[type].PathRefs;
-                
+
                 foreach ((TreePath path, int count) in ourPathRefs)
                 {
                     if (theirPathRefs.TryGetValue(path, out int existingCount))
@@ -121,11 +121,11 @@ Parallel.ForEach(files
                         theirPathRefs.Add(path, count);
                     }
                 }
-                
+
                 workLock.Release();
                 continue;
             }
-            
+
             typesToProcess.Enqueue(type);
         }
     });
@@ -221,11 +221,11 @@ static void ExportAnalysis(
 static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workData)
 {
     SerializedFileReader fileReader = new(file);
-    
+
     if (file.Target.WithTypeTree)
     {
         workData.Reader.StartFile(file);
-        
+
         fileReader.ReadObjectRange(
             treeReader: workData.Reader,
             withDebugReader: false,
@@ -248,7 +248,7 @@ static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workD
 public readonly record struct ThreadLocalWorkData(
     ITreeReader Reader,
     Dictionary<UnityObjectType, PerTypeTreeData> Data);
-    
+
 
 public sealed record class PerTypeTreeData(
     Dictionary<TreePath, int> PathRefs)

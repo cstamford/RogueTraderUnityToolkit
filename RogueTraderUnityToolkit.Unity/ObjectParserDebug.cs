@@ -16,8 +16,8 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectTypeTree tree)
     {
         _indent = _indentStack.Pop();
-        Log.Write(_indent * _spacesPerIndent, "EndTree", ConsoleColor.Green);   
-        
+        Log.Write(_indent * _spacesPerIndent, "EndTree", ConsoleColor.Green);
+
         if (_indentStack.Count == 0)
         {
             _lastOffset = 0;
@@ -40,7 +40,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             new LogEntry(nodeNameString, ConsoleColor.White),
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
     }
-    
+
     public override void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
@@ -136,7 +136,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         AsciiString typeName)
     {
         nodeReader.ReadPPtr(node, typeName); // TODO codegen: when we can call the base reader, get the data
-        
+
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadPPTr", ConsoleColor.Green),
             new LogEntry($" {Range()} =>", _col),
@@ -160,7 +160,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
     private int _lastOffset;
 
     private int Offset => fnReadParserOffset();
-    
+
     private string Range(int remaining = 0)
     {
         string message = remaining == 0 ?
@@ -171,7 +171,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         {
             message += " (PEEKING)";
         }
-        
+
         _lastOffset = Offset;
         return message;
     }

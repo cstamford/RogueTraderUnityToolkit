@@ -15,7 +15,7 @@ public readonly record struct AsciiString(
     public static bool operator ==(AsciiString asciiString, string? str) => Equals(asciiString, str);
     public static bool operator !=(AsciiString asciiString, string? str) => !Equals(asciiString, str);
     public bool Equals(string? str) => Equals(this, str);
-    
+
     private static unsafe bool Equals(AsciiString lhs, string? rhs)
     {
         if (string.IsNullOrEmpty(rhs)) return false;
@@ -25,7 +25,7 @@ public readonly record struct AsciiString(
         {
             ReadOnlySpan<byte> lhsSpan = lhs.Bytes.Span;
             ReadOnlySpan<byte> rhsSpan = MemoryMarshal.AsBytes(new ReadOnlySpan<char>(rhsPtr, rhs.Length));
-            
+
             for (int i = 0; i < lhsSpan.Length; i++)
             {
                 byte l = lhsSpan[i]; // ascii

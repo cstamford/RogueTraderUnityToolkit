@@ -22,7 +22,7 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
 
     public int Length => _length >= 0 ? _length : (int)_stream.Length;
     public int Remaining => Length - Position;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public unsafe ulong ReadU64()
     {
@@ -272,7 +272,7 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
     private readonly bool _needsEndianSwap = BitConverter.IsLittleEndian == isBigEndian;
     private readonly int _offset;
     private readonly int _length = -1;
-    
+
     public override string ToString() => this.Dump();
 }
 

@@ -49,13 +49,13 @@ public static class Util
         return -1;
     }
 
-    public static SuperluminalPerf.EventMarker PerfScope(string name, SuperluminalPerf.ProfilerColor color) 
+    public static SuperluminalPerf.EventMarker PerfScope(string name, SuperluminalPerf.ProfilerColor color)
         => SuperluminalPerf.BeginEvent(name, data: null, color: color);
-    
+
     public static uint Hash(string str) => Hash(Encoding.ASCII.GetBytes(str));
 
     public static uint Hash(ReadOnlySpan<byte> str) => XXHash32.Hash(str);
-    
+
     public static int CharWidth(int value)
     {
         return value == 0 ? 1 : (value < 0 ? 1 : 0) + (int)Math.Log10(Math.Abs(value)) + 1;

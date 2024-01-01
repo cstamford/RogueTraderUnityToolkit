@@ -13,7 +13,7 @@ public static class TreeAnalysis
             .SelectMany(x => x.Value.PathRefs)
             .GroupBy(x => x.Key)
             .ToDictionary(x => x.Key, x => x.Sum(item => item.Value));
-        
+
         Dictionary<AsciiString, HashSet<TreePath>> complexTypes = [];
         Dictionary<AsciiString, int> complexTypeReferences = [];
 
@@ -21,12 +21,12 @@ public static class TreeAnalysis
         {
             bool complex = path.Self.Type == ObjectParserType.Complex;
             bool interesting = (path.Self.Flags & ObjectParserNodeFlags.IsBuiltin) != 0;
-            
+
             if (!complex && !interesting) continue;
-            
+
             AsciiString typeName = path.Self.TypeName;
             complexTypes.TryAdd(typeName, []);
-            
+
             if (!complexTypeReferences.TryAdd(typeName, 1)) ++complexTypeReferences[typeName];
         }
 
@@ -37,7 +37,7 @@ public static class TreeAnalysis
                 int idx;
 
                 TreePathAllocation pathMem = path.Allocation;
-                
+
                 for (idx = pathMem.Length - 1; idx >= 0; --idx)
                 {
                     if (pathMem[idx].TypeName == targetTypeName) break;
@@ -59,7 +59,7 @@ public static class TreeAnalysis
         IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
     {
         int totalObjects = data.Sum(x => x.Value.ObjectCount);
-        
+
         foreach ((UnityObjectType type, int count) in data
             .OrderByDescending(x => x.Value.ObjectCount)
             .Select(x => (x.Key, x.Value.ObjectCount)))
@@ -85,7 +85,7 @@ public static class TreeAnalysis
             int numGroups = groups.Count();
 
             if (numGroups == 0) continue;
-            
+
             if (numGroups == 1)
             {
                 foreach (TreePath path in groups
@@ -96,14 +96,14 @@ public static class TreeAnalysis
                     writer.Write(' '.Repeat(4));
                     WritePath(path);
                 }
-                
+
                 writer.WriteLine();
 
                 continue;
             }
 
             int groupId = 0;
-            
+
             foreach (IGrouping<float, (TreePath Key, float)> group in groups)
             {
                 int thisGroupId = groupId++;
@@ -123,7 +123,7 @@ public static class TreeAnalysis
 
                 writer.WriteLine();
             }
-            
+
             continue;
 
             void WritePath(TreePath path)
@@ -139,14 +139,14 @@ public static class TreeAnalysis
             }
         }
     }
-    
+
     public static void WriteComplexTypesFieldAccesses(
         TextWriter writer,
         ComplexTypeReport report)
     {
         foreach ((string type, IEnumerable<(string, string)> references) in report.TypesMap
             .Select(x => (
-                x.Key.ToString(), 
+                x.Key.ToString(),
                 x.Value.Select(y => (y.ToString(), TypeName(y.Self))).OrderBy(y => y.Item1)))
             .OrderByDescending(x => x.Item2.Count()))
         {
@@ -161,7 +161,7 @@ public static class TreeAnalysis
             writer.WriteLine();
         }
     }
-    
+
     public static void WriteComplexTypesJson(
         TextWriter writer,
         ComplexTypeReport report)
@@ -175,7 +175,7 @@ public static class TreeAnalysis
                 .OrderBy(y => y.Name)
                 .ToArray()
         }).OrderByDescending(x => x.References.Length), _opts);
-        
+
         writer.Write(json);
     }
 
@@ -190,14 +190,14 @@ public static class TreeAnalysis
             writer.WriteLine($"{typeName} {refCount}");
         }
     }
-    
+
     private static float Percent(int num, int max) => num / (float)max * 100;
-    
-    private static string TypeName(TreePathEntry entry) => 
+
+    private static string TypeName(TreePathEntry entry) =>
         entry.Type == ObjectParserType.Complex
             ? entry.TypeName.ToString()
             : entry.Type.ToString();
-    
+
     private static readonly JsonSerializerOptions _opts = new JsonSerializerOptions { WriteIndented = true };
 }
 

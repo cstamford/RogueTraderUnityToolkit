@@ -17,6 +17,7 @@ public static class Log
             }
         }
     }
+
     public static void WriteSingle(int indent, string message, ConsoleColor color = ConsoleColor.White) =>
         WriteSingle(indent, new LogEntry(message, color));
 

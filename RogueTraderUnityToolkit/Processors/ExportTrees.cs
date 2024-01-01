@@ -4,7 +4,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
- 
+
 namespace RogueTraderUnityToolkit.Processors;
 
 public readonly struct ExportTrees : IAssetProcessor
@@ -20,7 +20,7 @@ public readonly struct ExportTrees : IAssetProcessor
         assetCountProcessed = 0;
         assetCountSkipped = 0;
         assetCountFailed = 0;
-        
+
         if (asset is not SerializedFile file)
         {
             assetCountSkipped = 1;
@@ -60,13 +60,14 @@ public readonly struct ExportTrees : IAssetProcessor
             });
 
         ArrayPool<byte>.Shared.Return(buffer);
-        
+
         assetCountProcessed = processed;
     }
 
     public void End(Args args, ISerializedAsset[] assets) { }
 }
 
+// TODO: Currently broken compilation, needs minor refactor to store builder length.
 public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectTypeTreeStackReader<ushort>
 {
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -75,7 +76,7 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         in ObjectTypeTree tree)
     {
         base.BeginNode(node, tree);
-        
+
         if (TryPopNodeFrames(node.Level, out ushort length))
         {
             _builder.Length = length;
@@ -85,13 +86,13 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         else
         {
             if (TreeDepth == 1) _builder.Length = 0;
-            
+
             _builder.Append('$');
             _builder.Append('[');
             _builder.Append(node.TypeName);
             _builder.Append(']');
         }
-        
+
         if (ArrayDepth > 0 && node.Index == ArrayDataNodeIdx)
         {
             _builder.Append('[');
@@ -183,7 +184,7 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         _writer.Write(arrayLength);
         _writer.Write("> = (data not included)\n"u8);
     }
-    
+
     public override void ReadString(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
@@ -219,13 +220,13 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         _writer.Write(cls);
         _writer.Write("]\n"u8);
     }
-    
+
     private readonly FastTextWriter _writer = new(stream);
     private readonly FastStringBuilder _builder = new(buffer);
     private static readonly Dictionary<ObjectParserType, Memory<byte>> _typePoolEntries =
         Enum.GetValues<ObjectParserType>()
             .Zip(
-                Enum.GetNames<ObjectParserType>(), 
+                Enum.GetNames<ObjectParserType>(),
                 (value, name) => (value, Encoding.ASCII.GetBytes(name).AsMemory()))
             .ToDictionary();
 }

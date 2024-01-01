@@ -10,11 +10,11 @@ namespace RogueTraderUnityToolkit.Unity
         SerializedFileObjectFileRef[] ObjectFileRefs,
         SerializedFileReferences[] References,
         SerializedFileTypeReference[] TypeReferences,
-        AsciiString Comment) 
+        AsciiString Comment)
         : ISerializedAsset
     {
         public SerializedAssetInfo Info => _info;
-    
+
         public static bool CanRead(SerializedAssetInfo info)
         {
             if (info.Size < 32) return false;
@@ -31,7 +31,7 @@ namespace RogueTraderUnityToolkit.Unity
             EndianBinaryReader reader = new(stream, header.IsBigEndian);
 
             SerializedFileTarget target = SerializedFileTarget.Read(reader);
-            
+
             int objectLen = reader.ReadS32();
             SerializedFileObject[] objectTypes = new SerializedFileObject[objectLen];
 
@@ -39,7 +39,7 @@ namespace RogueTraderUnityToolkit.Unity
             {
                 objectTypes[i] = SerializedFileObject.Read(reader, target.WithTypeTree);
             }
-            
+
             SerializedFileObjectInstance[] objectInstances = reader.ReadArray(SerializedFileObjectInstance.Read);
             SerializedFileObjectFileRef[] objectFileRefs = reader.ReadArray(SerializedFileObjectFileRef.Read);
             SerializedFileReferences[] references = reader.ReadArray(SerializedFileReferences.Read);
@@ -59,9 +59,9 @@ namespace RogueTraderUnityToolkit.Unity
                 _info = info
             };
         }
-    
+
         private SerializedAssetInfo _info = default!;
-        
+
         public override string ToString() => $"{_info} ({ObjectInstances.Length} objects)";
     }
 
@@ -136,8 +136,8 @@ namespace RogueTraderUnityToolkit.Unity
                 WithTypeTree: withTypeTree);
         }
 
-        private static readonly HashSet<AsciiString> _supportedVersions = 
-        [ 
+        private static readonly HashSet<AsciiString> _supportedVersions =
+        [
             AsciiStringPool.Fetch("2022.3.7f1"u8.ToArray()),
             AsciiStringPool.Fetch("2022.3.6f1"u8.ToArray())
         ];

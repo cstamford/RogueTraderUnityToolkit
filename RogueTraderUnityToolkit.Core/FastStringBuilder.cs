@@ -13,7 +13,7 @@ public sealed class FastStringBuilder(
     }
 
     public ReadOnlySpan<byte> Span => buffer.AsSpan()[.._len];
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Append(AsciiString str)
     {
@@ -21,20 +21,20 @@ public sealed class FastStringBuilder(
         stringBytes.CopyTo(buffer.AsSpan(_len, str.Length));
         _len += stringBytes.Length;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Append(char ch)
     {
         buffer[_len++] = (byte)ch;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public unsafe void Append(uint value)
     {
         byte* buf = stackalloc byte[10];
         byte* end = buf + 10;
         byte* start = end;
-        
+
         do
         {
             *--start = (byte)(0x30 + value % 10);
@@ -51,6 +51,6 @@ public sealed class FastStringBuilder(
         _len += len;
         Debug.Assert(_len < buffer.Length);
     }
-    
+
     private int _len;
 }

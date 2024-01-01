@@ -49,7 +49,7 @@ public struct AssetBundleBlockLoader(
         ArrayPool<byte>.Shared.Return(_data);
         _data = null;
     }
-    
+
     private byte[]? _data;
 
     public override string ToString() => $"Bundle:{bundleInfo.Identifier}, Block: {block}, region: {region}";

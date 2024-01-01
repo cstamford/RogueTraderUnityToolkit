@@ -43,7 +43,7 @@ public record struct ObjectParser
     {
         bool isRoot = node.Index == 0;
         bool isRootTree = treeDepth == 0;
-        
+
         using var _ = _extReader.Visit(tree, node.Index);
 
         // leaf
@@ -70,7 +70,7 @@ public record struct ObjectParser
                 {
                     ref SerializedFileTypeReference typeRef = ref _references[typeRefIdx];
                     _extReader.ReadRefObjectRegistry(node, refId, typeRef.Class, typeRef.Namespace, typeRef.Assembly);
-                    
+
                     _extReader.BeginTree(typeRef.Tree);
                     Read(typeRef.Tree, typeRef.Tree.Root, treeDepth + 1, reading: true /* we can't be here otherwise */);
                     _extReader.EndTree(typeRef.Tree);
@@ -85,13 +85,13 @@ public record struct ObjectParser
             }
             else if (node.Type == ObjectParserType.Vector)
             {
-                
+
             }
             else if (node.Type == ObjectParserType.Map)
             {
-                
+
             }
-            // pptr -> { m_FileID, m_PathID }, type extracted from name 
+            // pptr -> { m_FileID, m_PathID }, type extracted from name
             else if (node.Type == ObjectParserType.PPTr)
             {
                 ObjectParserReader nodeReader = ReadPPtr(node, tree, reading, out AsciiString typeName);
@@ -101,7 +101,7 @@ public record struct ObjectParser
             else
             {
                 Debug.Assert(false);
-            }           
+            }
         }
         // array -> { length, data }
         else if (node.IsArray)
@@ -120,7 +120,7 @@ public record struct ObjectParser
                 int arrayLength = reading ? _reader.ReadS32() : 0;
                 Debug.Assert(arrayLength >= 0 && Offset + arrayLength <= Length); // sanity check
                 _extReader.ReadComplexArray(node, dataNode, arrayLength);
-                
+
                 // In the event we have a zero-sized complex array, we still visit all the nodes once,
                 // so users are informed about their structure.
                 // However, we obviously can't read any data, so we set the flag 'reading' to false
@@ -160,7 +160,7 @@ public record struct ObjectParser
                 ++childIdx;
             }
         }
-        
+
         if (!isRoot && node.IsAlignTo4)
         {
             int alignedBytes = reading ? _reader.AlignTo(4) : 0;
@@ -200,7 +200,7 @@ public record struct ObjectParser
         stringLength = reading ? _reader.ReadS32() : 0;
         return CreateReader(ObjectParserType.String, stringLength, reading);
     }
-    
+
     private readonly ObjectParserReader ReadPPtr(
         in ObjectParserNode node,
         in ObjectTypeTree tree,
@@ -213,18 +213,18 @@ public record struct ObjectParser
         const int typeNameStartIdx = 5;
         int typeNameEndIdx = node.TypeName.Length - 1;
         int typeNameLength = typeNameEndIdx - typeNameStartIdx;
-        
+
         Debug.Assert(typeNameLength >= 1);
 
         ReadOnlyMemory<byte> mem = node.TypeName.Bytes.Slice(typeNameStartIdx, typeNameLength);
         typeName = AsciiStringPool.Fetch(mem);
-        
+
         ref ObjectParserNode fileIdNode = ref tree[node.FirstChildIdx];
         ref ObjectParserNode pathIdNode = ref tree[fileIdNode.FirstSiblingIdx];
-        
+
         Debug.Assert(fileIdNode.Type == ObjectParserType.S32);
         Debug.Assert(pathIdNode.Type == ObjectParserType.S64);
-        
+
         return CreateReader(ObjectParserType.PPTr, fileIdNode.Size + pathIdNode.Size, reading);
     }
 
@@ -265,7 +265,7 @@ public record struct ObjectParser
             for (int i = 0; i < _references.Length; ++i)
             {
                 ref SerializedFileTypeReference candidate = ref _references[i];
-            
+
                 if (candidate.Class == cls && candidate.Namespace == ns && candidate.Assembly == asm)
                 {
                     typeRefIdx = i;
@@ -309,10 +309,10 @@ public readonly struct ObjectParserNodeScopeWrapper : IDisposable
         _reader = reader;
         _tree = tree;
         _nodeIdx = nodeIdx;
-        
+
         _reader.BeginNode(_tree[_nodeIdx], _tree);
     }
-    
+
     public void Dispose()
     {
         _reader.EndNode(_tree[_nodeIdx], _tree);

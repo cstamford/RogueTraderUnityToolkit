@@ -36,12 +36,12 @@ public static class Extensions
     {
         List<T> list = self.ToList();
         int n = list.Count;
-        
+
         while (n-- > 1)
         {
             int k = Random.Shared.Next(n + 1);
             (list[k], list[n]) = (list[n], list[k]);
-        }    
+        }
 
         return list;
     }
@@ -93,7 +93,7 @@ public static class Extensions
     private static string DumpImpl(EndianBinaryReader reader, int offset, int len, bool file)
     {
         len = Math.Min(reader.Length, len);
-        
+
         int start = reader.Position;
         Span<byte> bytes = stackalloc byte[len];
 

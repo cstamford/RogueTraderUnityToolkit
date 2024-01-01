@@ -16,18 +16,18 @@ public class Codegen(ComplexTypeReport complexTypes)
         }
 
         Dictionary<TreePath, int> paths = complexTypes.AllPaths;
-        
+
         // Construct all root types, e.g. path length == 1 (parents length == 0).
         foreach ((TreePath root, int rootRefs) in paths.Where(x => x.Key.Parents.Length == 0))
         {
             // Select all the fields that start with this field. Basically, our overlapping/interested set.
             Debug.Assert(rootRefs > 0, "Why does a root have no references? (how did it get here?)");
             KeyValuePair<TreePath, int>[] fields = [..paths.Where(x => x.Key != root && x.Key.StartsWith(root.Self))];
-            
+
             // TODO: Sometimes the base has fewer references than some paths including base.
             // I think this is a bug related to arrays.
             Debug.Assert(fields.All(x => x.Value <= rootRefs), "Why does a child have more refs than its root?");
-                
+
             // Select all the fields that reference this root path every time it has been references.
             // They are our root's guaranteed (100%) fields.
             TreePath[] rootBaseFields = fields
@@ -43,7 +43,7 @@ public class Codegen(ComplexTypeReport complexTypes)
                           $"{fields.Length} total fields, " +
                           $"and was referenced {rootRefs} times");
             }
-            
+
             // Select all the data that is NOT fully referenced, and group it by the reference count.
             // This maps nicely (albeit, not always accurately) to inheritance hierarchies.
             // TODO: Sometimes two different subgroups of objects have the same refcount.
@@ -159,8 +159,3 @@ public class Codegen(ComplexTypeReport complexTypes)
     private readonly Dictionary<AsciiString, int> _typesIndexLookup = [];
     private readonly Dictionary<ObjectParserType, int> _parserTypeIndexLookup = [];
 }
-
-
-
-
-

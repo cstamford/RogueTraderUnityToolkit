@@ -34,7 +34,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
             ObjectParserDebug debug = new(() => parser.Offset);
             treeReader = new ObjectTypeTreeMultiReader(debug, treeReader);
         }
-        
+
         for (int i = startIdx; i < endIdx; ++i)
         {
             ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
@@ -44,7 +44,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
             reader.Position = objectBase;
             parser.Read(file.Objects[instance.TypeIdx], instance, file.TypeReferences, reader, treeReader);
             fnFinishedOne(i, endIdx);
- 
+
             if (parser.Offset != instance.Size)
             {
                 throw new($"Expected {instance.Size} bytes but read {parser.Offset}.");

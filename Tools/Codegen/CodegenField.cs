@@ -14,7 +14,7 @@ public record class CodegenField(
     ICodegenType Type,
     CodegenFieldFlags Flags) : ICodegenField
 {
-    
+
 }
 
 [Flags]

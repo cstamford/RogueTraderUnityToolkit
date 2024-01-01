@@ -15,7 +15,7 @@ public interface IObjectTypeTreeReader
     public void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree);
-    
+
     public void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree);
@@ -39,7 +39,7 @@ public interface IObjectTypeTreeReader
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
         int stringLength);
-    
+
     public void ReadPPtr(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
@@ -73,12 +73,12 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     { }
-    
+
     public virtual void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     { }
-    
+
     public virtual void ReadPrimitive(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
@@ -102,7 +102,7 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
         in ObjectParserReader nodeReader,
         int stringLength)
     { }
-    
+
     public virtual void ReadPPtr(
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
@@ -131,7 +131,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     {
         ++_treeDepth;
         _trees.Add(tree);
-        
+
         Debug.Assert(_treeDepth is 1 or 2);
         _treeIdx = _treeDepth == 1 ? 0 : _trees.Count - 1;
     }
@@ -140,7 +140,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         in ObjectTypeTree tree)
     {
         --_treeDepth;
-        
+
         // exiting root
         if (_treeDepth == 0)
         {
@@ -170,32 +170,32 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
             _hasNonZeroArrayIdx = CheckForNonZeroArrayIndex();
         }
 
-        if (_arrayStack.TryPeek(out ArrayFrame array) && 
+        if (_arrayStack.TryPeek(out ArrayFrame array) &&
             node.Index == array.ArrayDataNodeIndex)
         {
             uint idx = _arrayIndices[array.ArrayIndexListOffset];
             _arrayIndices[array.ArrayIndexListOffset] = ++idx;
             _hasNonZeroArrayIdx |= idx > 0;
         }
-        
+
         Debug.Assert(_trees[TreeIdx] == tree);
         Debug.Assert(_hasNonZeroArrayIdx == CheckForNonZeroArrayIndex());
     }
-    
+
     public override void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
         _nodeStack.Pop();
     }
-    
+
     public override void ReadComplexArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
         int arrayLength)
     {
         if (arrayLength == 0) return;
-        
+
         _arrayStack.Push(new(
             ArrayDataNodeIndex: dataNode.Index,
             ArrayNodeLevel: (byte)(_baseNodeLevel + node.Level),
@@ -213,23 +213,23 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     {
         _baseNodeLevel = (byte)(node.Level + 1);
     }
-    
+
     protected int TreeDepth => _treeDepth;
     protected ushort TreeIdx => (ushort)_treeIdx;
-    
+
     protected readonly record struct NodeFrame(ushort NodeIdx, ushort TreeIdx);
     protected Stack<NodeFrame> NodeStack => _nodeStack;
 
     protected ref ObjectParserNode GetNode(in NodeFrame frame) => ref _trees[frame.TreeIdx][frame.NodeIdx];
-    
+
     protected ushort ArrayDataNodeIdx => _arrayStack.Peek().ArrayDataNodeIndex;
     protected uint ArrayIndex => _arrayIndices[_arrayStack.Peek().ArrayIndexListOffset];
     protected bool IsFirstArrayIndex => !_hasNonZeroArrayIdx;
-    
+
     private bool TryPopArrayFrames(int target, out int popped)
     {
         popped = 0;
-        
+
         if (_arrayStack.Count == 0)
         {
             return false;
@@ -253,17 +253,17 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
 
         return false;
     }
-    
+
     private readonly record struct ArrayFrame(
         ushort ArrayDataNodeIndex,
         byte ArrayNodeLevel,
         byte ArrayIndexListOffset);
-    
+
     private readonly Stack<NodeFrame> _nodeStack = [];
     private readonly Stack<ArrayFrame> _arrayStack = [];
     private readonly List<uint> _arrayIndices = [];
     private readonly List<ObjectTypeTree> _trees = [];
-    
+
     private int _treeDepth;
     private int _treeIdx;
     private bool _hasNonZeroArrayIdx;
@@ -294,7 +294,7 @@ public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] rea
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.BeginNode(node, tree); }
     }
-    
+
     public void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)

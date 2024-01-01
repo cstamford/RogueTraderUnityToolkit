@@ -37,7 +37,7 @@ public sealed class MultiMemoryStream : Stream
         get => _offset;
         set => _offset = (int)value;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public override int Read(Span<byte> buffer)
     {
@@ -64,7 +64,7 @@ public sealed class MultiMemoryStream : Stream
 
     public override int Read(byte[] buffer, int offset, int count)
         => Read(buffer.AsSpan(offset, count));
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public MultiMemoryStream Slice(int offset, int length)
     {

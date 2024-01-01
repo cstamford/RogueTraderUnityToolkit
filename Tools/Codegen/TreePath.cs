@@ -38,10 +38,10 @@ public readonly record struct TreePath(
         hash.Add(Self);
         HashCode = hash.ToHashCode();
     }
-    
+
     public ReadOnlyMemory<TreePathEntry> Parents => Allocation.Memory;
 
-    public bool Equals(TreePath rhs) => 
+    public bool Equals(TreePath rhs) =>
         Self == rhs.Self && Parents.Span.SequenceEqual(rhs.Parents.Span);
 
     public bool StartsWith(TreePathEntry entry) =>
@@ -59,7 +59,7 @@ public readonly record struct TreePath(
         TreePathEntry self = offset + length == currentSelfIdx ? Self : Allocation[selfIdx];
         return new(alloc, self);
     }
-    
+
     public TreePathEntry this[int idx] => idx == Parents.Length ? Self : Allocation[idx];
 
     public int CompareTo(TreePath rhs)
@@ -70,13 +70,13 @@ public readonly record struct TreePath(
         // Different type trees on the root, so they should be ordered separately.
         int comparison = lhsRoot.TypeName.CompareTo(rhsRoot.TypeName);
         if (comparison != 0) return comparison;
-        
+
         // Otherwise, go full string comparison.
         return string.CompareOrdinal(ToString(), rhs.ToString());
     }
-    
+
     public override int GetHashCode() => HashCode;
-    
+
     public override string ToString()
     {
         StringBuilder sb = new();

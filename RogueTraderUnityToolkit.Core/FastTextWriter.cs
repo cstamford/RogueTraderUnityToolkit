@@ -13,29 +13,29 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[20];
         byte* end = buf + 20;
         byte* start = end;
-    
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Write(uint value)
     {
         byte* buf = stackalloc byte[10];
         byte* end = buf + 10;
         byte* start = end;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -45,13 +45,13 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[5];
         byte* end = buf + 5;
         byte* start = end;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -61,13 +61,13 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[3];
         byte* end = buf + 3;
         byte* start = end;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -77,18 +77,18 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[20];
         byte* end = buf + 20;
         byte* start = end;
-        
+
         bool isNegative = value < 0;
         if (isNegative) value = -value;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         if (isNegative) *--start = _asciiMinus;
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -98,18 +98,18 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[11];
         byte* end = buf + 11;
         byte* start = end;
-        
+
         bool isNegative = value < 0;
         if (isNegative) value = -value;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         if (isNegative) *--start = _asciiMinus;
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -119,19 +119,19 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[6];
         byte* end = buf + 6;
         byte* start = end;
-        
+
         bool isNegative = value < 0;
-        
+
         if (isNegative) value = (short)-value;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         if (isNegative) *--start = _asciiMinus;
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -141,18 +141,18 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         byte* buf = stackalloc byte[4];
         byte* end = buf + 4;
         byte* start = end;
-        
+
         bool isNegative = value < 0;
         if (isNegative) value = (sbyte)-value;
-        
+
         do
         {
             *--start = (byte)(_asciiZero + value % 10);
             value /= 10;
         } while (value != 0);
-        
+
         if (isNegative) *--start = _asciiMinus;
-        
+
         stream.Write(new(start, (int)(end - start)));
     }
 
@@ -164,7 +164,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
 
         Utf8Formatter.TryFormat(value, bufSpan, out int written, _dbl);
         byte* end = buf + written;
-        
+
         if (Util.FastFindByte(_asciiDot, bufSpan) == -1)
         {
             *end++ = _asciiDot;
@@ -174,18 +174,18 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         int finalWritten = (int)(end - buf);
         stream.Write(bufSpan[..finalWritten]);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Write(float value)
     {
         if (Optimization_WriteCommonFloats(value)) return;
-        
+
         byte* buf = stackalloc byte[32];
         Span<byte> bufSpan = new(buf, 32);
 
         Utf8Formatter.TryFormat(value, bufSpan, out int written, _flt);
         byte* end = buf + written;
-        
+
         if (Util.FastFindByte(_asciiDot, bufSpan) == -1)
         {
             *end++ = _asciiDot;
@@ -195,7 +195,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
         int finalWritten = (int)(end - buf);
         stream.Write(bufSpan[..finalWritten]);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private bool Optimization_WriteCommonFloats(float value)
     {
@@ -204,7 +204,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
             stream.Write("0.0"u8);
             return true;
         }
-        
+
         if (value == 1f)
         {
             stream.Write("1.0"u8);
@@ -232,7 +232,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
     {
         stream.Write(str.Bytes.Span);
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Write(ReadOnlySpan<byte> bytes)
     {
@@ -242,7 +242,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
     private const byte _asciiDot = 0x2E;
     private const byte _asciiMinus = 0x2D;
     private const byte _asciiZero = 0x30;
-    
+
     private static readonly StandardFormat _dbl = new('G', 16);
     private static readonly StandardFormat _flt = new('G', 8);
 }

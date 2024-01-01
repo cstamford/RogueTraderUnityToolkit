@@ -24,7 +24,7 @@ foreach (string path in arguments.ImportPaths)
 {
     FileInfo info = new(path);
     bool isDir = (info.Attributes & FileAttributes.Directory) != 0;
-        
+
     files = isDir ?
         files.Concat(Directory
             .EnumerateFiles(info.FullName, "*", SearchOption.AllDirectories)
@@ -94,7 +94,7 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
         Log.Write($"Unable to load {fileInfo.Name}", ConsoleColor.Yellow);
         return;
     }
-    
+
     try
     {
         AssetBundle? bundle = bundleAsset as AssetBundle;
@@ -115,7 +115,7 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
                 Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
                 continue;
             }
-            
+
             processor.Process(
                 arguments,
                 bundle,
@@ -164,17 +164,17 @@ IRelocatableMemoryRegion[] PrepMemoryForBundle(AssetBundle bundle)
 {
     AssetBundleBlock[] blocks = bundle.Manifest.Blocks;
     IRelocatableMemoryRegion[] regionsMem = new IRelocatableMemoryRegion[blocks.Length];
-    
+
     for (int i = 0; i < blocks.Length; ++i)
     {
         ref AssetBundleBlock block = ref blocks[i];
         ref AssetBundleBlockRegion blockRegion = ref bundle.Regions[i];
-        
+
         regionsMem[i] = MemoryCache.Register(
             new AssetBundleBlockLoader(bundle.Info, block, blockRegion),
             (int)block.UncompressedSize, (int)blockRegion.MemoryOffset);
     }
-        
+
     return regionsMem;
 }
 
@@ -192,21 +192,21 @@ bool TryLoadAssetFromNode(
         {
             AssetBundleBlockRegion region = x.item;
             IRelocatableMemoryRegion regionMem = memory[x.index];
-        
+
             long nodeAddress = node.Offset;
             long nodeLength = node.Size;
             long blockAddress = region.MemoryOffset;
             long blockLength = region.MemoryLength;
-        
+
             int start = (int)Math.Max(nodeAddress, blockAddress);
             int end = (int)Math.Min(nodeAddress + nodeLength, blockAddress + blockLength);
-        
+
             int offset = (int)(start - blockAddress);
             int length = end - start;
-        
+
             Debug.Assert(offset >= 0 && offset <= blockLength);
             Debug.Assert(length > 0 && length <= blockLength);
-        
+
             return regionMem.Slice(offset, length);
         })];
 
@@ -226,7 +226,7 @@ bool TryLoadAssetFromNode(
     {
         info.UserData = overlapMem;
     }
-    
+
     return TryLoadAssetFromInfo(loaders, info, out asset);
 }
 
@@ -283,7 +283,7 @@ bool TryLoadAssetFromInfo(
     {
         Interlocked.Increment(ref assetCountSkipped);
     }
-    
+
     asset = default!;
     return false;
 
@@ -298,14 +298,14 @@ bool TryLoadAssetFromInfo(
             if (arguments.Debug)
             {
                 Log.Write(e.Message, ConsoleColor.DarkGray);
-            
+
                 foreach (LogEntry entry in e.StackTrace!
                     .Split(Environment.NewLine)
                     .Take(2)
                     .Select(x => new LogEntry(x.Trim(), ConsoleColor.DarkGray)))
                 {
                     Log.Write(indent: 4, entry);
-                } 
+                }
             }
 
             return false;

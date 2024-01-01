@@ -62,6 +62,6 @@ public readonly struct MemoryCacheData(IMemoryCacheLoader loader) : IDisposable
 {
     public ReadOnlyMemory<byte> Memory { get; } = loader.Load();
     public void Dispose() => loader.Unload();
-    
+
     public override string? ToString() => loader.ToString()!;
 }

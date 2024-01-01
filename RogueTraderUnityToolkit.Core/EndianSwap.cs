@@ -69,9 +69,9 @@ public static class EndianSwap
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static unsafe void Swap64(Span<byte> bytes64)
-    { 
+    {
         fixed (byte* buf = bytes64)
-        { 
+        {
             Swap64(buf);
         }
     }
@@ -85,9 +85,9 @@ public static class EndianSwap
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static unsafe void Swap32(Span<byte> bytes32)
-    { 
+    {
         fixed (byte* buf = bytes32)
-        { 
+        {
             Swap32(buf);
         }
     }
@@ -101,9 +101,9 @@ public static class EndianSwap
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static unsafe void Swap16(Span<byte> bytes16)
-    { 
+    {
         fixed (byte* buf = bytes16)
-        { 
+        {
             Swap16(buf);
         }
     }
