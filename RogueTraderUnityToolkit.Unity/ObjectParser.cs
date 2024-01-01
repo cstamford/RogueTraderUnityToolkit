@@ -30,7 +30,7 @@ public record struct ObjectParser
         Debug.Assert(type.Tree != null);
 
         _extReader.BeginTree(type.Tree);
-        Read(type.Tree, type.Tree.Root, 0);
+        Read(type.Tree, type.Tree.Root, treeDepth: 0, reading: true);
         _extReader.EndTree(type.Tree);
     }
 
@@ -38,7 +38,8 @@ public record struct ObjectParser
     private readonly void Read(
         in ObjectTypeTree tree,
         in ObjectParserNode node,
-        int treeDepth)
+        int treeDepth,
+        bool reading)
     {
         bool isRoot = node.Index == 0;
         bool isRootTree = treeDepth == 0;
@@ -48,7 +49,7 @@ public record struct ObjectParser
         // leaf
         if (node.IsPrimitive)
         {
-            ObjectParserReader nodeReader = ReadPrimitive(node);
+            ObjectParserReader nodeReader = ReadPrimitive(node, reading);
             _extReader.ReadPrimitive(node, nodeReader);
             Offset = nodeReader.End;
         }
@@ -58,20 +59,20 @@ public record struct ObjectParser
             // string -> char array -> { length, data }
             if (node.Type == ObjectParserType.String)
             {
-                ObjectParserReader nodeReader = ReadString(node, out int stringLength);
+                ObjectParserReader nodeReader = ReadString(node, reading, out int stringLength);
                 _extReader.ReadString(node, nodeReader, stringLength);
                 Offset = nodeReader.End;
             }
             // refObjectTree -> { version, info -> { rid, cls, ns, asm }, data (embedded tree) }
             else if (node.Type == ObjectParserType.RefObjectTree)
             {
-                if (TryReadRefObjectTree(node, tree, out long refId, out int typeRefIdx))
+                if (TryReadRefObjectTree(node, tree, reading, out long refId, out int typeRefIdx))
                 {
                     ref SerializedFileTypeReference typeRef = ref _references[typeRefIdx];
                     _extReader.ReadRefObjectRegistry(node, refId, typeRef.Class, typeRef.Namespace, typeRef.Assembly);
-
+                    
                     _extReader.BeginTree(typeRef.Tree);
-                    Read(typeRef.Tree, typeRef.Tree.Root, treeDepth + 1);
+                    Read(typeRef.Tree, typeRef.Tree.Root, treeDepth + 1, reading: true /* we can't be here otherwise */);
                     _extReader.EndTree(typeRef.Tree);
                 }
                 else
@@ -93,7 +94,7 @@ public record struct ObjectParser
             // pptr -> { m_FileID, m_PathID }, type extracted from name 
             else if (node.Type == ObjectParserType.PPTr)
             {
-                ObjectParserReader nodeReader = ReadPPtr(node, tree, out AsciiString typeName);
+                ObjectParserReader nodeReader = ReadPPtr(node, tree, reading, out AsciiString typeName);
                 _extReader.ReadPPtr(node, nodeReader, typeName);
                 Offset = nodeReader.End;
             }
@@ -110,19 +111,25 @@ public record struct ObjectParser
 
             if (dataNode.IsLeaf)
             {
-                ObjectParserReader nodeReader = ReadPrimitiveArray(node, dataNode, out int arrayLength);
+                ObjectParserReader nodeReader = ReadPrimitiveArray(node, dataNode, reading, out int arrayLength);
                 _extReader.ReadPrimitiveArray(node, dataNode, nodeReader, arrayLength);
                 Offset = nodeReader.End;
             }
             else
             {
-                int arrayLength = _reader.ReadS32();
+                int arrayLength = reading ? _reader.ReadS32() : 0;
                 Debug.Assert(arrayLength >= 0 && Offset + arrayLength <= Length); // sanity check
                 _extReader.ReadComplexArray(node, dataNode, arrayLength);
+                
+                // In the event we have a zero-sized complex array, we still visit all the nodes once,
+                // so users are informed about their structure.
+                // However, we obviously can't read any data, so we set the flag 'reading' to false
+                // so we skip over any reads and disallow users from reading as well by setting the
+                // flag on the reader.
 
-                for (int i = 0; i < arrayLength; ++i)
+                for (int i = 0; i < Math.Max(1, arrayLength); ++i)
                 {
-                    Read(tree, dataNode, treeDepth);
+                    Read(tree, dataNode, treeDepth, reading && arrayLength != 0);
                 }
             }
         }
@@ -147,7 +154,7 @@ public record struct ObjectParser
 
                 if (childNode.Level == node.Level + 1)
                 {
-                    Read(tree, childNode, treeDepth);
+                    Read(tree, childNode, treeDepth, reading);
                 }
 
                 ++childIdx;
@@ -156,44 +163,48 @@ public record struct ObjectParser
         
         if (!isRoot && node.IsAlignTo4)
         {
-            int alignedBytes = _reader.AlignTo(4);
+            int alignedBytes = reading ? _reader.AlignTo(4) : 0;
             _extReader.Align(node, alignedBytes);
         }
     }
 
     private readonly ObjectParserReader ReadPrimitive(
-        in ObjectParserNode node)
+        in ObjectParserNode node,
+        bool reading)
     {
         Debug.Assert(node.IsPrimitive);
-        return CreateReader(node.Type, node.Size);
+        return CreateReader(node.Type, node.Size, reading);
     }
 
     private readonly ObjectParserReader ReadPrimitiveArray(
         in ObjectParserNode node,
         in ObjectParserNode dataNode,
+        bool reading,
         out int arrayLength)
     {
         Debug.Assert(node.IsArray);
         Debug.Assert(dataNode.IsPrimitive);
 
-        arrayLength = _reader.ReadS32();
-        return CreateReader(dataNode.Type, arrayLength * dataNode.Size);
+        arrayLength = reading ? _reader.ReadS32() : 0;
+        return CreateReader(dataNode.Type, arrayLength * dataNode.Size, reading);
     }
 
     private readonly ObjectParserReader ReadString(
         in ObjectParserNode node,
+        bool reading,
         out int stringLength)
     {
         Debug.Assert(node.IsBuiltin);
         Debug.Assert(node.Type == ObjectParserType.String);
 
-        stringLength = _reader.ReadS32();
-        return CreateReader(ObjectParserType.String, stringLength);
+        stringLength = reading ? _reader.ReadS32() : 0;
+        return CreateReader(ObjectParserType.String, stringLength, reading);
     }
     
     private readonly ObjectParserReader ReadPPtr(
         in ObjectParserNode node,
         in ObjectTypeTree tree,
+        bool reading,
         out AsciiString typeName)
     {
         Debug.Assert(node.IsBuiltin);
@@ -214,12 +225,13 @@ public record struct ObjectParser
         Debug.Assert(fileIdNode.Type == ObjectParserType.S32);
         Debug.Assert(pathIdNode.Type == ObjectParserType.S64);
         
-        return CreateReader(ObjectParserType.PPTr, fileIdNode.Size + pathIdNode.Size);
+        return CreateReader(ObjectParserType.PPTr, fileIdNode.Size + pathIdNode.Size, reading);
     }
 
     private readonly bool TryReadRefObjectTree(
         in ObjectParserNode node,
         in ObjectTypeTree tree,
+        bool reading,
         out long refId,
         out int typeRefIdx)
     {
@@ -237,28 +249,32 @@ public record struct ObjectParser
         Debug.Assert(refTypeNsNode.Type == ObjectParserType.String);
         Debug.Assert(refTypeAsmNode.Type == ObjectParserType.String);
 
-        refId = _reader.ReadS64();
-
-        AsciiString cls = _reader.ReadString(_reader.ReadS32());
-        _reader.AlignTo(4);
-
-        AsciiString ns = _reader.ReadString(_reader.ReadS32());
-        _reader.AlignTo(4);
-
-        AsciiString asm = _reader.ReadString(_reader.ReadS32());
-        _reader.AlignTo(4);
-
-        for (int i = 0; i < _references.Length; ++i)
+        if (reading)
         {
-            ref SerializedFileTypeReference candidate = ref _references[i];
-            
-            if (candidate.Class == cls && candidate.Namespace == ns && candidate.Assembly == asm)
+            refId = _reader.ReadS64();
+
+            AsciiString cls = _reader.ReadString(_reader.ReadS32());
+            _reader.AlignTo(4);
+
+            AsciiString ns = _reader.ReadString(_reader.ReadS32());
+            _reader.AlignTo(4);
+
+            AsciiString asm = _reader.ReadString(_reader.ReadS32());
+            _reader.AlignTo(4);
+
+            for (int i = 0; i < _references.Length; ++i)
             {
-                typeRefIdx = i;
-                return true;
+                ref SerializedFileTypeReference candidate = ref _references[i];
+            
+                if (candidate.Class == cls && candidate.Namespace == ns && candidate.Assembly == asm)
+                {
+                    typeRefIdx = i;
+                    return true;
+                }
             }
         }
 
+        refId = 0;
         typeRefIdx = -1;
         return false;
     }
@@ -266,11 +282,14 @@ public record struct ObjectParser
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private readonly ObjectParserReader CreateReader(
         ObjectParserType type,
-        int length)
+        int length,
+        bool reading)
     {
+        EndianBinaryReader reader = reading ? _reader : new(new NullStream());
         int offset = Offset;
-        Debug.Assert(offset + length <= Length);
-        return new(_reader, type, _start, offset, offset + length);
+        int offsetEnd = reading ? offset + length : offset;
+        Debug.Assert(offsetEnd <= Length);
+        return new(reader, type, _start, offset, offsetEnd);
     }
 
     private int _start;

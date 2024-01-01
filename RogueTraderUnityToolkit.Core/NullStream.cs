@@ -14,8 +14,15 @@ public sealed class NullStream : Stream
     }
 
     public override void Flush() { }
+    
+    public override int Read(Span<byte> buffer)
+    {
+        buffer.Clear();
+        return buffer.Length;
+    }
 
-    public override int Read(byte[] buffer, int offset, int count) => 0;
+    public override int Read(byte[] buffer, int offset, int count)
+        => Read(buffer.AsSpan(offset, count));
 
     public override long Seek(long offset, SeekOrigin origin) => 0;
 

@@ -135,10 +135,11 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserReader nodeReader,
         AsciiString typeName)
     {
+        nodeReader.ReadPPtr(node, typeName); // TODO codegen: when we can call the base reader, get the data
+        
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadPPTr", ConsoleColor.Green),
             new LogEntry($" {Range()} =>", _col),
-            // TODO codegen: when we can call the base reader, get the type
             new LogEntry($" {typeName}", ConsoleColor.Green));
     }
 
@@ -166,9 +167,12 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             $"<{_lastOffset}..{Offset}>" :
             $"<{_lastOffset}..{Offset}+{remaining}..>";
 
-        Debug.Assert(Offset > _lastOffset);
+        if (Offset == _lastOffset)
+        {
+            message += " (PEEKING)";
+        }
+        
         _lastOffset = Offset;
-
         return message;
     }
 };
