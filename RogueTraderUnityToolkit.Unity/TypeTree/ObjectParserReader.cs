@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
 public readonly ref struct ObjectParserReader(
     EndianBinaryReader reader,
@@ -203,20 +203,6 @@ public readonly ref struct ObjectParserReader(
         Debug.Assert(node.Type == ObjectParserType.String);
         PrepareForRead();
         return reader.ReadString(readLength != -1 ? Math.Min(stringLength, readLength) : stringLength);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public void ReadPPtr(
-        in ObjectParserNode node,
-        AsciiString typeName)
-    {
-        Debug.Assert(node.Type == ObjectParserType.PPTr);
-        PrepareForRead();
-
-        int fileId = reader.ReadS32();
-        long pathId = reader.ReadS64();
-
-        // TODO - codegen for C# type bindings so we can return PPtr<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

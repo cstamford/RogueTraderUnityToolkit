@@ -1,6 +1,7 @@
 ﻿using Codegen;
 using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
+using RogueTraderUnityToolkit.Unity.File;
 using System.IO.MemoryMappedFiles;
 
 SuperluminalPerf.Initialize();
@@ -24,20 +25,18 @@ foreach (string path in paths)
         files.Append(info);
 }
 
+files = files
+    .Where(file => file.Length != 0)
+    .OrderBy(x => x.FullName);
+
 ParallelOptions parallelOpts = new();
 
-#if DEBUG
+#if DEBUG_VERBOSE
 parallelOpts.MaxDegreeOfParallelism = 1;
 files = files.Take(50);
 #endif
 
-Dictionary<UnityObjectType, PerTypeTreeData> perTypeTreeData = Enum
-    .GetValues<UnityObjectType>()
-    .ToDictionary(x => x, _ => new PerTypeTreeData());
-
-Dictionary<UnityObjectType, SemaphoreSlim> perTypeTreeDataLocks = perTypeTreeData
-    .Keys
-    .ToDictionary(x => x, _ => new SemaphoreSlim(1, 1));
+Dictionary<TreePathObject, int> treePathObjects = [];
 
 Parallel.ForEach(files
         .Where(file => file.Length != 0)
@@ -45,17 +44,12 @@ Parallel.ForEach(files
     parallelOpts,
     () =>
     {
-        Dictionary<UnityObjectType, PerTypeTreeData> data = Enum
-            .GetValues<UnityObjectType>()
-            .ToDictionary(x => x, _ => new PerTypeTreeData());
-
-        ITreeReader reader = true switch
+        Dictionary<TreePathObject, int> dict = [];
+        return new ThreadLocalWorkData(true switch
         {
             false => new TreeReaderDebug(Console.OpenStandardOutput()),
-            true => new TreeReader(new TreePathAllocator(), data)
-        };
-
-        return new ThreadLocalWorkData(reader, data);
+            true => new TreeReader(new TreePathAllocator(), dict)
+        }, dict);
     },
     (fileInfo, _, workData) =>
     {
@@ -73,7 +67,7 @@ Parallel.ForEach(files
 
                 if (!SerializedFile.CanRead(nodeInfo))
                 {
-#if DEBUG
+#if DEBUG_VERBOSE
                     Log.Write($"Skipping {nodeInfo} (probably a resource file)", ConsoleColor.Yellow);
 #endif
                     continue;
@@ -90,54 +84,36 @@ Parallel.ForEach(files
         }
         else
         {
+#if DEBUG_VERBOSE
             Log.Write($"Skipping {diskFileInfo}", ConsoleColor.DarkGray);
+#endif
         }
 
         return workData;
     },
     workData =>
     {
-        Queue<UnityObjectType> typesToProcess = new(workData.Data.Keys);
+        Dictionary<TreePathObject, int> ours = workData.Objects;
 
-        while (typesToProcess.TryDequeue(out UnityObjectType type))
+        lock (treePathObjects)
         {
-            SemaphoreSlim workLock = perTypeTreeDataLocks[type];
-
-            if (workLock.Wait(0))
+            foreach ((TreePathObject obj, int refs) in ours)
             {
-                perTypeTreeData[type].IncObjectCount(workData.Data[type].ObjectCount);
-
-                Dictionary<TreePath, int> ourPathRefs = workData.Data[type].PathRefs;
-                Dictionary<TreePath, int> theirPathRefs = perTypeTreeData[type].PathRefs;
-
-                foreach ((TreePath path, int count) in ourPathRefs)
-                {
-                    if (theirPathRefs.TryGetValue(path, out int existingCount))
-                    {
-                        theirPathRefs[path] = existingCount + count;
-                    }
-                    else
-                    {
-                        theirPathRefs.Add(path, count);
-                    }
-                }
-
-                workLock.Release();
-                continue;
+                if (!treePathObjects.TryAdd(obj, refs))
+                    treePathObjects[obj] += refs;
             }
-
-            typesToProcess.Enqueue(type);
         }
     });
 
+Log.Write($"{treePathObjects.Count} objects", ConsoleColor.Green);
 
-ComplexTypeReport complexTypes = TreeAnalysis.CalculateComplexTypes(perTypeTreeData);
+TreeReport report = TreeAnalysis.CalculateReport(treePathObjects);
+ExportAnalysis(report);
 
-Codegen.Codegen codegen = new(complexTypes);
-codegen.Analyse();
-
-ExportCodegen(codegen);
-ExportAnalysis(perTypeTreeData, complexTypes);
+// TODO
+//Codegen.Codegen codegen = new(complexTypes);
+//codegen.Analyse();
+//ExportCodegen(codegen);
 
 return;
 
@@ -161,64 +137,43 @@ static void ExportCodegen(Codegen.Codegen codegen)
     }
 }
 
-static void ExportAnalysis(
-    Dictionary<UnityObjectType, PerTypeTreeData> perTypeTreeData,
-    ComplexTypeReport complexTypes)
+static void ExportAnalysis(in TreeReport report)
 {
-    const bool exportBreakdown = true;
-    const bool exportFieldAccesses = true;
-    const bool exportComplexTypeFieldAccesses = true;
-    const bool exportComplexTypeMap = true;
-    const bool exportComplexTypeRefcounts = true;
+    const bool exportAllPaths = true;
+    const bool exportFieldAccessByTypeName = true;
+    const bool exportFieldAccessByUnityType = true;
 
-    if (exportBreakdown)
+    if (exportAllPaths)
     {
-        const string path = "typeBreakdown.txt";
+        const string path = "allPaths.txt";
         using FileStream stream = File.Create(path);
         using StreamWriter sw = new(stream);
-        TreeAnalysis.WriteUnityTypeBreakdown(sw, perTypeTreeData);
-        Log.Write($"Wrote type breakdowns to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        TreeAnalysis.WriteAllPaths(sw, report);
+        Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
     }
 
-    if (exportFieldAccesses)
+    if (exportFieldAccessByTypeName)
     {
-        const string path = "typeFieldAccesses.txt";
+        const string path = "fieldAccessByTypeName.txt";
         using FileStream stream = File.Create(path);
         using StreamWriter sw = new(stream);
-        TreeAnalysis.WriteUnityTypeFieldAccesses(sw, perTypeTreeData);
-        Log.Write($"Wrote type field accesses to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        TreeAnalysis.WriteFieldAccessByTypeName(sw, report);
+        Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
     }
 
-    if (exportComplexTypeFieldAccesses)
+    if (exportFieldAccessByUnityType)
     {
-        const string path = "complexTypeFieldAccesses.txt";
+        const string path = "fieldAccessByUnityType.txt";
         using FileStream stream = File.Create(path);
         using StreamWriter sw = new(stream);
-        TreeAnalysis.WriteComplexTypesFieldAccesses(sw, complexTypes);
-        Log.Write($"Wrote complex type field accesses to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        TreeAnalysis.WriteFieldAccessByUnityType(sw, report);
+        Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
     }
-
-    if (exportComplexTypeMap)
-    {
-        const string path = "complexTypeMap.json";
-        using FileStream stream = File.Create(path);
-        using StreamWriter sw = new(stream);
-        TreeAnalysis.WriteComplexTypesJson(sw, complexTypes);
-        Log.Write($"Wrote complex type map to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
-    }
-
-    if (exportComplexTypeRefcounts)
-    {
-        const string path = "complexTypeRefcounts.txt";
-        using FileStream stream = File.Create(path);
-        using StreamWriter sw = new(stream);
-        TreeAnalysis.WriteComplexTypesRefcounts(sw, complexTypes);
-        Log.Write($"Wrote complex type refcounts to {Path.GetFullPath(path)}", ConsoleColor.Cyan);
-    }
-
 }
 
-static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workData)
+static void ProcessSerializedFile(
+    SerializedFile file,
+    ThreadLocalWorkData workData)
 {
     SerializedFileReader fileReader = new(file);
 
@@ -231,13 +186,20 @@ static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workD
             withDebugReader: false,
             startIdx: 0,
             endIdx: file.ObjectInstances.Length,
-            fnStartedOne: (i, _) =>
+            fnStartedOne: i =>
             {
                 int typeIdx = file.ObjectInstances[i].TypeIdx;
                 UnityObjectType type = file.Objects[typeIdx].Info.Type;
                 workData.Reader.StartObject(type);
             },
-            fnFinishedOne: (_, _) => { });
+            fnFinishedOne: i =>
+            {
+                int typeIdx = file.ObjectInstances[i].TypeIdx;
+                UnityObjectType type = file.Objects[typeIdx].Info.Type;
+                workData.Reader.FinishObject(type);
+            });
+
+        workData.Reader.FinishFile(file);
     }
     else
     {
@@ -245,19 +207,4 @@ static void ProcessSerializedFile(SerializedFile file, ThreadLocalWorkData workD
     }
 }
 
-public readonly record struct ThreadLocalWorkData(
-    ITreeReader Reader,
-    Dictionary<UnityObjectType, PerTypeTreeData> Data);
-
-
-public sealed record class PerTypeTreeData(
-    Dictionary<TreePath, int> PathRefs)
-{
-    public PerTypeTreeData() : this([]) { }
-
-    public int ObjectCount => _objectCount;
-    public void IncObjectCount(int count) => Interlocked.Add(ref _objectCount, count);
-    private int _objectCount;
-
-    public override string ToString() => $"{ObjectCount} objects";
-}
+record class ThreadLocalWorkData(ITreeReader Reader, Dictionary<TreePathObject, int> Objects);

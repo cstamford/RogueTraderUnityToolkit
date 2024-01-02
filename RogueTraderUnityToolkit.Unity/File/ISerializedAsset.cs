@@ -1,4 +1,4 @@
-﻿namespace RogueTraderUnityToolkit.Unity;
+﻿namespace RogueTraderUnityToolkit.Unity.File;
 
 public interface ISerializedAsset
 {

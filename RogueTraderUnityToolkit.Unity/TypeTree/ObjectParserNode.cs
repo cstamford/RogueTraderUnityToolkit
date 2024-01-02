@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
 public readonly record struct ObjectParserNode(
     AsciiString Name,
@@ -53,6 +53,8 @@ public readonly record struct ObjectParserNode(
             FirstSiblingIdx: firstSiblingIdx,
             Level: node.Level);
 
+        Debug.Assert(!parserNode.IsPrimitive || parserNode.Size > 0);
+
         return parserNode;
     }
 
@@ -70,21 +72,7 @@ public readonly record struct ObjectParserNode(
 
         if (!ObjectParserNodeUtil.TryGetType(typeNameSpan, out ObjectParserType compactType))
         {
-            if (typeNameSpan.Length >= 5 && "PPtr<"u8.SequenceEqual(typeNameSpan[..5]))
-            {
-                compactType = ObjectParserType.PPTr;
-            }
-            else
-            {
-                compactType = node.Size switch
-                {
-                    8 => ObjectParserType.S64,
-                    4 => ObjectParserType.S32,
-                    2 => ObjectParserType.S16,
-                    1 => ObjectParserType.S8,
-                    _ => ObjectParserType.Complex
-                };
-            }
+            compactType = ObjectParserType.Complex;
         }
 
         type = compactType;
@@ -109,7 +97,7 @@ public readonly record struct ObjectParserNode(
             Debug.Assert(found);
         }
 
-        return AsciiStringPool.Fetch(bufferRead);
+        return AsciiStringPool.Fetch(bufferRead.Span);
     }
 
     private static void ResolveHierarchy(
@@ -192,6 +180,7 @@ public readonly record struct ObjectParserNode(
 
 public enum ObjectParserType : byte
 {
+    // Primitive types
     U64,
     U32,
     U16,
@@ -208,13 +197,16 @@ public enum ObjectParserType : byte
     Bool,
     Char,
 
+    // Complex types
     Complex,
 
+    // Builtin types
+    ReferencedObject,
+    PPTr,
     String,
-    RefObjectTree,
     Vector,
     Map,
-    PPTr
+    Pair
 }
 
 [Flags]
@@ -245,7 +237,7 @@ public static class ObjectParserNodeUtil
             [Util.Hash("SInt64")] = ObjectParserType.S64,
             [Util.Hash("SInt32")] = ObjectParserType.S32,
             [Util.Hash("int")] = ObjectParserType.S32,
-            [Util.Hash("TypePtr")] = ObjectParserType.S32,
+            [Util.Hash("Type*")] = ObjectParserType.S32,
             [Util.Hash("SInt16")] = ObjectParserType.S16,
             [Util.Hash("SInt8")] = ObjectParserType.S8,
 
@@ -255,16 +247,30 @@ public static class ObjectParserNodeUtil
             [Util.Hash("bool")] = ObjectParserType.Bool,
             [Util.Hash("char")] = ObjectParserType.Char,
 
+            [Util.Hash("ReferencedObject")] = ObjectParserType.ReferencedObject,
             [Util.Hash("string")] = ObjectParserType.String,
-            [Util.Hash("ReferencedObject")] = ObjectParserType.RefObjectTree,
-
-            //[Util.Hash("vector")] = ObjectParserType.Vector,
-            //[Util.Hash("map")] = ObjectParserType.Map,
+            //TODO[Util.Hash("vector")] = ObjectParserType.Vector,
+            //TODO[Util.Hash("map")] = ObjectParserType.Map,
+            //TODO[Util.Hash("pair")] = ObjectParserType.Pair
         };
     }
 
-    public static bool TryGetType(ReadOnlySpan<byte> span, out ObjectParserType type) =>
-        _hashToType.TryGetValue(Util.Hash(span), out type);
+    public static bool TryGetType(ReadOnlySpan<byte> span, out ObjectParserType type)
+    {
+        if (!_hashToType.TryGetValue(Util.Hash(span), out type))
+        {
+            if (false /*TODO span.Length >= 5 && "PPtr<"u8.SequenceEqual(span[..5])*/)
+            {
+                type = ObjectParserType.PPTr;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public static string Dump(this ObjectParserNode node, ObjectTypeTree tree)
     {

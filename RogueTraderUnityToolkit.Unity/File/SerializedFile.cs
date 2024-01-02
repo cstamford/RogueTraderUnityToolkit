@@ -1,6 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Unity.TypeTree;
 
-namespace RogueTraderUnityToolkit.Unity
+namespace RogueTraderUnityToolkit.Unity.File
 {
     public sealed record SerializedFile(
         SerializedFileHeader Header,

@@ -1,7 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using System.Buffers;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
 public record class ObjectTypeTree(
     ObjectParserNode[] Nodes)

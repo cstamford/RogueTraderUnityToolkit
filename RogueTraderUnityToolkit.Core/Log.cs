@@ -7,15 +7,16 @@ public static class Log
 
     public static void WriteSingle(params LogEntry[] messages)
     {
-        lock (Console.Out)
+        _lock.Wait();
+
+        foreach ((string message, ConsoleColor color) in messages)
         {
-            foreach ((string message, ConsoleColor color) in messages)
-            {
-                Console.ForegroundColor = color;
-                Console.Write(message);
-                Console.ResetColor();
-            }
+            Console.ForegroundColor = color;
+            Console.Write(message);
+            Console.ResetColor();
         }
+
+        _lock.Release();
     }
 
     public static void WriteSingle(int indent, string message, ConsoleColor color = ConsoleColor.White) =>
@@ -35,6 +36,8 @@ public static class Log
 
     public static void Write(int indent, params LogEntry[] messages) =>
         WriteSingle(indent, [.. messages.Append(new("\n"))]);
+
+    private static SemaphoreSlim _lock = new(1, 1);
 }
 
 public record LogEntry(string Message, ConsoleColor Color = ConsoleColor.White);

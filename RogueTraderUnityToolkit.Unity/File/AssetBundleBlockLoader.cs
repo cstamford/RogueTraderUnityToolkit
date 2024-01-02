@@ -2,7 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.File;
 
 public struct AssetBundleBlockLoader(
     SerializedAssetInfo bundleInfo,

@@ -2,7 +2,7 @@
 using RogueTraderUnityToolkit.Core;
 using System.Text;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.File;
 
 public sealed record AssetBundle(
     AssetBundleHeader Header,

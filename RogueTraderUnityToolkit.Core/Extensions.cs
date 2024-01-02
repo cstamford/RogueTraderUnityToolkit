@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Collections;
+using System.Reflection;
+using System.Text;
 
 namespace RogueTraderUnityToolkit.Core;
 
@@ -102,5 +104,77 @@ public static class Extensions
         reader.Position = start;
 
         return file ? bytes.DumpFile() : bytes.Dump();
+    }
+
+    public static void Dump(this object? obj, int indentLevel = 0, HashSet<object>? visited = null)
+    {
+        int curIndent = ++indentLevel;
+
+        if (obj == null)
+        {
+            Log.Write($"(null)", ConsoleColor.Yellow);
+            return;
+        }
+
+        if (curIndent >= 16)
+        {
+            Log.Write($"(max indent reached)", ConsoleColor.Yellow);
+            return;
+        }
+
+        visited ??= new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+        if (!visited.Add(obj))
+        {
+            Log.Write($"(circular reference detected)", ConsoleColor.Yellow);
+            return;
+        }
+
+        Type type = obj.GetType();
+
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        bool primitiveType = type.IsPrimitive || type.IsEnum || (type.IsValueType && type.GetFields(flags).Length == 0);
+
+        Log.Write($"{obj}", primitiveType ? ConsoleColor.DarkCyan : ConsoleColor.DarkBlue);
+
+        if (primitiveType) return;
+
+        const bool dumpEnumerable = true;
+        const bool dumpFields = true;
+
+        if (dumpEnumerable && obj is IEnumerable enumerable and not string)
+        {
+            const int max = 50;
+            int i = 0;
+
+            foreach (object? item in enumerable)
+            {
+                Log.WriteSingle($"IEnumerable {type.Name} ", ConsoleColor.DarkGray);
+                Log.Write($"[{i}]", ConsoleColor.DarkGreen);
+
+                Dump(item, indentLevel, visited);
+
+                if (++i == max)
+                {
+                    Log.Write($"(terminated enumerable early)", ConsoleColor.Yellow);
+                    break;
+                }
+            }
+
+            return;
+        }
+
+        if (dumpFields)
+        {
+            FieldInfo[] fields = type.GetFields(flags).ToArray();
+            foreach (FieldInfo field in fields)
+            {
+                object fieldValue = field.GetValue(obj)!;
+                Log.WriteSingle(curIndent, []);
+                Log.WriteSingle(field.FieldType.Name, ConsoleColor.DarkMagenta);
+                Log.WriteSingle($" {field.Name}: ", ConsoleColor.DarkGray);
+                Dump(fieldValue, indentLevel, visited);
+            }
+        }
     }
 }

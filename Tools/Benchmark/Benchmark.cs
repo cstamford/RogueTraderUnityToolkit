@@ -1,4 +1,5 @@
-﻿using CsvHelper;
+﻿using Benchmark;
+using CsvHelper;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -10,14 +11,14 @@ if (args.Length == 0)
     return;
 }
 
-const int runCount = 4;
+const int runCount = 6;
 
 string executablePath = args[0];
 string executableArgs = string.Join(" ", args[1..].Select(x => $"\"{x}\""));
 string executableHash = CalculateMd5(executablePath);
 string outputDataPath = "historical.csv";
 
-ProcessStartInfo executablePsi = new()
+ProcessStartInfo executablePsi = new()  
 {
     FileName = executablePath,
     Arguments = executableArgs,
@@ -29,7 +30,7 @@ ProcessStartInfo executablePsi = new()
 Console.WriteLine($"executablePath: {executablePath}");
 Console.WriteLine($"executableArgs: {executableArgs}");
 Console.WriteLine($"executableHash: {executableHash}");
-Console.WriteLine($"outputDataPath: {outputDataPath}");
+Console.WriteLine($"outputDataPath: {Path.GetFullPath(outputDataPath)}");
 Console.WriteLine();
 Console.WriteLine($"runCount: {runCount}");
 Console.WriteLine();
@@ -200,17 +201,19 @@ static void PlotHistoricalRun(BenchmarkRecord run, string label, ScottPlot.Plot 
         runTimes, label: label, color: color);
 }
 
-record struct BenchmarkRecordEntry(
-    double RunTime);
+namespace Benchmark
+{
+    record struct BenchmarkRecordEntry(
+        double RunTime);
 
-record struct BenchmarkRecord(
-    DateTime StartTime,
-    string ExecutableHash,
-    BenchmarkRecordEntry[] Entries);
+    record struct BenchmarkRecord(
+        DateTime StartTime,
+        string ExecutableHash,
+        BenchmarkRecordEntry[] Entries);
 
-record struct BenchmarkRecordCsv(
-    string? Entry,
-    DateTime? StartTime,
-    string? ExecutableHash,
-    int? RunCount);
-    
+    record struct BenchmarkRecordCsv(
+        string? Entry,
+        DateTime? StartTime,
+        string? ExecutableHash,
+        int? RunCount);
+}

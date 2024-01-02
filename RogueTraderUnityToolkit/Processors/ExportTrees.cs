@@ -1,5 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.Unity;
+using RogueTraderUnityToolkit.Unity.File;
+using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -200,7 +201,7 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         _writer.Write("\"\n"u8);
     }
 
-    public override void ReadRefObjectRegistry(
+    public override void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,

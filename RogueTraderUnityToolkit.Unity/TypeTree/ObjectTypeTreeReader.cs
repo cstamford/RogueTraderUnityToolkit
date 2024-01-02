@@ -1,7 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using System.Diagnostics;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
 // Inherit from this if you need to read everything.
 public interface IObjectTypeTreeReader
@@ -45,7 +45,7 @@ public interface IObjectTypeTreeReader
         in ObjectParserReader nodeReader,
         AsciiString typeName);
 
-    public void ReadRefObjectRegistry(
+    public void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -109,7 +109,7 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
         AsciiString typeName)
     { }
 
-    public virtual void ReadRefObjectRegistry(
+    public virtual void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -165,11 +165,6 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     {
         _nodeStack.Push(new(NodeIdx: node.Index, TreeIdx: TreeIdx));
 
-        if (TryPopArrayFrames(_baseNodeLevel + node.Level, out int _))
-        {
-            _hasNonZeroArrayIdx = CheckForNonZeroArrayIndex();
-        }
-
         if (_arrayStack.TryPeek(out ArrayFrame array) &&
             node.Index == array.ArrayDataNodeIndex)
         {
@@ -178,8 +173,8 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
             _hasNonZeroArrayIdx |= idx > 0;
         }
 
-        Debug.Assert(_trees[TreeIdx] == tree);
         Debug.Assert(_hasNonZeroArrayIdx == CheckForNonZeroArrayIndex());
+        Debug.Assert(_trees[TreeIdx] == tree);
     }
 
     public override void EndNode(
@@ -187,6 +182,13 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         in ObjectTypeTree tree)
     {
         _nodeStack.Pop();
+
+        if (_arrayStack.TryPeek(out ArrayFrame top) &&
+            _baseNodeLevel + node.Level <= top.ArrayNodeLevel)
+        {
+            _arrayStack.Pop();
+            _hasNonZeroArrayIdx = CheckForNonZeroArrayIndex();
+        }
     }
 
     public override void ReadComplexArray(
@@ -204,7 +206,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         _arrayIndices.Add(~0u);
     }
 
-    public override void ReadRefObjectRegistry(
+    public override void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -225,24 +227,6 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     protected ushort ArrayDataNodeIdx => _arrayStack.Peek().ArrayDataNodeIndex;
     protected uint ArrayIndex => _arrayIndices[_arrayStack.Peek().ArrayIndexListOffset];
     protected bool IsFirstArrayIndex => !_hasNonZeroArrayIdx;
-
-    private bool TryPopArrayFrames(int target, out int popped)
-    {
-        popped = 0;
-
-        if (_arrayStack.Count == 0)
-        {
-            return false;
-        }
-
-        while (_arrayStack.TryPeek(out ArrayFrame top) && target <= top.ArrayNodeLevel)
-        {
-            _arrayStack.Pop();
-            ++popped;
-        }
-
-        return popped > 0;
-    }
 
     private bool CheckForNonZeroArrayIndex()
     {
@@ -342,14 +326,14 @@ public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] rea
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadPPtr(node, nodeReader, typeName); }
     }
 
-    public void ReadRefObjectRegistry(
+    public void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
         AsciiString ns,
         AsciiString asm)
     {
-        foreach (IObjectTypeTreeReader reader in readers) { reader.ReadRefObjectRegistry(node, refId, cls, ns, asm); }
+        foreach (IObjectTypeTreeReader reader in readers) { reader.ReadReferencedObject(node, refId, cls, ns, asm); }
     }
 
     public void Align(

@@ -18,75 +18,27 @@ public static class AsciiStringPool
         }
 
         _optimizedStrings = [
-            "int"u8.ToArray(),
-            "float"u8.ToArray(),
-            "Array"u8.ToArray(),
-            ""u8.ToArray(), // Empty string
-            "size"u8.ToArray(),
-            "data"u8.ToArray(),
-            "UInt8"u8.ToArray(),
-            "SInt64"u8.ToArray(),
-            "m_PathID"u8.ToArray(),
-            "m_FileID"u8.ToArray(),
+            "Transform"u8.ToArray(),  // refs: 19833740
+            "Object"u8.ToArray(),     // refs: 14074879
+            "GameObject"u8.ToArray(), // refs: 11254279
+            "Component"u8.ToArray(),  // refs: 11153768
         ];
+
+#if DEBUG_VERBOSE
+        foreach (ReadOnlyMemory<byte> mem in _optimizedStrings)
+        {
+            Log.Write($"{Encoding.ASCII.GetString(mem.Span)} = {XXHash64.Hash(mem.Span)}");
+        }
+#endif
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public static AsciiString Fetch(ReadOnlyMemory<byte> memory)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static AsciiString Fetch(ReadOnlySpan<byte> memory)
     {
-        MemoryBytesHasher hasher = new(memory);
-        int length = memory.Length;
-
-        if (Optimization_SelectCommonString(hasher.GetHashCode(), length, out AsciiString optimizedString))
-        {
-            return optimizedString;
-        }
-
-        if (memory.Length > _blockEndIndex || _currentBlockIndex == _blockEndIndex)
-        {
-            return _pool.GetOrAdd(hasher, static (hash, mem) =>
-            {
-                int id = Interlocked.Increment(ref _currentLargeStringId);
-
-                byte blockIdx = (byte)(id & 0xFF);
-                byte blockData = _blockIsLargeString;
-                ushort blockOffset = (ushort)(id >> 8);
-
-                byte[] memoryCopy = mem.ToArray();
-                hash.Memory = memoryCopy;
-
-                AsciiString asciiString = new(blockIdx, blockData, blockOffset);
-                _largeStrings[asciiString] = memoryCopy;
-
-                return asciiString;
-            }, memory);
-        }
-
-        return _pool.GetOrAdd(hasher, static (hash, mem) =>
-        {
-            _smallStringBlocksLock.Wait();
-
-            Debug.Assert(_currentBlockIndex <= _blockEndIndex);
-
-            if (_currentBlockOffset + mem.Length > _blockSize)
-            {
-                ++_currentBlockIndex;
-                _currentBlockOffset = 0;
-            }
-
-            byte blockIdx = (byte)_currentBlockIndex;
-            byte blockData = (byte)mem.Length;
-            ushort blockOffset = (ushort)_currentBlockOffset;
-            _currentBlockOffset += mem.Length;
-
-            _smallStringBlocksLock.Release();
-
-            Memory<byte> block = _smallStringBlocks[blockIdx].Slice(blockOffset, mem.Length);
-            mem.CopyTo(block);
-            hash.Memory = block;
-
-            return new(blockIdx, blockData, blockOffset);
-        }, memory);
+        AsciiStringKey key = new(XXHash64.Hash(memory), memory.Length);
+        AsciiString str = FetchInternal(memory, key);
+        Debug.Assert(str.Bytes.Span.SequenceEqual(memory), $"Hash collision for {key} {str}?");
+        return str;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -124,7 +76,7 @@ public static class AsciiStringPool
     public static bool IsLargeString(in AsciiString asciiString) =>
         asciiString.BlockData == _blockIsLargeString;
 
-    private static readonly ConcurrentDictionary<MemoryBytesHasher, AsciiString> _pool = [];
+    private static readonly ConcurrentDictionary<AsciiStringKey, AsciiString> _pool = [];
     private static readonly Memory<byte>[] _smallStringBlocks;
     private static readonly SemaphoreSlim _smallStringBlocksLock = new(1, 1);
     private static readonly ConcurrentDictionary<AsciiString, Memory<byte>> _largeStrings = [];
@@ -140,90 +92,109 @@ public static class AsciiStringPool
     private const int _blockIsLargeString = 255;
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static bool Optimization_SelectCommonString(int hash, int length, out AsciiString asciiString)
+    private static AsciiString FetchInternal(
+        ReadOnlySpan<byte> memory,
+        in AsciiStringKey key)
     {
-        switch (hash)
+        if (FetchInternal_TryOptimized(key, out AsciiString str) ||
+            _pool.TryGetValue(key, out str))
         {
-            case 253518702: // "int"
-                Debug.Assert(length == 3);
-                asciiString = new(0, _blockIsOptimizedString, 0);
+            return str;
+        }
+
+        int foldedHash = key.Fold();
+
+        if (memory.Length <= _blockEndIndex)
+        {
+            str = FetchInternal_CreateSmallBlockString(memory.Length, foldedHash);
+            memory.CopyTo(_smallStringBlocks[str.BlockIdx]
+                .Slice(str.BlockOffset, memory.Length)
+                .Span); /* copy into fixed size blocks */
+        }
+        else
+        {
+            str = FetchInternal_CreateLargeBlockString(foldedHash);
+            _largeStrings[str] = memory.ToArray(); /* owning copy */
+        }
+
+        _pool[key] = str;
+        return str;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static bool FetchInternal_TryOptimized(
+        in AsciiStringKey key,
+        out AsciiString str)
+    {
+        switch (key.Hash)
+        {
+            case 17039155849707443173: // Transform
+                Debug.Assert(key.Length == 9);
+                str = new(0, _blockIsOptimizedString, 0, key.Fold());
                 return true;
 
-            case -1533643913: // "float"
-                Debug.Assert(length == 5);
-                asciiString = new(1, _blockIsOptimizedString, 0);
+            case 1452706007932390838: // Object
+                Debug.Assert(key.Length == 6);
+                str = new(1, _blockIsOptimizedString, 0, key.Fold());
                 return true;
 
-            case -1590466247: // "Array"
-                Debug.Assert(length == 5);
-                asciiString = new(2, _blockIsOptimizedString, 0);
+            case 4950167451912200535: // GameObject
+                Debug.Assert(key.Length == 10);
+                str = new(2, _blockIsOptimizedString, 0, key.Fold());
                 return true;
 
-            case 46947589: // ""
-                Debug.Assert(length == 0);
-                asciiString = new(3, _blockIsOptimizedString, 0);
-                return true;
-
-            case 928651816: // "size"
-                Debug.Assert(length == 4);
-                asciiString = new(4, _blockIsOptimizedString, 0);
-                return true;
-
-            case 555911733: // "data"
-                Debug.Assert(length == 4);
-                asciiString = new(5, _blockIsOptimizedString, 0);
-                return true;
-
-            case -1583801780: // "UInt8"
-                Debug.Assert(length == 5);
-                asciiString = new(6, _blockIsOptimizedString, 0);
-                return true;
-
-            case -1101600518: // "SInt64"
-                Debug.Assert(length == 6);
-                asciiString = new(7, _blockIsOptimizedString, 0);
-                return true;
-
-            case -1598688481: // "m_PathID"
-                Debug.Assert(length == 8);
-                asciiString = new(8, _blockIsOptimizedString, 0);
-                return true;
-
-            case 1282957373: // "m_FileID"
-                Debug.Assert(length == 8);
-                asciiString = new(9, _blockIsOptimizedString, 0);
+            case 8191976625239845070: // Component
+                Debug.Assert(key.Length == 9);
+                str = new(3, _blockIsOptimizedString, 0, key.Fold());
                 return true;
         }
 
-        asciiString = default;
+        str = default;
         return false;
     }
 
-    private record class MemoryBytesHasher
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static AsciiString FetchInternal_CreateSmallBlockString(
+        int length,
+        int foldedHash)
     {
-        public ReadOnlyMemory<byte> Memory
+        _smallStringBlocksLock.Wait();
+
+        Debug.Assert(length <= _blockEndIndex);
+        Debug.Assert(_currentBlockIndex <= _blockEndIndex);
+
+        if (_currentBlockOffset + length > _blockSize)
         {
-            set
-            {
-                Debug.Assert((int)XXHash32.Hash(value.Span) == _hash);
-                _memory = value;
-            }
+            ++_currentBlockIndex;
+            _currentBlockOffset = 0;
         }
 
-        public MemoryBytesHasher(ReadOnlyMemory<byte> memory)
-        {
-            _memory = memory;
-            _hash = (int)XXHash32.Hash(memory.Span);
-        }
+        byte idx = (byte)_currentBlockIndex;
+        byte data = (byte)length;
+        ushort offset = (ushort)_currentBlockOffset;
+        _currentBlockOffset += length;
 
-        public virtual bool Equals(MemoryBytesHasher? rhs) =>
-            rhs != null &&
-            _hash == rhs._hash &&
-            _memory.Span.SequenceEqual(rhs._memory.Span);
+        _smallStringBlocksLock.Release();
 
-        public override int GetHashCode() => _hash;
+        return new(idx, data, offset, foldedHash);
+    }
 
-        private ReadOnlyMemory<byte> _memory;
-        private readonly int _hash;
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static AsciiString FetchInternal_CreateLargeBlockString(
+        int foldedHash)
+    {
+        int id = Interlocked.Increment(ref _currentLargeStringId);
+
+        byte idx = (byte)(id & 0xFF);
+        byte data = _blockIsLargeString;
+        ushort offset = (ushort)(id >> 8);
+
+        return new(idx, data, offset, foldedHash);
+    }
+
+    private readonly record struct AsciiStringKey(ulong Hash, int Length)
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Fold() => (int)((uint)(Hash >> 32) ^ (uint)(Hash & 0xFFFFFFFF));
     }
 }

@@ -1,0 +1,9 @@
+<Project>
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <DefineConstants>$(DefineConstants);DEBUG_VERBOSE</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <!-- uncomment to enable asserts in release -->
+        <DefineConstants>$(DefineConstants);<!--DEBUG--></DefineConstants>
+    </PropertyGroup>
+</Project>

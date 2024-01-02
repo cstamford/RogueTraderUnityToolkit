@@ -1,7 +1,8 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using System.Diagnostics;
+using System.Text;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
 public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectTypeTreeReaderBase
 {
@@ -45,7 +46,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
     {
-        string value = nodeReader.ReadPrimitiveAsString(node);
+        string value = ReadPrimitiveAsString(nodeReader, node);
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry("ReadPrimitive", ConsoleColor.Blue),
             new LogEntry($" {Range()} => ", _col),
@@ -59,7 +60,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         int arrayLength)
     {
         const int maxLen = 4;
-        string str = nodeReader.ReadPrimitiveArrayAsString(node, arrayLength, maxLen);
+        string str = ReadPrimitiveArrayAsString(nodeReader, node, arrayLength, maxLen);
 
         int remainingElements = arrayLength - maxLen;
         int remainingBytes = 0;
@@ -116,7 +117,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             new LogEntry($"\"", _col));
     }
 
-    public override void ReadRefObjectRegistry(
+    public override void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
         AsciiString cls,
@@ -124,7 +125,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         AsciiString asm)
     {
         Log.Write((_indent + 1) * _spacesPerIndent,
-            new LogEntry($"ReadRefObjectRegistry", ConsoleColor.Green),
+            new LogEntry($"ReadReferencedObject", ConsoleColor.Green),
             new LogEntry($" {Range()} => [", _col),
             new LogEntry($"{refId} {asm}:{ns}.{cls}", ConsoleColor.Green),
             new LogEntry($"]", _col));
@@ -135,7 +136,7 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserReader nodeReader,
         AsciiString typeName)
     {
-        nodeReader.ReadPPtr(node, typeName); // TODO codegen: when we can call the base reader, get the data
+        //nodeReader.ReadPPtr(node, typeName); // TODO codegen: when we can call the base reader, get the data
 
         Log.Write((_indent + 1) * _spacesPerIndent,
             new LogEntry($"ReadPPTr", ConsoleColor.Green),
@@ -175,4 +176,75 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         _lastOffset = Offset;
         return message;
     }
+
+    private static unsafe string ReadPrimitiveArrayAsString(
+        ObjectParserReader reader,
+        in ObjectParserNode node,
+        int arrayLength,
+        int readLength = -1,
+        string separator = ", ")
+    {
+        ObjectParserType type = reader.Type;
+        int sizePerElement = type.Size();
+        int chunkSize = sizePerElement * Math.Min(256, readLength != -1 ? readLength : 64);
+        byte* buffer = stackalloc byte[chunkSize + sizePerElement];
+        buffer = Memory.AlignTo(buffer, sizePerElement);
+
+        StringBuilder sb = new();
+
+        reader.ReadPrimitiveArray(node, arrayLength, new(buffer, chunkSize), (start, end) =>
+        {
+            for (int i = 0; i < end - start; ++i)
+            {
+                byte* elem = buffer + i * sizePerElement;
+
+                sb.Append(type switch
+                {
+                    ObjectParserType.U64 => (*(ulong*)elem).ToString(),
+                    ObjectParserType.U32 => (*(uint*)elem).ToString(),
+                    ObjectParserType.U16 => (*(ushort*)elem).ToString(),
+                    ObjectParserType.U8 => (*elem).ToString(),
+                    ObjectParserType.S64 => (*(long*)elem).ToString(),
+                    ObjectParserType.S32 => (*(int*)elem).ToString(),
+                    ObjectParserType.S16 => (*(short*)elem).ToString(),
+                    ObjectParserType.S8 => (*(sbyte*)elem).ToString(),
+                    ObjectParserType.F64 => (*(double*)elem).ToString("R"),
+                    ObjectParserType.F32 => (*(float*)elem).ToString("R"),
+                    ObjectParserType.Bool => (*elem != 0) ? "true" : "false",
+                    ObjectParserType.Char => Convert.ToChar(*(elem)).ToString(),
+                    _ => string.Empty
+                });
+
+                sb.Append(separator);
+            }
+
+            return end != readLength;
+        });
+
+        if (sb.Length != 0) // remove trailing separator
+        {
+            sb.Length -= separator.Length;
+        }
+
+        return sb.ToString();
+    }
+
+    private static string ReadPrimitiveAsString(
+        ObjectParserReader reader,
+        in ObjectParserNode node) => node.Type switch
+    {
+        ObjectParserType.U64 => reader.ReadU64(node).ToString(),
+        ObjectParserType.U32 => reader.ReadU32(node).ToString(),
+        ObjectParserType.U16 => reader.ReadU16(node).ToString(),
+        ObjectParserType.U8 => reader.ReadU8(node).ToString(),
+        ObjectParserType.S64 => reader.ReadS64(node).ToString(),
+        ObjectParserType.S32 => reader.ReadS32(node).ToString(),
+        ObjectParserType.S16 => reader.ReadS16(node).ToString(),
+        ObjectParserType.S8 => reader.ReadS8(node).ToString(),
+        ObjectParserType.F64 => reader.ReadF64(node).ToString("R"),
+        ObjectParserType.F32 => reader.ReadF32(node).ToString("R"),
+        ObjectParserType.Bool => reader.ReadBool(node) ? "true" : "false",
+        ObjectParserType.Char => reader.ReadChar(node).ToString(),
+        _ => string.Empty
+    };
 };

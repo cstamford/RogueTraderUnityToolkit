@@ -1,86 +1,86 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
-using System.Text.Json;
+using RogueTraderUnityToolkit.Unity.TypeTree;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Codegen;
 
+public readonly record struct TreeReport(
+    (TreePath Path, int Refcount)[] AllPaths,
+    Dictionary<TreePath, int> AllPathsIds,
+    IReadOnlyDictionary<TreePathObject, int> AllPathObjects,
+    IReadOnlyDictionary<UnityObjectType, (TreePathObject, int)[]> AllPathObjectsPerUnityType,
+    IReadOnlyDictionary<AsciiString, (TreePath, int)[]> AllPathsPerType
+);
+
 public static class TreeAnalysis
 {
-    public static ComplexTypeReport CalculateComplexTypes(
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    public static TreeReport CalculateReport(
+        IReadOnlyDictionary<TreePathObject, int> treePathObjects)
     {
-        Dictionary<TreePath, int> allPaths = data
-            .SelectMany(x => x.Value.PathRefs)
-            .GroupBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Sum(item => item.Value));
+        (TreePath, int)[] allPaths = treePathObjects
+            .SelectMany(x => x.Key.Paths.Select(y => (y, x.Value)))
+            .ToArray();
 
-        Dictionary<AsciiString, HashSet<TreePath>> complexTypes = [];
-        Dictionary<AsciiString, int> complexTypeReferences = [];
+        Dictionary<TreePath, int> allPathsIds = allPaths
+            .Select((x, i) => (x.Item1, i))
+            .GroupBy(x => x.Item1)
+            .Select(g => g.First())
+            .ToDictionary();
 
-        foreach ((TreePath path, _) in allPaths)
+        Dictionary<UnityObjectType, (TreePathObject, int)[]> allPathObjectsPerUnityType = treePathObjects
+            .GroupBy(x => x.Key.Type)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(y => (y.Key, y.Value)).ToArray());
+
+        Dictionary<AsciiString, List<(TreePath, int)>> allPathsPerRoot = [];
+
+        foreach ((TreePath path, int refCount) in allPaths)
         {
-            bool complex = path.Self.Type == ObjectParserType.Complex;
-            bool interesting = (path.Self.Flags & ObjectParserNodeFlags.IsBuiltin) != 0;
-
-            if (!complex && !interesting) continue;
-
-            AsciiString typeName = path.Self.TypeName;
-            complexTypes.TryAdd(typeName, []);
-
-            if (!complexTypeReferences.TryAdd(typeName, 1)) ++complexTypeReferences[typeName];
-        }
-
-        foreach ((AsciiString targetTypeName, HashSet<TreePath> refs) in complexTypes)
-        {
-            foreach ((TreePath path, _) in allPaths)
+            for (int i = 0; i < path.Length; i++)
             {
-                int idx;
+                AsciiString typeName = path[i].TypeName;
 
-                TreePathAllocation pathMem = path.Allocation;
-
-                for (idx = pathMem.Length - 1; idx >= 0; --idx)
+                if (!allPathsPerRoot.TryGetValue(typeName, out List<(TreePath, int)>? paths))
                 {
-                    if (pathMem[idx].TypeName == targetTypeName) break;
+                    paths = [];
+                    allPathsPerRoot[typeName] = paths;
                 }
 
-                if (idx != -1)
-                {
-                    // Make a new path, from where we overlapped as far as possible.
-                    refs.Add(new(path.Allocation[(idx + 1)..], path.Self));
-                }
+                paths.Add((path, refCount));
             }
         }
 
-        return new(allPaths, complexTypes, complexTypeReferences);
+        return new(
+            AllPaths: allPaths,
+            AllPathsIds: allPathsIds,
+            AllPathObjects: treePathObjects,
+            AllPathObjectsPerUnityType: allPathObjectsPerUnityType,
+            AllPathsPerType: allPathsPerRoot.ToDictionary(
+                x => x.Key,
+                x => x.Value.ToArray()));
     }
 
-    public static void WriteUnityTypeBreakdown(
-        TextWriter writer,
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    public static void WriteAllPaths(TextWriter writer, in TreeReport report)
     {
-        int totalObjects = data.Sum(x => x.Value.ObjectCount);
-
-        foreach ((UnityObjectType type, int count) in data
-            .OrderByDescending(x => x.Value.ObjectCount)
-            .Select(x => (x.Key, x.Value.ObjectCount)))
+        for (int i = 0; i < report.AllPaths.Length; ++i)
         {
-            writer.WriteLine($"{type} {Percent(count, totalObjects):F1}% ({count})");
+            (TreePath path, int refs) = report.AllPaths[i];
+            writer.WriteLine($"${i} {path} {path.GetTypePath()} {refs} refs");
         }
     }
 
-    public static void WriteUnityTypeFieldAccesses(
-        TextWriter writer,
-        IReadOnlyDictionary<UnityObjectType, PerTypeTreeData> data)
+    public static void WriteFieldAccessByUnityType(TextWriter writer, in TreeReport report)
     {
-        foreach ((UnityObjectType type, PerTypeTreeData typeData) in data
-            .OrderByDescending(x => x.Value.ObjectCount))
+        foreach ((UnityObjectType type, (TreePathObject, int)[] objects)
+            in report.AllPathObjectsPerUnityType)
         {
             writer.WriteLine($"**{type}**");
 
-            IOrderedEnumerable<IGrouping<float, (TreePath Key, float)>> groups = typeData.PathRefs
-                .Select(x => (x.Key, Percent(x.Value, typeData.ObjectCount)))
-                .GroupBy(x => x.Item2)
-                .OrderByDescending(x => x.Key);
+            IOrderedEnumerable<(TreePathObject, int)> groups = objects
+                .OrderByDescending(x => x.Item2);
 
             int numGroups = groups.Count();
 
@@ -88,13 +88,15 @@ public static class TreeAnalysis
 
             if (numGroups == 1)
             {
-                foreach (TreePath path in groups
-                    .First()
-                    .Select(x => x.Key)
-                    .Order())
+                TreePathObject obj = groups.First().Item1;
+
+                foreach (TreePath path in obj.Paths
+                    .OrderBy(x => x.ToString())
+                    .ThenBy(x => x.GetTypePath()))
                 {
                     writer.Write(' '.Repeat(4));
-                    WritePath(path);
+                    path.WritePath(writer);
+                    writer.WriteLine();
                 }
 
                 writer.WriteLine();
@@ -104,35 +106,22 @@ public static class TreeAnalysis
 
             int groupId = 0;
 
-            foreach (IGrouping<float, (TreePath Key, float)> group in groups)
+            foreach ((TreePathObject obj, int refs) in groups)
             {
                 int thisGroupId = groupId++;
 
                 writer.Write(' '.Repeat(4));
                 writer.Write(thisGroupId == 0 ? $"Common" : $"Group {thisGroupId}");
-                writer.Write($" ({group.Key:F1}%)");
+                writer.Write($" ({refs} refs)");
                 writer.WriteLine();
 
-                foreach (TreePath path in group
-                    .Select(x => x.Key)
-                    .Order())
+                foreach (TreePath path in obj.Paths
+                    .OrderBy(x => x.ToString())
+                    .ThenBy(x => x.GetTypePath()))
                 {
                     writer.Write(' '.Repeat(8));
-                    WritePath(path);
-                }
-
-                writer.WriteLine();
-            }
-
-            continue;
-
-            void WritePath(TreePath path)
-            {
-                writer.Write($"{path} {path.Self.TypeName}");
-
-                if (path.Self.Type != ObjectParserType.Complex)
-                {
-                    writer.Write($" ({path.Self.Type})");
+                    path.WritePath(writer);
+                    writer.WriteLine();
                 }
 
                 writer.WriteLine();
@@ -140,69 +129,74 @@ public static class TreeAnalysis
         }
     }
 
-    public static void WriteComplexTypesFieldAccesses(
-        TextWriter writer,
-        ComplexTypeReport report)
+    [MethodImpl(MethodImplOptions.NoOptimization)]
+    public static void WriteFieldAccessByTypeName(TextWriter writer, in TreeReport report)
     {
-        foreach ((string type, IEnumerable<(string, string)> references) in report.TypesMap
-            .Select(x => (
-                x.Key.ToString(),
-                x.Value.Select(y => (y.ToString(), TypeName(y.Self))).OrderBy(y => y.Item1)))
-            .OrderByDescending(x => x.Item2.Count()))
+        foreach ((AsciiString typeName, (TreePath, int)[] refs) in report.AllPathsPerType)
         {
-            writer.WriteLine($"**{type}**");
+            writer.WriteLine($"**{typeName}**");
 
-            foreach ((string refPath, string refType) in references)
+            foreach (TreePath path in refs
+                .Select(x => x.Item1)
+                .OrderBy(x => x.ToString())
+                .ThenBy(x => x.GetTypePath()))
             {
-                writer.Write(' '.Repeat(4));
-                writer.WriteLine($"{refPath} {refType}");
+                // Find where it intersects.
+                int idx = -1;
+
+                for (int i = 0; i < path.Length; i++)
+                {
+                    if (typeName == path[i].TypeName)
+                    {
+                        idx = i;
+                        break;
+                    }
+                }
+
+                Debug.Assert(idx != -1);
+
+                if ((idx + 1) != path.Length)
+                {
+                    writer.Write(' '.Repeat(4));
+                    path[(idx+1)..].WritePath(writer);
+                    writer.Write($" ${report.AllPathsIds[path]}");
+                    writer.WriteLine();
+                }
             }
 
             writer.WriteLine();
         }
     }
+}
 
-    public static void WriteComplexTypesJson(
-        TextWriter writer,
-        ComplexTypeReport report)
-    {
-        string json = JsonSerializer.Serialize(report.TypesMap.Select(x => new
-        {
-            TypeName = x.Key.ToString(),
-            References = x.Value
-                .Where(y => y.Parents.IsEmpty) // first level paths only
-                .Select(y => new { Name = y.ToString(), Type = TypeName(y.Self) })
-                .OrderBy(y => y.Name)
-                .ToArray()
-        }).OrderByDescending(x => x.References.Length), _opts);
+public static class Extensions
+{
+    public static string GetTypePath(this TreePath path) =>
+        string.Join('/', [.. path.Parents.ToArray().Select(x => x.TypeName), path.Self.TypeName.ToString()]);
 
-        writer.Write(json);
-    }
+    public static void WritePath(this TreePath path, TextWriter writer)
+        => writer.Write($"{path} {path.Self.GetTypeName()}");
 
-    public static void WriteComplexTypesRefcounts(
-        TextWriter writer,
-        ComplexTypeReport report)
-    {
-        foreach ((AsciiString typeName, int refCount) in report
-            .TypeReferenceCount
-            .OrderByDescending(x => x.Value))
-        {
-            writer.WriteLine($"{typeName} {refCount}");
-        }
-    }
-
-    private static float Percent(int num, int max) => num / (float)max * 100;
-
-    private static string TypeName(TreePathEntry entry) =>
+    public static string GetTypeName(this TreePathEntry entry) =>
         entry.Type == ObjectParserType.Complex
             ? entry.TypeName.ToString()
             : entry.Type.ToString();
 
-    private static readonly JsonSerializerOptions _opts = new JsonSerializerOptions { WriteIndented = true };
-}
+    public static void DumpToLog(this TreePath path)
+    {
+        Log.Write(path.ToString());
+        Log.Write(4, $"Hash: ${path.Hash}");
+        Log.Write(4, $"Parents.Length: ${path.Parents.Length}");
 
-public readonly record struct ComplexTypeReport(
-    Dictionary<TreePath, int> AllPaths,
-    Dictionary<AsciiString, HashSet<TreePath>> TypesMap,
-    Dictionary<AsciiString, int> TypeReferenceCount
-);
+        for (int i = 0; i < path.Parents.Length; ++i)
+        {
+            Log.Write(4, $"Parents[{i}].Name {path.Parents.Span[i].Name}");
+            Log.Write(4, $"Parents[{i}].TypeName {path.Parents.Span[i].TypeName}");
+            Log.Write(4, $"Parents[{i}].Type {path.Parents.Span[i].Type}");
+        }
+
+        Log.Write(4, $"Self.Name {path.Self.Name}");
+        Log.Write(4, $"Self.TypeName {path.Self.TypeName}");
+        Log.Write(4, $"Self.Type {path.Self.Type}");
+    }
+}

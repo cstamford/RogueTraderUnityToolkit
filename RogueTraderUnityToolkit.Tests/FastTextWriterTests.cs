@@ -3,7 +3,7 @@ using RogueTraderUnityToolkit.Core;
 using System.Collections.Concurrent;
 using System.Text;
 
-namespace RogueTraderUnityToolkit;
+namespace RogueTraderUnityToolkit.Tests;
 
 public class FastTextWriterTests
 {

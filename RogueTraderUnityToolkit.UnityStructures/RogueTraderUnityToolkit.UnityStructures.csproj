@@ -10,4 +10,9 @@
       <Folder Include="Generated\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\RogueTraderUnityToolkit.Core\RogueTraderUnityToolkit.Core.csproj" />
+      <ProjectReference Include="..\RogueTraderUnityToolkit.Unity\RogueTraderUnityToolkit.Unity.csproj" />
+    </ItemGroup>
+
 </Project>

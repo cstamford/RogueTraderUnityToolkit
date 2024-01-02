@@ -1,10 +1,9 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.Unity;
-using System.Diagnostics;
+using RogueTraderUnityToolkit.Unity.TypeTree;
 
 namespace Codegen;
 
-public class Codegen(ComplexTypeReport complexTypes)
+public class Codegen(TreeReport report)
 {
     public void Analyse()
     {
@@ -15,53 +14,9 @@ public class Codegen(ComplexTypeReport complexTypes)
             Log.Write($"Constructed primitive type {primitive.Name} ({primitive.CSharpType})");
         }
 
-        Dictionary<TreePath, int> paths = complexTypes.AllPaths;
+        //  TODO
 
-        // Construct all root types, e.g. path length == 1 (parents length == 0).
-        foreach ((TreePath root, int rootRefs) in paths.Where(x => x.Key.Parents.Length == 0))
-        {
-            // Select all the fields that start with this field. Basically, our overlapping/interested set.
-            Debug.Assert(rootRefs > 0, "Why does a root have no references? (how did it get here?)");
-            KeyValuePair<TreePath, int>[] fields = [..paths.Where(x => x.Key != root && x.Key.StartsWith(root.Self))];
 
-            // TODO: Sometimes the base has fewer references than some paths including base.
-            // I think this is a bug related to arrays.
-            Debug.Assert(fields.All(x => x.Value <= rootRefs), "Why does a child have more refs than its root?");
-
-            // Select all the fields that reference this root path every time it has been references.
-            // They are our root's guaranteed (100%) fields.
-            TreePath[] rootBaseFields = fields
-                .Where(x => true /* TODO x.Value == rootRefs*/)
-                .Select(x => x.Key.Slice(1))
-                .Order()
-                .ToArray();
-
-            if (rootBaseFields.Length == 0)
-            {
-                // If we reach this point, our type won't have any fields - but its children will. Weird, but OK.
-                Log.Write($"Complex type {root.Self.TypeName} had 0 base fields, " +
-                          $"{fields.Length} total fields, " +
-                          $"and was referenced {rootRefs} times");
-            }
-
-            // Select all the data that is NOT fully referenced, and group it by the reference count.
-            // This maps nicely (albeit, not always accurately) to inheritance hierarchies.
-            // TODO: Sometimes two different subgroups of objects have the same refcount.
-
-            IEnumerable<TreePath[]> rootSubobjects = fields
-                .Where(x => false /* TODO x.Value < rootRefs */)
-                .GroupBy(x => x.Value)
-                .OrderByDescending(x => x.Key)
-                .Select(x => x.Select(y => y.Key.Slice(1)).Order().ToArray());
-
-            ICodegenType rootType = ConstructType(root.Self.TypeName, rootBaseFields);
-            IEnumerable<ICodegenType> subTypes = rootSubobjects
-                .Select((x, i) => ConstructType(AsciiString.From($"{rootType.Name}_SubType{i}"), x));
-
-            Log.Write($"Constructed complex type {rootType.Name} with subTypes = [ " +
-                      $"{string.Join(", ", subTypes.Select(x => x.Name.ToString()))} " +
-                      $"]");
-        }
     }
 
     public void WriteStructures(string rootDir)
@@ -118,12 +73,8 @@ public class Codegen(ComplexTypeReport complexTypes)
 
                 if (pathChildren.Length == 0)
                 {
-                    bool isBuiltin = (pathEntry.Flags & ObjectParserNodeFlags.IsBuiltin) != 0;
-                    Debug.Assert(!isBuiltin, "Builtins should follow the primitive parsing path.");
-
-                    // TODO: Handle array. But tbh, it will go builtin soon so just leave it for now.
-                    bool isArray = (pathEntry.Flags & ObjectParserNodeFlags.IsArray) != 0;
-                    //Debug.Assert(isArray, "Complex field with no children that isn't an empty array!?");
+                    // Empty complex type. There are some of these in data.
+                    // TODO: Deal with them
                 }
                 else
                 {

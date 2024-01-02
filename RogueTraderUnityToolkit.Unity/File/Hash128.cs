@@ -1,6 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 
-namespace RogueTraderUnityToolkit.Unity;
+namespace RogueTraderUnityToolkit.Unity.File;
 
 public record struct Hash128(
     uint Uint0,
