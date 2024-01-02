@@ -4,22 +4,11 @@ namespace Codegen;
 
 public interface ICodegenField
 {
-    AsciiString Name { get; }
     ICodegenType Type { get; }
-    CodegenFieldFlags Flags { get; }
+    AsciiString Name { get; }
 }
 
-public record class CodegenField(
-    AsciiString Name,
-    ICodegenType Type,
-    CodegenFieldFlags Flags) : ICodegenField
+public readonly record struct CodegenField(ICodegenType Type, AsciiString Name) : ICodegenField
 {
-
-}
-
-[Flags]
-public enum CodegenFieldFlags
-{
-    None = 0,
-    Array = 1 << 0
+    public override string ToString() => $"{Type} {Name}";
 }

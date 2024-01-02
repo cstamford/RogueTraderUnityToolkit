@@ -1,6 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity.TypeTree;
-using System.Diagnostics;
+using System.Text;
 
 namespace Codegen;
 
@@ -17,47 +17,47 @@ public readonly record struct TreePathEntry(
     public override string ToString() => Name.ToString();
 }
 
-public readonly record struct TreePath(
-    TreePathAllocation Allocation,
-    TreePathEntry Self)
+public readonly record struct TreePath(TreePathAllocation Allocation)
 {
-    public ReadOnlyMemory<TreePathEntry> Parents => Allocation.Memory;
-
+    public ReadOnlySpan<TreePathEntry> Data => Allocation.Memory.Span;
+    public int Length => Data.Length;
     public int Hash => _hash;
-    public int Length => Parents.Length + 1;
 
-    public bool Equals(TreePath rhs) => Self == rhs.Self && Parents.Span.SequenceEqual(rhs.Parents.Span);
+    public bool Equals(TreePath rhs) => Data.Length == rhs.Data.Length && Data.SequenceEqual(rhs.Data);
     public override int GetHashCode() => _hash;
 
     public TreePath Slice(int offset) => Slice(offset, Length - offset);
+    public TreePath Slice(int offset, int length) => new(Allocation.Slice(offset, length));
 
-    public TreePath Slice(int offset, int length)
-    {
-        int selfIdx = offset + length;
-        int currentSelfIdx = Length;
-        Debug.Assert(selfIdx <= currentSelfIdx);
+    public bool BeginsWith(TreePath rhs) => Length >= rhs.Length && Data[..rhs.Length].SequenceEqual(rhs.Data);
+    public bool BeginsWith(TreePathEntry rhs) => this[0] == rhs;
 
-        TreePathAllocation alloc = Allocation.Slice(offset, length - 1);
-        TreePathEntry self = offset + length == currentSelfIdx ? Self : Allocation[selfIdx];
-        return new(alloc, self);
-    }
+    public TreePathEntry this[int idx] => Data[idx];
 
-    public TreePathEntry this[int idx] => idx == Parents.Length ? Self : Allocation[idx];
+    private readonly int _hash = CalculateHash(Allocation.Memory.Span);
 
-    private readonly int _hash = CalculateHash(Allocation.Memory.Span, Self);
-
-    private static int CalculateHash(
-        ReadOnlySpan<TreePathEntry> parents,
-        in TreePathEntry self)
+    private static int CalculateHash(ReadOnlySpan<TreePathEntry> data)
     {
         HashCode hash = new();
-        foreach (TreePathEntry entry in parents)
+        foreach (TreePathEntry entry in data)
         {
             hash.Add(entry);
         }
-        hash.Add(self);
         return hash.ToHashCode();
     }
 
-    public override string ToString() => string.Join('/', [.. Parents.ToArray().Select(x => x.ToString()), Self]);
+    public override string ToString()
+    {
+        StringBuilder sb = new();
+
+        foreach (TreePathEntry entry in Data)
+        {
+            sb.Append(entry.Name.ToString());
+            sb.Append('/');
+        }
+
+        sb.Length -= 1; // trailing slash
+        return sb.ToString();
+    }
+
 }

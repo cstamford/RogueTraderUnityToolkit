@@ -68,9 +68,7 @@ public readonly record struct ObjectParserNode(
         name = FetchName(node.OffsetName, localBuffer, out ReadOnlyMemory<byte> _);
         typeName = FetchName(node.OffsetTypeName, localBuffer, out ReadOnlyMemory<byte> typeNameBytes);
 
-        ReadOnlySpan<byte> typeNameSpan = typeNameBytes.Span;
-
-        if (!ObjectParserNodeUtil.TryGetType(typeNameSpan, out ObjectParserType compactType))
+        if (!ObjectParserNodeUtil.TryGetType(typeName, out ObjectParserType compactType))
         {
             compactType = ObjectParserType.Complex;
         }
@@ -223,41 +221,9 @@ public enum ObjectParserNodeFlags : byte
 
 public static class ObjectParserNodeUtil
 {
-    static ObjectParserNodeUtil()
+    public static bool TryGetType(AsciiString typeName, out ObjectParserType type)
     {
-        _hashToType = new()
-        {
-            [Util.Hash("UInt64")] = ObjectParserType.U64,
-            [Util.Hash("FileSize")] = ObjectParserType.U64,
-            [Util.Hash("UInt32")] = ObjectParserType.U32,
-            [Util.Hash("unsigned int")] = ObjectParserType.U32,
-            [Util.Hash("UInt16")] = ObjectParserType.U16,
-            [Util.Hash("UInt8")] = ObjectParserType.U8,
-
-            [Util.Hash("SInt64")] = ObjectParserType.S64,
-            [Util.Hash("SInt32")] = ObjectParserType.S32,
-            [Util.Hash("int")] = ObjectParserType.S32,
-            [Util.Hash("Type*")] = ObjectParserType.S32,
-            [Util.Hash("SInt16")] = ObjectParserType.S16,
-            [Util.Hash("SInt8")] = ObjectParserType.S8,
-
-            [Util.Hash("double")] = ObjectParserType.F64,
-            [Util.Hash("float")] = ObjectParserType.F32,
-
-            [Util.Hash("bool")] = ObjectParserType.Bool,
-            [Util.Hash("char")] = ObjectParserType.Char,
-
-            [Util.Hash("ReferencedObject")] = ObjectParserType.ReferencedObject,
-            [Util.Hash("string")] = ObjectParserType.String,
-            //TODO[Util.Hash("vector")] = ObjectParserType.Vector,
-            //TODO[Util.Hash("map")] = ObjectParserType.Map,
-            //TODO[Util.Hash("pair")] = ObjectParserType.Pair
-        };
-    }
-
-    public static bool TryGetType(ReadOnlySpan<byte> span, out ObjectParserType type)
-    {
-        if (!_hashToType.TryGetValue(Util.Hash(span), out type))
+        if (!_stringToType.TryGetValue(typeName, out type))
         {
             if (false /*TODO span.Length >= 5 && "PPtr<"u8.SequenceEqual(span[..5])*/)
             {
@@ -290,5 +256,46 @@ public static class ObjectParserNodeUtil
         return sb.ToString();
     }
 
-    private static readonly Dictionary<uint, ObjectParserType> _hashToType;
+    public static IEnumerable<(ObjectParserType, AsciiString[])> TypeAliases => _typeMap
+        .Select(x => (x.Key, x.Value));
+
+    private static readonly Dictionary<ObjectParserType, AsciiString[]> _typeMap = new()
+    {
+        [ObjectParserType.U64] = [
+            AsciiStringPool.Fetch("UInt64"u8),
+            AsciiStringPool.Fetch("FileSize"u8)],
+        [ObjectParserType.U32] = [
+            AsciiStringPool.Fetch("UInt32"u8),
+            AsciiStringPool.Fetch("unsigned int"u8)],
+        [ObjectParserType.U16] = [
+            AsciiStringPool.Fetch("UInt16"u8)],
+        [ObjectParserType.U8] = [
+            AsciiStringPool.Fetch("UInt8"u8)],
+        [ObjectParserType.S64] = [
+            AsciiStringPool.Fetch("SInt64"u8)],
+        [ObjectParserType.S32] = [
+            AsciiStringPool.Fetch("SInt32"u8),
+            AsciiStringPool.Fetch("int"u8),
+            AsciiStringPool.Fetch("Type*"u8)],
+        [ObjectParserType.S16] = [
+            AsciiStringPool.Fetch("SInt16"u8)],
+        [ObjectParserType.S8] = [
+            AsciiStringPool.Fetch("SInt8"u8)],
+        [ObjectParserType.F64] = [
+            AsciiStringPool.Fetch("double"u8)],
+        [ObjectParserType.F32] = [
+            AsciiStringPool.Fetch("float"u8)],
+        [ObjectParserType.Bool] = [
+            AsciiStringPool.Fetch("bool"u8)],
+        [ObjectParserType.Char] = [
+            AsciiStringPool.Fetch("char"u8)],
+        [ObjectParserType.ReferencedObject] = [
+            AsciiStringPool.Fetch("ReferencedObject"u8)],
+        [ObjectParserType.String] = [
+            AsciiStringPool.Fetch("string"u8)]
+    };
+
+    private static readonly Dictionary<AsciiString, ObjectParserType> _stringToType = _typeMap
+        .SelectMany(pair => pair.Value, (pair, str) => new { str, pair.Key })
+        .ToDictionary(item => item.str, item => item.Key);
 }

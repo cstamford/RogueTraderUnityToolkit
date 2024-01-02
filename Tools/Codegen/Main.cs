@@ -110,10 +110,8 @@ Log.Write($"{treePathObjects.Count} objects", ConsoleColor.Green);
 TreeReport report = TreeAnalysis.CalculateReport(treePathObjects);
 ExportAnalysis(report);
 
-// TODO
-//Codegen.Codegen codegen = new(complexTypes);
-//codegen.Analyse();
-//ExportCodegen(codegen);
+Codegen.Codegen codegen = new(report);
+ExportCodegen(codegen);
 
 return;
 

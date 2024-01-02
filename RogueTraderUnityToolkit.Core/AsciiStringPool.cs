@@ -27,7 +27,7 @@ public static class AsciiStringPool
 #if DEBUG_VERBOSE
         foreach (ReadOnlyMemory<byte> mem in _optimizedStrings)
         {
-            Log.Write($"{Encoding.ASCII.GetString(mem.Span)} = {XXHash64.Hash(mem.Span)}");
+            Log.Write($"{Encoding.ASCII.GetString(mem.Span)} = {Util.Hash(mem.Span)}");
         }
 #endif
     }
@@ -35,7 +35,7 @@ public static class AsciiStringPool
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static AsciiString Fetch(ReadOnlySpan<byte> memory)
     {
-        AsciiStringKey key = new(XXHash64.Hash(memory), memory.Length);
+        AsciiStringKey key = new(Util.Hash(memory), memory.Length);
         AsciiString str = FetchInternal(memory, key);
         Debug.Assert(str.Bytes.Span.SequenceEqual(memory), $"Hash collision for {key} {str}?");
         return str;
@@ -109,12 +109,12 @@ public static class AsciiStringPool
             str = FetchInternal_CreateSmallBlockString(memory.Length, foldedHash);
             memory.CopyTo(_smallStringBlocks[str.BlockIdx]
                 .Slice(str.BlockOffset, memory.Length)
-                .Span); /* copy into fixed size blocks */
+                .Span); // copy into fixed size blocks
         }
         else
         {
             str = FetchInternal_CreateLargeBlockString(foldedHash);
-            _largeStrings[str] = memory.ToArray(); /* owning copy */
+            _largeStrings[str] = memory.ToArray(); // owning copy
         }
 
         _pool[key] = str;

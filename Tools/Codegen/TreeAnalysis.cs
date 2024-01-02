@@ -172,10 +172,10 @@ public static class TreeAnalysis
 public static class Extensions
 {
     public static string GetTypePath(this TreePath path) =>
-        string.Join('/', [.. path.Parents.ToArray().Select(x => x.TypeName), path.Self.TypeName.ToString()]);
+        string.Join('/', path.Data.ToArray().Select(x => x.TypeName));
 
-    public static void WritePath(this TreePath path, TextWriter writer)
-        => writer.Write($"{path} {path.Self.GetTypeName()}");
+    public static void WritePath(this TreePath path, TextWriter writer) =>
+        writer.Write($"{path} {path[^1].GetTypeName()}");
 
     public static string GetTypeName(this TreePathEntry entry) =>
         entry.Type == ObjectParserType.Complex
@@ -186,17 +186,13 @@ public static class Extensions
     {
         Log.Write(path.ToString());
         Log.Write(4, $"Hash: ${path.Hash}");
-        Log.Write(4, $"Parents.Length: ${path.Parents.Length}");
+        Log.Write(4, $"Length: ${path.Length}");
 
-        for (int i = 0; i < path.Parents.Length; ++i)
+        for (int i = 0; i < path.Length; ++i)
         {
-            Log.Write(4, $"Parents[{i}].Name {path.Parents.Span[i].Name}");
-            Log.Write(4, $"Parents[{i}].TypeName {path.Parents.Span[i].TypeName}");
-            Log.Write(4, $"Parents[{i}].Type {path.Parents.Span[i].Type}");
+            Log.Write(4, $"[{i}].Name {path[i].Name}");
+            Log.Write(4, $"[{i}].TypeName {path[i].TypeName}");
+            Log.Write(4, $"[{i}].Type {path[i].Type}");
         }
-
-        Log.Write(4, $"Self.Name {path.Self.Name}");
-        Log.Write(4, $"Self.TypeName {path.Self.TypeName}");
-        Log.Write(4, $"Self.Type {path.Self.Type}");
     }
 }

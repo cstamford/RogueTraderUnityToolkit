@@ -52,9 +52,7 @@ public static class Util
     public static SuperluminalPerf.EventMarker PerfScope(string name, SuperluminalPerf.ProfilerColor color)
         => SuperluminalPerf.BeginEvent(name, data: null, color: color);
 
-    public static uint Hash(string str) => Hash(Encoding.ASCII.GetBytes(str));
-
-    public static uint Hash(ReadOnlySpan<byte> str) => XXHash32.Hash(str);
+    public static ulong Hash(ReadOnlySpan<byte> str) => XXHash64.Hash(str);
 
     public static int CharWidth(int value)
     {

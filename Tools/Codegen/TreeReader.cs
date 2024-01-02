@@ -69,48 +69,50 @@ public sealed class TreeReader(
 
         if (IsFirstArrayIndex && node.FirstChildIdx == 0)
         {
-            TreePathEntry us = new(node);
             NodeFrame ourFrame = new(node.Index, TreeIdx);
-
             Debug.Assert(!_visited.Contains(ourFrame));
 
-            Span<NodeFrame> indices = stackalloc NodeFrame[NodeStack.Count];
-            TreePathAllocation allocation = allocator.Rent(NodeStack.Count);
+            TreePathAllocation allocation = allocator.Rent(NodeStack.Count + 1);
             _allocations.Add(allocation.Handle);
+            allocation[^1] = new(node);
 
-            int parentIdx = NodeStack.Count - 1;
+            ConstructPathForParents(allocation);
 
-            foreach (NodeFrame nodeFrame in NodeStack)
-            {
-                ref ObjectParserNode treeNode = ref GetNode(nodeFrame);
-                allocation[parentIdx] = new(treeNode);
-                indices[parentIdx] = nodeFrame;
-                --parentIdx;
-            }
-
-            ConstructPathForParents(allocation, indices);
-
-            _paths.Add(new(allocation, us));
+            _paths.Add(new(allocation));
             _visited.Add(ourFrame);
+
+            Debug.Assert(_paths.All(x => x.Length > 0));
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private void ConstructPathForParents(
-        TreePathAllocation alloc,
-        ReadOnlySpan<NodeFrame> indices)
+        TreePathAllocation allocation)
     {
-        for (int i = 0; i < indices.Length; ++i)
+        Span<NodeFrame> parentIndices = stackalloc NodeFrame[NodeStack.Count];
+        int parentIdx = NodeStack.Count - 1;
+
+        foreach (NodeFrame nodeFrame in NodeStack)
         {
-            int nodeArraySelfIdx = indices.Length - i - 1;
-            NodeFrame nodeFrame = indices[nodeArraySelfIdx];
+            ref ObjectParserNode treeNode = ref GetNode(nodeFrame);
+            allocation[parentIdx] = new(treeNode);
+            parentIndices[parentIdx] = nodeFrame;
+            --parentIdx;
+        }
 
-            // Parent path already done by another sibling.
-            if (_visited.Contains(nodeFrame)) return;
+        for (int i = 0; i < parentIndices.Length; ++i)
+        {
+            // We read from stack in reverse order, so we reverse again.
+            int reverseIndex = parentIndices.Length - i - 1;
+            NodeFrame nodeFrame = parentIndices[reverseIndex];
 
-            TreePathEntry us = alloc[nodeArraySelfIdx];
-            TreePathAllocation ourParents = alloc[..nodeArraySelfIdx];
-            _paths.Add(new(ourParents, us));
+            if (_visited.Contains(nodeFrame))
+            {
+                // Already done by another sibling!
+                return;
+            }
+
+            _paths.Add(new(allocation[..(parentIndices.Length - i)]));
             _visited.Add(nodeFrame);
         }
     }
