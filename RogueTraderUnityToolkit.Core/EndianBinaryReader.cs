@@ -145,7 +145,7 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
         byte[] memory = ArrayPool<byte>.Shared.Rent(len);
         Span<byte> memorySlice = memory.AsSpan()[..len];
         ReadBytes(memorySlice);
-        AsciiString str = AsciiStringPool.Fetch(memorySlice);
+        AsciiString str = AsciiString.From(memorySlice);
         ArrayPool<byte>.Shared.Return(memory);
         return str;
     }

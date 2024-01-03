@@ -37,14 +37,14 @@ public static class AsciiStringPool
     {
         AsciiStringKey key = new(Util.Hash(memory), memory.Length);
         AsciiString str = FetchInternal(memory, key);
-        Debug.Assert(str.Bytes.Span.SequenceEqual(memory), $"Hash collision for {key} {str}?");
+        Debug.Assert(str.Bytes.SequenceEqual(memory), $"Hash collision for {key} {str}?");
         return str;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetLength(in AsciiString asciiString) => asciiString.BlockData switch
     {
-        _blockIsOptimizedString => _optimizedStrings[asciiString.BlockIdx].Length,
+        _blockIsOptimizedString => asciiString.BlockOffset >> 8,
         _blockIsLargeString => GetCSharpString(asciiString).Length,
         _ => asciiString.BlockData
     };
@@ -52,9 +52,13 @@ public static class AsciiStringPool
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadOnlyMemory<byte> GetBytes(in AsciiString asciiString) => asciiString.BlockData switch
     {
-        _blockIsOptimizedString => _optimizedStrings[asciiString.BlockIdx],
+        _blockIsOptimizedString => _optimizedStrings[asciiString.BlockIdx].Slice(
+            asciiString.BlockOffset & 0xFF,
+            asciiString.BlockOffset >> 8),
         _blockIsLargeString => _largeStrings[asciiString],
-        _ => _smallStringBlocks[asciiString.BlockIdx].Slice(asciiString.BlockOffset, asciiString.BlockData)
+        _ => _smallStringBlocks[asciiString.BlockIdx].Slice(
+            asciiString.BlockOffset,
+            asciiString.BlockData)
     };
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -62,6 +66,39 @@ public static class AsciiStringPool
     {
         ReadOnlyMemory<byte> bytes = GetBytes(asciiString);
         return Encoding.ASCII.GetString(bytes.Span);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public static AsciiString Slice(in AsciiString asciiString, int offset, int length)
+    {
+        if (offset < 0 || offset + length > asciiString.Length)
+        {
+            throw new($"Invalid slice range {offset} .. {offset + length}");
+        }
+
+        ReadOnlySpan<byte> slicedBytes = asciiString.Bytes.Slice(offset, length);
+        int hash = AsciiStringKey.Fold(Util.Hash(slicedBytes));
+
+        AsciiString sliced = asciiString.BlockData switch
+        {
+            _blockIsOptimizedString => asciiString with {
+                BlockOffset = (ushort)((offset & 0xFF) | (length << 8)),
+                Hash = hash
+            },
+            _blockIsLargeString => AsciiString.From(asciiString.ToString().Substring(offset, length)),
+            _ => asciiString with {
+                BlockData = (byte)length,
+                BlockOffset = (ushort)(asciiString.BlockOffset + offset),
+                Hash = hash
+            }
+        };
+
+        Debug.Assert(sliced.Length == length);
+        Debug.Assert(sliced.Bytes.Length == length);
+        Debug.Assert(sliced.Bytes.SequenceEqual(slicedBytes));
+        Debug.Assert(sliced.Hash == hash);
+
+        return sliced;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -130,22 +167,22 @@ public static class AsciiStringPool
         {
             case 17039155849707443173: // Transform
                 Debug.Assert(key.Length == 9);
-                str = new(0, _blockIsOptimizedString, 0, key.Fold());
+                str = new(0, _blockIsOptimizedString, 9 << 8, key.Fold());
                 return true;
 
             case 1452706007932390838: // Object
                 Debug.Assert(key.Length == 6);
-                str = new(1, _blockIsOptimizedString, 0, key.Fold());
+                str = new(1, _blockIsOptimizedString, 6 << 8, key.Fold());
                 return true;
 
             case 4950167451912200535: // GameObject
                 Debug.Assert(key.Length == 10);
-                str = new(2, _blockIsOptimizedString, 0, key.Fold());
+                str = new(2, _blockIsOptimizedString, 10 << 8, key.Fold());
                 return true;
 
             case 8191976625239845070: // Component
                 Debug.Assert(key.Length == 9);
-                str = new(3, _blockIsOptimizedString, 0, key.Fold());
+                str = new(3, _blockIsOptimizedString, 9 << 8, key.Fold());
                 return true;
         }
 
@@ -195,6 +232,9 @@ public static class AsciiStringPool
     private readonly record struct AsciiStringKey(ulong Hash, int Length)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Fold() => (int)((uint)(Hash >> 32) ^ (uint)(Hash & 0xFFFFFFFF));
+        public int Fold() => Fold(Hash);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Fold(ulong hash) => (int)((uint)(hash >> 32) ^ (uint)(hash & 0xFFFFFFFF));
     }
 }

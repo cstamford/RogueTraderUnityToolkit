@@ -230,7 +230,7 @@ public readonly unsafe struct FastTextWriter(Stream stream)
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Write(AsciiString str)
     {
-        stream.Write(str.Bytes.Span);
+        stream.Write(str.Bytes);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]

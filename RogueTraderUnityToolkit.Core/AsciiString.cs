@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Text;
 
 namespace RogueTraderUnityToolkit.Core;
 
@@ -13,7 +12,73 @@ public readonly record struct AsciiString(
                 IComparable<AsciiString>
 {
     public int Length => AsciiStringPool.GetLength(this);
-    public ReadOnlyMemory<byte> Bytes => AsciiStringPool.GetBytes(this);
+    public ReadOnlySpan<byte> Bytes => Memory.Span;
+    public ReadOnlyMemory<byte> Memory => AsciiStringPool.GetBytes(this);
+
+    public char this[int idx] => (char)Bytes[idx];
+
+    public AsciiString Slice(int offset) => AsciiStringPool.Slice(this, offset, Length - offset);
+    public AsciiString Slice(int offset, int length) => AsciiStringPool.Slice(this, offset, length);
+
+    public bool StartsWith(AsciiString rhs)
+    {
+        ReadOnlySpan<byte> lhsSpan = Bytes;
+        ReadOnlySpan<byte> rhsSpan = rhs.Bytes;
+
+        if (rhs.Length > Length) return false;
+
+        return lhsSpan[..rhs.Length].SequenceEqual(rhsSpan);
+    }
+
+    public bool EndsWith(AsciiString rhs)
+    {
+        ReadOnlySpan<byte> lhsSpan = Bytes;
+        ReadOnlySpan<byte> rhsSpan = rhs.Bytes;
+
+        if (rhs.Length > Length) return false;
+
+        return lhsSpan.Slice(Length - rhs.Length, rhs.Length).SequenceEqual(rhsSpan);
+    }
+
+    public bool StartsWith(string rhs)
+    {
+        ArgumentNullException.ThrowIfNull(rhs);
+        if (rhs.Length > Length) return false;
+
+        ReadOnlySpan<byte> lhsSpan = Bytes;
+        ReadOnlySpan<char> rhsSpan = rhs.AsSpan();
+
+        for (int i = 0; i < rhsSpan.Length; ++i)
+        {
+            if (lhsSpan[i] != rhsSpan[i]) return false;
+        }
+
+        return true;
+    }
+
+    public bool EndsWith(string rhs)
+    {
+        ArgumentNullException.ThrowIfNull(rhs);
+        if (rhs.Length > Length) return false;
+
+        ReadOnlySpan<byte> lhsSpan = Bytes[(Length - rhs.Length)..];
+        ReadOnlySpan<char> rhsSpan = rhs.AsSpan();
+
+        for (int i = 0; i < rhsSpan.Length; ++i)
+        {
+            if (lhsSpan[i] != rhsSpan[i]) return false;
+        }
+
+        return true;
+    }
+
+    public int CompareTo(AsciiString rhs) => Bytes.SequenceCompareTo(rhs.Bytes);
+    public int CompareTo(string? rhs) => string.CompareOrdinal(ToString(), rhs);
+
+    public override int GetHashCode() => Hash;
+
+    public static AsciiString From(ReadOnlySpan<byte> span) => AsciiStringPool.Fetch(span);
+    public static AsciiString From(string str) => AsciiStringPool.Fetch(Encoding.ASCII.GetBytes(str).AsSpan());
 
     public static bool operator ==(AsciiString lhs, string? rhs) => Equals(lhs, rhs);
     public static bool operator !=(AsciiString lhs, string? rhs) => !Equals(lhs, rhs);
@@ -29,50 +94,35 @@ public readonly record struct AsciiString(
             lhs.Hash != rhs.Hash)
         {
             // If we're not the same string instance, we still need to run an exhaustive check,
-            // because the same string could be added multiple times to the string pool under
-            // very heavy contention.
+            // because the same string could be added multiple times to the string pool under contention.
             if (lhs.Length != rhs.Length) return false;
 
-            ReadOnlySpan<byte> lhsSpan = lhs.Bytes.Span;
-            ReadOnlySpan<byte> rhsSpan = rhs.Bytes.Span;
+            ReadOnlySpan<byte> lhsSpan = lhs.Bytes;
+            ReadOnlySpan<byte> rhsSpan = rhs.Bytes;
             return lhsSpan.SequenceEqual(rhsSpan);
-
-            return false;
         }
 
         // We refer to the same string from the string pool.
         return true;
     }
 
-    private static unsafe bool Equals(AsciiString lhs, string? rhs)
+    private static bool Equals(AsciiString lhs, string? rhs)
     {
         if (rhs == null) return false;
         if (lhs.Length != rhs.Length) return false;
 
-        fixed (char* rhsPtr = rhs)
+        ReadOnlySpan<byte> lhsSpan = lhs.Bytes[(lhs.Length - rhs.Length)..];
+        ReadOnlySpan<char> rhsSpan = rhs.AsSpan();
+
+        for (int i = 0; i < lhsSpan.Length; ++i)
         {
-            ReadOnlySpan<byte> lhsSpan = lhs.Bytes.Span;
-            ReadOnlySpan<byte> rhsSpan = MemoryMarshal.AsBytes(new ReadOnlySpan<char>(rhsPtr, rhs.Length));
-
-            for (int i = 0; i < lhsSpan.Length; i++)
-            {
-                byte l = lhsSpan[i]; // ascii
-                byte r = rhsSpan[i * 2]; // utf16
-                if (l != r) return false;
-            }
-
-            return true;
+            byte l = lhsSpan[i]; // ascii
+            char r = rhsSpan[i]; // utf16
+            if (l != r) return false;
         }
+
+        return true;
     }
-
-    public int CompareTo(AsciiString rhs) => Bytes.Span.SequenceCompareTo(rhs.Bytes.Span);
-    public int CompareTo(string? rhs) => string.CompareOrdinal(ToString(), rhs);
-
-    public override int GetHashCode() => Hash;
-
-    public static AsciiString FromMemory(ReadOnlySpan<byte> span) => AsciiStringPool.Fetch(span);
-    public static AsciiString FromString(string str) => AsciiStringPool.Fetch(Encoding.ASCII.GetBytes(str).AsSpan());
-    public static AsciiString From<T>(T value) where T : notnull => FromString(value.ToString()!);
 
     public override string ToString() => AsciiStringPool.GetCSharpString(this);
 }

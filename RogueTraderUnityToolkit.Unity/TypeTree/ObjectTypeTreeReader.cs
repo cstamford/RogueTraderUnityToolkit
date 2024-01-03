@@ -40,11 +40,6 @@ public interface IObjectTypeTreeReader
         in ObjectParserReader nodeReader,
         int stringLength);
 
-    public void ReadPPtr(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        AsciiString typeName);
-
     public void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
@@ -101,12 +96,6 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
         in ObjectParserNode node,
         in ObjectParserReader nodeReader,
         int stringLength)
-    { }
-
-    public virtual void ReadPPtr(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        AsciiString typeName)
     { }
 
     public virtual void ReadReferencedObject(
@@ -316,14 +305,6 @@ public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] rea
         int stringLength)
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadString(node, nodeReader, stringLength); }
-    }
-
-    public void ReadPPtr(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        AsciiString typeName)
-    {
-        foreach (IObjectTypeTreeReader reader in readers) { reader.ReadPPtr(node, nodeReader, typeName); }
     }
 
     public void ReadReferencedObject(

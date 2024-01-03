@@ -26,7 +26,7 @@ public record class ObjectTypeTree(
 
         for (int i = 0; i < nodesCount; ++i)
         {
-            compactNodes[i] = ObjectParserNode.Create(i, buffer, nodes.AsSpan(0, nodesCount));
+            compactNodes[i] = ObjectParserNode.Create(i, buffer.AsSpan(), nodes.AsSpan(0, nodesCount));
         }
 
         ArrayPool<ObjectTypeNode>.Shared.Return(nodes);

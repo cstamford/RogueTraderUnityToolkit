@@ -17,7 +17,7 @@ public sealed class FastStringBuilder(
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Append(AsciiString str)
     {
-        ReadOnlySpan<byte> stringBytes = str.Bytes.Span;
+        ReadOnlySpan<byte> stringBytes = str.Bytes;
         stringBytes.CopyTo(buffer.AsSpan(_len, str.Length));
         _len += stringBytes.Length;
     }

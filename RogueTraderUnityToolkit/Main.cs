@@ -143,7 +143,7 @@ Parallel.ForEach(files, parallelOpts, fileInfo =>
 
 logOutputTimer.Dispose();
 
-ConsoleColor color = assetCountFailed > 0 ? ConsoleColor.Red : assetCountSkipped > 0 ? ConsoleColor.Yellow : ConsoleColor.White;
+ConsoleColor color = assetCountFailed > 0 ? ConsoleColor.Red : assetCountSkipped > 0 ? ConsoleColor.Yellow : Log.DefaultColor;
 
 Log.Write(
     new LogEntry($"Loaded {assetCountLoaded} assets in {sw.Elapsed.Subtract(loadStartTime).TotalSeconds:f2} seconds ("),

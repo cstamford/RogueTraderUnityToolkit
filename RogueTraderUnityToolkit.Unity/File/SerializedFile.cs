@@ -139,8 +139,8 @@ namespace RogueTraderUnityToolkit.Unity.File
 
         private static readonly HashSet<AsciiString> _supportedVersions =
         [
-            AsciiStringPool.Fetch("2022.3.7f1"u8.ToArray()),
-            AsciiStringPool.Fetch("2022.3.6f1"u8.ToArray())
+            AsciiString.From("2022.3.7f1"u8.ToArray()),
+            AsciiString.From("2022.3.6f1"u8.ToArray())
         ];
 
         private static readonly HashSet<uint> _supportedPlatforms = [5, 19];

@@ -8,10 +8,10 @@ public interface ICodegenType
     AsciiString Name { get; }
 }
 
-public record class CodegenPrimitiveType(AsciiString Name, ObjectParserType Type) : ICodegenType
+public record class CodegenBuiltInType(
+    AsciiString Name,
+    ObjectParserType Type) : ICodegenType
 {
-    public override string ToString() => CSharpType.ToString();
-
     public Type CSharpType => Type switch
     {
         ObjectParserType.U64 => typeof(ulong),
@@ -26,18 +26,40 @@ public record class CodegenPrimitiveType(AsciiString Name, ObjectParserType Type
         ObjectParserType.F32 => typeof(float),
         ObjectParserType.Bool => typeof(bool),
         ObjectParserType.Char => typeof(char),
-        ObjectParserType.Complex => throw new NotImplementedException(),
-        ObjectParserType.ReferencedObject => throw new NotImplementedException(),
-        ObjectParserType.PPTr => throw new NotImplementedException(),
-        ObjectParserType.String => throw new NotImplementedException(),
-        ObjectParserType.Vector => throw new NotImplementedException(),
-        ObjectParserType.Map => throw new NotImplementedException(),
-        ObjectParserType.Pair => throw new NotImplementedException(),
+        ObjectParserType.Complex => typeof(object),
+        ObjectParserType.ReferencedObject => typeof(object), // ruh row?
+        ObjectParserType.String => typeof(string),
         _ => throw new()
     };
+
+    public override string ToString() => CSharpType.ToString();
 }
 
-public record class CodegenStructureType(AsciiString Name, IReadOnlyList<ICodegenField> Fields) : ICodegenType
+public record class CodegenStructureType(
+    AsciiString Name,
+    IReadOnlyList<ICodegenField> Fields) : ICodegenType
 {
     public override string ToString() => $"${Name} ({Fields.Count} fields)";
+}
+
+public record class CodegenArrayType(
+    AsciiString Name,
+    ICodegenType DataType) : ICodegenType
+{
+    public override string ToString() => $"#{Name}";
+}
+
+public record class CodegenMapType(
+    AsciiString Name,
+    ICodegenType KeyType,
+    ICodegenType ValueType) : ICodegenType
+{
+    public override string ToString() => $"#{Name}";
+}
+
+public record class CodegenPPtrType(
+    AsciiString Name,
+    AsciiString TypeName) : ICodegenType
+{
+    public override string ToString() => $"#{Name}";
 }

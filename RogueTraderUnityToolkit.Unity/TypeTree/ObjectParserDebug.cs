@@ -131,19 +131,6 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             new LogEntry($"]", _col));
     }
 
-    public override void ReadPPtr(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        AsciiString typeName)
-    {
-        //nodeReader.ReadPPtr(node, typeName); // TODO codegen: when we can call the base reader, get the data
-
-        Log.Write((_indent + 1) * _spacesPerIndent,
-            new LogEntry($"ReadPPTr", ConsoleColor.Green),
-            new LogEntry($" {Range()} =>", _col),
-            new LogEntry($" {typeName}", ConsoleColor.Green));
-    }
-
     public override void Align(
         in ObjectParserNode node,
         int alignedBytes)

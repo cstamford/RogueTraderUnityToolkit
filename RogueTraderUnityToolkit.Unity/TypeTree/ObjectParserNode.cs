@@ -27,7 +27,7 @@ public readonly record struct ObjectParserNode(
 
     public static ObjectParserNode Create(
         int nodeIdx,
-        ReadOnlyMemory<byte> localBuffer,
+        ReadOnlySpan<byte> localBuffer,
         Span<ObjectTypeNode> nodes)
     {
         ref ObjectTypeNode node = ref nodes[nodeIdx];
@@ -60,13 +60,13 @@ public readonly record struct ObjectParserNode(
 
     private static void ResolveFromNames(
         in ObjectTypeNode node,
-        ReadOnlyMemory<byte> localBuffer,
+        ReadOnlySpan<byte> localBuffer,
         out AsciiString name,
         out AsciiString typeName,
         out ObjectParserType type)
     {
-        name = FetchName(node.OffsetName, localBuffer, out ReadOnlyMemory<byte> _);
-        typeName = FetchName(node.OffsetTypeName, localBuffer, out ReadOnlyMemory<byte> typeNameBytes);
+        name = FetchName(node.OffsetName, localBuffer);
+        typeName = FetchName(node.OffsetTypeName, localBuffer);
 
         if (!ObjectParserNodeUtil.TryGetType(typeName, out ObjectParserType compactType))
         {
@@ -78,24 +78,26 @@ public readonly record struct ObjectParserNode(
 
     private static AsciiString FetchName(
         uint offset,
-        ReadOnlyMemory<byte> localBuffer,
-        out ReadOnlyMemory<byte> bufferRead)
+        ReadOnlySpan<byte> localBuffer)
     {
         const uint inGlobalBuffer = 1u << 31;
         int realOffset = (int)(offset & ~inGlobalBuffer);
 
+        ReadOnlySpan<byte> buffer;
+
         if ((offset & inGlobalBuffer) == 0)
         {
-            int nullTerminator = Util.FastFindByte(0, localBuffer.Span, realOffset);
-            bufferRead = localBuffer[realOffset..nullTerminator];
+            int nullTerminator = Util.FastFindByte(0, localBuffer, realOffset);
+            buffer = localBuffer[realOffset..nullTerminator];
         }
         else
         {
-            bool found = UnityTypeNames.TryGetValue(realOffset, out bufferRead);
+            bool found = UnityTypeNames.TryGetValue(realOffset, out ReadOnlyMemory<byte> memory);
             Debug.Assert(found);
+            buffer = memory.Span;
         }
 
-        return AsciiStringPool.Fetch(bufferRead.Span);
+        return AsciiString.From(buffer);
     }
 
     private static void ResolveHierarchy(
@@ -200,11 +202,7 @@ public enum ObjectParserType : byte
 
     // Builtin types
     ReferencedObject,
-    PPTr,
-    String,
-    Vector,
-    Map,
-    Pair
+    String
 }
 
 [Flags]
@@ -221,22 +219,8 @@ public enum ObjectParserNodeFlags : byte
 
 public static class ObjectParserNodeUtil
 {
-    public static bool TryGetType(AsciiString typeName, out ObjectParserType type)
-    {
-        if (!_stringToType.TryGetValue(typeName, out type))
-        {
-            if (false /*TODO span.Length >= 5 && "PPtr<"u8.SequenceEqual(span[..5])*/)
-            {
-                type = ObjectParserType.PPTr;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    public static bool TryGetType(AsciiString typeName, out ObjectParserType type) =>
+        _stringToType.TryGetValue(typeName, out type);
 
     public static string Dump(this ObjectParserNode node, ObjectTypeTree tree)
     {
@@ -262,37 +246,37 @@ public static class ObjectParserNodeUtil
     private static readonly Dictionary<ObjectParserType, AsciiString[]> _typeMap = new()
     {
         [ObjectParserType.U64] = [
-            AsciiStringPool.Fetch("UInt64"u8),
-            AsciiStringPool.Fetch("FileSize"u8)],
+            AsciiString.From("UInt64"u8),
+            AsciiString.From("FileSize"u8)],
         [ObjectParserType.U32] = [
-            AsciiStringPool.Fetch("UInt32"u8),
-            AsciiStringPool.Fetch("unsigned int"u8)],
+            AsciiString.From("UInt32"u8),
+            AsciiString.From("unsigned int"u8)],
         [ObjectParserType.U16] = [
-            AsciiStringPool.Fetch("UInt16"u8)],
+            AsciiString.From("UInt16"u8)],
         [ObjectParserType.U8] = [
-            AsciiStringPool.Fetch("UInt8"u8)],
+            AsciiString.From("UInt8"u8)],
         [ObjectParserType.S64] = [
-            AsciiStringPool.Fetch("SInt64"u8)],
+            AsciiString.From("SInt64"u8)],
         [ObjectParserType.S32] = [
-            AsciiStringPool.Fetch("SInt32"u8),
-            AsciiStringPool.Fetch("int"u8),
-            AsciiStringPool.Fetch("Type*"u8)],
+            AsciiString.From("SInt32"u8),
+            AsciiString.From("int"u8),
+            AsciiString.From("Type*"u8)],
         [ObjectParserType.S16] = [
-            AsciiStringPool.Fetch("SInt16"u8)],
+            AsciiString.From("SInt16"u8)],
         [ObjectParserType.S8] = [
-            AsciiStringPool.Fetch("SInt8"u8)],
+            AsciiString.From("SInt8"u8)],
         [ObjectParserType.F64] = [
-            AsciiStringPool.Fetch("double"u8)],
+            AsciiString.From("double"u8)],
         [ObjectParserType.F32] = [
-            AsciiStringPool.Fetch("float"u8)],
+            AsciiString.From("float"u8)],
         [ObjectParserType.Bool] = [
-            AsciiStringPool.Fetch("bool"u8)],
+            AsciiString.From("bool"u8)],
         [ObjectParserType.Char] = [
-            AsciiStringPool.Fetch("char"u8)],
+            AsciiString.From("char"u8)],
         [ObjectParserType.ReferencedObject] = [
-            AsciiStringPool.Fetch("ReferencedObject"u8)],
+            AsciiString.From("ReferencedObject"u8)],
         [ObjectParserType.String] = [
-            AsciiStringPool.Fetch("string"u8)]
+            AsciiString.From("string"u8)]
     };
 
     private static readonly Dictionary<AsciiString, ObjectParserType> _stringToType = _typeMap

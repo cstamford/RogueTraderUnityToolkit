@@ -112,7 +112,9 @@ public record struct ObjectParser
             // string -> char array -> { length, data }, array specialization
             else if (node.Type == ObjectParserType.String)
             {
-                if (TryReadString(tree, node, reading, out ObjectParserReader nodeReader, out int stringLength))
+                if (TryReadString(tree, node, treeDepth, reading,
+                    out ObjectParserReader nodeReader,
+                    out int stringLength))
                 {
                     _extReader.ReadString(node, nodeReader, stringLength);
                     Offset = nodeReader.End;
@@ -124,28 +126,6 @@ public record struct ObjectParser
                     Debug.Assert(childNode.Type == ObjectParserType.String, $"Unexpected child node.\n{childNode}");
                     Read(tree, childNode, treeDepth, reading);
                 }
-            }
-            // TODO below
-            // pptr -> { m_FileID, m_PathID }, type extracted from name
-            else if (node.Type == ObjectParserType.PPTr)
-            {
-                //ObjectParserReader nodeReader = ReadPPtr(node, tree, reading, out AsciiString typeName);
-                //_extReader.ReadPPtr(node, nodeReader, typeName);
-                //Offset = nodeReader.End;
-            }
-            // vector -> array -> { length, data }, array alias
-            else if (node.Type == ObjectParserType.Vector)
-            {
-
-            }
-            // map -> array -> { length, data { first, second } }, array alias where data == pair
-            else if (node.Type == ObjectParserType.Map)
-            {
-
-            }
-            else
-            {
-                Debug.Assert(false, $"Builtin unhandled.\n{node}");
             }
         }
         // parent -> { children ... }
@@ -203,6 +183,7 @@ public record struct ObjectParser
     private readonly bool TryReadString(
         in ObjectTypeTree tree,
         in ObjectParserNode node,
+        int treeDepth,
         bool reading,
         out ObjectParserReader nodeReader,
         out int stringLength)
@@ -215,6 +196,9 @@ public record struct ObjectParser
 
         if (arrayNode.IsArray)
         {
+            // The peek of this array will, in turn, peek the length and data nodes in turn.
+            Peek(tree, arrayNode, treeDepth);
+
             ref ObjectParserNode lengthNode = ref tree[arrayNode.FirstChildIdx];
             ref ObjectParserNode dataNode = ref tree[lengthNode.FirstSiblingIdx];
 
@@ -232,32 +216,6 @@ public record struct ObjectParser
         stringLength = 0;
         nodeReader = default;
         return false;
-    }
-
-    private readonly ObjectParserReader ReadPPtr(
-        in ObjectTypeTree tree,
-        in ObjectParserNode node,
-        bool reading,
-        out AsciiString typeName)
-    {
-        Debug.Assert(node.IsBuiltin);
-        Debug.Assert(node.Type == ObjectParserType.PPTr);
-
-        ref ObjectParserNode fileIdNode = ref tree[node.FirstChildIdx];
-        ref ObjectParserNode pathIdNode = ref tree[fileIdNode.FirstSiblingIdx];
-
-        Debug.Assert(fileIdNode.Type == ObjectParserType.S32);
-        Debug.Assert(pathIdNode.Type == ObjectParserType.S64);
-
-        int typeNameStartIdx = "PPtr<"u8.Length;
-        int typeNameEndIdx = node.TypeName.Length - 1;
-        int typeNameLength = typeNameEndIdx - typeNameStartIdx;
-        Debug.Assert(typeNameLength >= 1);
-
-        ReadOnlySpan<byte> span = node.TypeName.Bytes.Span;
-        typeName = AsciiStringPool.Fetch(span.Slice(typeNameStartIdx, typeNameLength));
-
-        return CreateReader(ObjectParserType.PPTr, fileIdNode.Size + pathIdNode.Size, reading);
     }
 
     private readonly bool TryReadReferencedObject(
