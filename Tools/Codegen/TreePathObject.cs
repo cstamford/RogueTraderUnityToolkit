@@ -1,5 +1,4 @@
 ﻿using RogueTraderUnityToolkit.Unity;
-using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using System.Diagnostics;
 
 namespace Codegen;

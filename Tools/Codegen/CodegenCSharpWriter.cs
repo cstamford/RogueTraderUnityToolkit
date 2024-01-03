@@ -12,10 +12,9 @@ public readonly partial struct CodegenCSharpWriter(
         string inNamespace,
         IEnumerable<string> usingNamespace)
     {
-        writer.Write(0, $"namespace RogueTraderUnityToolkit.UnityStructures.{inNamespace};");
+        writer.Write(0, $"namespace RogueTraderUnityToolkit.Unity.{inNamespace};");
         writer.Write(0, "");
         writer.Write(0, "using Core;");
-        writer.Write(0, "using Unity.BuiltInTypes;");
 
         foreach (string usingNs in usingNamespace)
         {

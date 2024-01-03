@@ -132,7 +132,7 @@ static void ExportCodegen(Codegen.Codegen codegen)
 
     if (exportStructures)
     {
-        const string path = @"D:\\RogueTraderUnityToolkit\\RogueTraderUnityToolkit.UnityStructures\\Generated";
+        const string path = @"D:\\RogueTraderUnityToolkit\\RogueTraderUnityToolkit.Unity\\Generated";
 
         if (Directory.Exists(path))
         {
@@ -301,4 +301,4 @@ static void MemoryScanSerializedFile(
     }
 }
 
-record class ThreadLocalWorkData(ITreeReader Reader, Dictionary<TreePathObject, int> Objects);
+internal record class ThreadLocalWorkData(ITreeReader Reader, Dictionary<TreePathObject, int> Objects);

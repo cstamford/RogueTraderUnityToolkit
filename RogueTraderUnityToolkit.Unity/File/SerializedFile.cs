@@ -1,5 +1,4 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 
 namespace RogueTraderUnityToolkit.Unity.File
