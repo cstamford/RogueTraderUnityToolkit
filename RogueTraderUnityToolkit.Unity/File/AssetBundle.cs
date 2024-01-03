@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using System.Text;
 
 namespace RogueTraderUnityToolkit.Unity.File;

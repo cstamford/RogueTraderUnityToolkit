@@ -19,16 +19,6 @@ public static class Extensions
         return new(span.AsPtr(), span.Length);
     }
 
-    public static unsafe UnmanagedMemoryStream AsWriteableStream(this Span<byte> span)
-    {
-        return new(span.AsPtr(), span.Length, span.Length, FileAccess.ReadWrite);
-    }
-
-    public static IEnumerable<int> Indices<T>(this IEnumerable<T> self)
-    {
-        return self.Select((_, index) => index);
-    }
-
     public static IEnumerable<(T item, int index)> WithIndex<T>(this IEnumerable<T> self)
     {
         return self.Select((item, index) => (item, index));
@@ -46,23 +36,6 @@ public static class Extensions
         }
 
         return list;
-    }
-
-    public static void AppendIndent(this StringBuilder sb, int indent)
-    {
-        for (int i = 0; i < indent; ++i) sb.Append(' ');
-    }
-
-    public static void AppendIndented(this StringBuilder sb, int indent, string line)
-    {
-        sb.AppendIndent(indent);
-        sb.Append(line);
-    }
-
-    public static void AppendLineIndented(this StringBuilder sb, int indent, string line)
-    {
-        sb.AppendIndent(indent);
-        sb.AppendLine(line);
     }
 
     public static string Repeat(this char ch, int num) => new(ch, num);

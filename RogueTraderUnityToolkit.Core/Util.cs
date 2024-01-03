@@ -1,6 +1,5 @@
 ﻿using NeoSmart.Hashing.XXHash;
 using System.Numerics;
-using System.Text;
 
 namespace RogueTraderUnityToolkit.Core;
 

@@ -35,11 +35,6 @@ public interface IObjectTypeTreeReader
         in ObjectParserNode dataNode,
         int arrayLength);
 
-    public void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength);
-
     public void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
@@ -299,14 +294,6 @@ public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] rea
         int arrayLength)
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.ReadComplexArray(node, dataNode, arrayLength); }
-    }
-
-    public void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength)
-    {
-        foreach (IObjectTypeTreeReader reader in readers) { reader.ReadString(node, nodeReader, stringLength); }
     }
 
     public void ReadReferencedObject(

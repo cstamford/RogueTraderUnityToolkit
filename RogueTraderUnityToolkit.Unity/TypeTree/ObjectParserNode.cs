@@ -171,7 +171,6 @@ public readonly record struct ObjectParserNode(
 
 public enum ObjectParserType : byte
 {
-    // Primitive types
     U64,
     U32,
     U16,
@@ -188,9 +187,7 @@ public enum ObjectParserType : byte
     Bool,
     Char,
 
-    // Complex types
-    Complex,
-    String
+    Complex
 }
 
 [Flags]
@@ -259,9 +256,7 @@ public static class ObjectParserNodeUtil
         [ObjectParserType.Bool] = [
             AsciiString.From("bool"u8)],
         [ObjectParserType.Char] = [
-            AsciiString.From("char"u8)],
-        [ObjectParserType.String] = [
-            AsciiString.From("string"u8)]
+            AsciiString.From("char"u8)]
     };
 
     private static readonly Dictionary<AsciiString, ObjectParserType> _stringToType = _typeMap

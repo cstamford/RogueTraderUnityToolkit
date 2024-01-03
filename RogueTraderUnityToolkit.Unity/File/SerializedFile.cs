@@ -1,4 +1,5 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 
 namespace RogueTraderUnityToolkit.Unity.File
@@ -243,20 +244,20 @@ namespace RogueTraderUnityToolkit.Unity.File
 
     public readonly record struct SerializedFileReferences(
         AsciiString Path,
-        Guid Guid,
+        Hash128 Hash,
         int Format,
         AsciiString PathUnity)
     {
         public static SerializedFileReferences Read(EndianBinaryReader reader)
         {
             AsciiString path = reader.ReadStringUntilNull();
-            Guid guid = reader.ReadGuid();
+            Hash128 hash = Hash128.Read(reader);
             int format = reader.ReadS32();
             AsciiString pathUnity = reader.ReadStringUntilNull();
 
             return new(
                 Path: path,
-                Guid: guid,
+                Hash: hash,
                 Format: format,
                 PathUnity: pathUnity);
         }

@@ -1,5 +1,4 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;

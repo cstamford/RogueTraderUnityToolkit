@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
+// This class supports reading all parser types (primitives)
 public readonly ref struct ObjectParserReader(
     EndianBinaryReader reader,
     ObjectParserType type,
@@ -192,17 +193,6 @@ public readonly ref struct ObjectParserReader(
         }
 
         fnOnReadChunk(element - drain, element);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public AsciiString ReadString(
-        in ObjectParserNode node,
-        int stringLength,
-        int readLength = -1)
-    {
-        Debug.Assert(node.Type == ObjectParserType.String);
-        PrepareForRead();
-        return reader.ReadString(readLength != -1 ? Math.Min(stringLength, readLength) : stringLength);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

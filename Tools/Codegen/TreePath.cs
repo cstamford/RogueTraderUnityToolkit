@@ -26,26 +26,16 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
     public int Hash => _hash;
 
     public TreePathEntry this[int idx] => Data[idx];
-
     public TreePathEntry First => this[0];
     public TreePathEntry Last => this[^1];
-
-    public TreePath this[string path]
-    {
-        get
-        {
-            int startWithCount = StartWithCount(path, out bool success);
-            return success ? Slice(startWithCount) : throw new();
-        }
-    }
 
     public override int GetHashCode() => _hash;
 
     public TreePath Slice(int offset) => Slice(offset, Length - offset);
     public TreePath Slice(int offset, int length) => new(Allocation.Slice(offset, length));
 
-    public bool StartsWith(TreePath rhs) => Length >= rhs.Length && Data[..rhs.Length].SequenceEqual(rhs.Data);
-    public bool StartsWith(string path) => StartWithCount(path, out bool success) > 0 && success;
+    public bool StartsWith(TreePath path) => Length >= path.Length && Data[..path.Length].SequenceEqual(path.Data);
+    public bool EndsWith(TreePath path) => Length >= path.Length && Data[(Length - path.Length)..].SequenceEqual(path.Data);
 
     public static bool operator ==(TreePath lhs, string? rhs) => Equals(lhs, rhs);
     public static bool operator !=(TreePath lhs, string? rhs) => !Equals(lhs, rhs);
@@ -55,15 +45,13 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
 
     private readonly int _hash = CalculateHash(Allocation.Memory.Span);
 
-    private int StartWithCount(string path, out bool success)
+    private int StartsWithString(string path, out bool success) => StartsWithString(path, 0, 0, out success);
+    private int StartsWithString(string path, int pathIndex, int entryIndex, out bool success)
     {
         Debug.Assert(path.Length <= 1024);
 
         Span<byte> pathSpan = stackalloc byte[path.Length];
         Encoding.ASCII.GetBytes(path, pathSpan);
-
-        int pathIndex = 0;
-        int entryIndex = 0;
 
         while (pathIndex < pathSpan.Length && entryIndex < Length)
         {
@@ -100,7 +88,7 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
 
     private static bool Equals(TreePath lhs, string? rhs) =>
         rhs != null &&
-        lhs.StartWithCount(rhs, out bool success) == lhs.Length &&
+        lhs.StartsWithString(rhs, out bool success) == lhs.Length &&
         success;
 
     private static int CalculateHash(ReadOnlySpan<TreePathEntry> data)

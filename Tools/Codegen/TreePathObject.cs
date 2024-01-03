@@ -1,5 +1,5 @@
 ﻿using RogueTraderUnityToolkit.Unity;
-using RogueTraderUnityToolkit.Unity.File;
+using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using System.Diagnostics;
 
 namespace Codegen;
@@ -9,7 +9,7 @@ public readonly record struct TreePathObject
     public UnityObjectType Type => _type;
     public Hash128 ScriptHash => _scriptHash;
     public Hash128 Hash => _hash;
-    public IEnumerable<TreePath> Paths => _paths;
+    public IReadOnlyList<TreePath> Paths => _paths;
 
     public TreePathObject(
         UnityObjectType type,

@@ -185,6 +185,9 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public bool ReadBool() => ReadB8();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public unsafe byte ReadByte()
     {
         byte value;
@@ -286,19 +289,6 @@ public static class EndianBinaryReaderExtensions
         int skippedBytes = (int)(aligned - unaligned);
         reader.Seek(skippedBytes);
         return skippedBytes;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public static Guid ReadGuid(this EndianBinaryReader reader)
-    {
-        Span<byte> bytes = stackalloc byte[16];
-
-        for (int i = 0; i < 16; i += 4)
-        {
-            reader.ReadSwap32(bytes.Slice(i, 4));
-        }
-
-        return new(bytes);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

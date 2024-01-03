@@ -54,24 +54,6 @@ public record struct ObjectParser
             _extReader.ReadPrimitive(node, nodeReader);
             Offset = nodeReader.End;
         }
-        // string -> char array -> { length, data }, array specialization
-        else if (node.Type == ObjectParserType.String)
-        {
-            if (TryReadString(tree, node, treeDepth, reading,
-                out ObjectParserReader nodeReader,
-                out int stringLength))
-            {
-                _extReader.ReadString(node, nodeReader, stringLength);
-                Offset = nodeReader.End;
-            }
-            else
-            {
-                // Strings can, annoyingly, be nested. So we'll just go one level deeper.
-                ref ObjectParserNode childNode = ref tree[node.FirstChildIdx];
-                Debug.Assert(childNode.Type == ObjectParserType.String, $"Unexpected child node.\n{childNode}");
-                Read(tree, childNode, treeDepth, reading);
-            }
-        }
         // array -> { length, data }
         else if (node.IsArray)
         {
@@ -202,43 +184,6 @@ public record struct ObjectParser
         return CreateReader(node.Type, node.Size, reading);
     }
 
-    private readonly bool TryReadString(
-        in ObjectTypeTree tree,
-        in ObjectParserNode node,
-        int treeDepth,
-        bool reading,
-        out ObjectParserReader nodeReader,
-        out int stringLength)
-    {
-        Debug.Assert(node.Type == ObjectParserType.String);
-
-        ref ObjectParserNode arrayNode = ref tree[node.FirstChildIdx];
-        Debug.Assert(arrayNode.IsArray || arrayNode.Type == ObjectParserType.String);
-
-        if (arrayNode.IsArray)
-        {
-            // The peek of this array will, in turn, peek the length and data nodes in turn.
-            Peek(tree, arrayNode, treeDepth);
-
-            ref ObjectParserNode lengthNode = ref tree[arrayNode.FirstChildIdx];
-            ref ObjectParserNode dataNode = ref tree[lengthNode.FirstSiblingIdx];
-
-            Debug.Assert(lengthNode.Type == ObjectParserType.S32);
-            Debug.Assert(dataNode.Type == ObjectParserType.Char);
-
-            stringLength = reading ? _reader.ReadS32() : 0;
-            Debug.Assert(stringLength >= 0);
-            Debug.Assert(Offset + stringLength <= Length);
-
-            nodeReader = CreateReader(ObjectParserType.String, stringLength, reading);
-            return true;
-        }
-
-        stringLength = 0;
-        nodeReader = default;
-        return false;
-    }
-
     private readonly bool TryReadReferencedObject(
         in ObjectTypeTree tree,
         in ObjectParserNode node,
@@ -257,9 +202,9 @@ public record struct ObjectParser
         ref ObjectParserNode refDataNode = ref tree[refTypeNode.FirstSiblingIdx];
 
         Debug.Assert(refIdNode.Type == ObjectParserType.S64);
-        Debug.Assert(refTypeClsNode.Type == ObjectParserType.String);
-        Debug.Assert(refTypeNsNode.Type == ObjectParserType.String);
-        Debug.Assert(refTypeAsmNode.Type == ObjectParserType.String);
+        Debug.Assert(refTypeClsNode.TypeName == "string");
+        Debug.Assert(refTypeNsNode.TypeName == "string");
+        Debug.Assert(refTypeAsmNode.TypeName == "string");
         Debug.Assert(refDataNode.TypeName == "ReferencedObjectData");
 
         if (reading)

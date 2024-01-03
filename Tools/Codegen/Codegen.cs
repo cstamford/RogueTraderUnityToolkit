@@ -1,5 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
+using RogueTraderUnityToolkit.Unity.BuiltInTypes;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;
 
@@ -19,32 +20,37 @@ public class Codegen
             }
         }
 
-        foreach (TreePathObject pathObject in report.AllPathObjects.Keys)
+        foreach ((UnityObjectType type, IEnumerable<TreePathObject> objs) in report.AllPathObjects
+            .GroupBy(x => x.Key.Type)
+            .Select(x => (x.Key, x.Select(y => y.Key))))
         {
-            // Grab all the children, ordering by length. (the first entry will be the root node).
-            IEnumerable<TreePath> children = pathObject.Paths.OrderBy(x => x.Length);
-            TreePath root = children.First();
+            bool isGameType = type == UnityObjectType.MonoBehaviour;
+            Debug.Assert(isGameType || objs.Count() == 1);
 
-            Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
-            Debug.Assert(children.All(x => x.StartsWith(root)), "Paths not beginning with root?");
+            // Game script types have a bunch of fragments - only process the one with the lowest field count as the base object.
+            TreePathObject obj = isGameType ? objs.MinBy(x => x.Paths.Count) : objs.First();
+            AsciiString objName = AsciiString.From(obj.Type.ToString());
+            ICodegenType codegenType = ReadTreeObject(obj, objName, CodegenTypeFlags.IsEngineType);
+            _baseGameType = isGameType ? codegenType : _baseGameType;
+        }
 
-            AsciiString typeName = root.Last.TypeName;
+        Debug.Assert(_baseGameType != null);
+    }
 
-            if (pathObject.Type == UnityObjectType.MonoBehaviour)
+    public void ReadGameStructures(
+        TreeReport report,
+        Dictionary<Hash128, AsciiString> scriptTypeNames)
+    {
+        foreach ((TreePathObject obj, int _) in report.AllPathObjects
+            .Where(x => x.Key.Type == UnityObjectType.MonoBehaviour))
+        {
+            if (scriptTypeNames.TryGetValue(obj.ScriptHash, out AsciiString scriptName))
             {
-                // TODO: Script names are stored in MonoScript
+                ReadTreeObject(obj, scriptName, CodegenTypeFlags.IsGameType);
                 continue;
             }
 
-            if (pathObject.Type != UnityObjectType.MonoScript)
-            {
-                // TODO: First steps...
-                continue;
-            }
-
-            // Create the type, which will recursively create its subtypes.
-            ICodegenType rootType = ConstructTypeRecursively(typeName, root, children);
-            LogVerbose(0, $"Constructed {rootType}", ConsoleColor.DarkGray);
+            Log.Write($"Could not resolve game script type for {obj.ScriptHash}", ConsoleColor.Yellow);
         }
     }
 
@@ -52,6 +58,7 @@ public class Codegen
     {
         CodegenCSharpWriter writer = new(_types, _typesIndexLookup);
 
+        List<AsciiString> allMissingTypes = [];
         HashSet<ICodegenType> visited = [];
 
         HashSet<AsciiString> rootTypes = Enum.GetValues<UnityObjectType>()
@@ -64,34 +71,28 @@ public class Codegen
             .OrderBy(x => x.x.Name)
             .Select(x => _types[x.i]);
 
-        List<AsciiString> allMissingTypes = [];
-
         foreach (ICodegenType rootType in rootStructures)
         {
             Debug.Assert(rootType is CodegenStructureType);
 
-            string rootTypeFile = Path.Combine(path, $"{rootType.Name}.cs");
+            bool isGameType = (rootType.Flags & CodegenTypeFlags.IsGameType) != 0;
+            string rootTypeSubDir = isGameType ? "Game" : "Engine";
+            string rootTypeDir = Path.Combine(path, rootTypeSubDir);
+            Directory.CreateDirectory(rootTypeDir);
+
+            string rootTypeFile = Path.Combine(rootTypeDir, $"{rootType.Name}.cs");
             using StreamWriter rootTypeWriter = File.CreateText(rootTypeFile);
 
-            writer.WriteHeader(rootTypeWriter);
+            writer.WriteHeader(rootTypeWriter, $"Generated.{rootTypeSubDir}", isGameType ? ["Engine"] : []);
             writer.WriteType(rootTypeWriter, rootType, out AsciiString[] missingTypes);
 
             allMissingTypes.AddRange(missingTypes);
             visited.Add(rootType);
-
-            foreach (ICodegenType fragment in _types
-                .Where(x => x.Name.StartsWith($"{rootType.Name}_")))
-            {
-                writer.WriteType(rootTypeWriter, fragment, out missingTypes);
-
-                allMissingTypes.AddRange(missingTypes);
-                visited.Add(fragment);
-            }
         }
 
         string referencedTypesFile = Path.Combine(path, $"ReferencedTypes.cs");
         using StreamWriter referencedTypesWriter = File.CreateText(referencedTypesFile);
-        writer.WriteHeader(referencedTypesWriter);
+        writer.WriteHeader(referencedTypesWriter, "Generated", ["Engine"]);
 
         foreach (ICodegenType otherType in _types.Where(x => !visited.Contains(x)))
         {
@@ -117,10 +118,30 @@ public class Codegen
         Debug.Assert(visited.Count == _types.Count);
     }
 
+    private ICodegenType ReadTreeObject(
+        TreePathObject obj,
+        AsciiString typeName,
+        CodegenTypeFlags flags)
+    {
+        // Grab all the children, ordering by length. (the first entry will be the root node).
+        IEnumerable<TreePath> children = obj.Paths.OrderBy(x => x.Length);
+        TreePath root = children.First();
+
+        Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
+        Debug.Assert(children.All(x => x.StartsWith(root)), "Paths not beginning with root?");
+
+        // Create the type, which will recursively create its subtypes.
+        ICodegenType rootType = ConstructTypeRecursively(typeName, root, children, flags);
+        LogVerbose(0, $"Constructed {rootType}", ConsoleColor.DarkGray);
+
+        return rootType;
+    }
+
     private ICodegenType ConstructTypeRecursively(
         AsciiString typeName,
         TreePath root,
-        IEnumerable<TreePath> children)
+        IEnumerable<TreePath> children,
+        CodegenTypeFlags flags = CodegenTypeFlags.None)
     {
         Debug.Assert(root.Length == 1);
         Debug.Assert(children.First() == root);
@@ -159,7 +180,7 @@ public class Codegen
                 fields.Add(new CodegenField(childType, child.Last.Name));
             }
 
-            CodegenStructureType rootType = new(typeName, fields);
+            CodegenStructureType rootType = new(typeName, fields, flags);
             Debug.Assert(rootType.Fields.Count != 0, $"Complex type with no fields? {rootType}");
             type = rootType;
         }
@@ -185,6 +206,7 @@ public class Codegen
         AsciiString rootTypeName = root.Last.TypeName;
 
         bool isPPtr = rootTypeName.StartsWith("PPtr<");
+        bool isString = rootTypeName == "string";
         bool isDirectArray = rootTypeName == "vector" || rootTypeName == "staticvector";
         bool isIndirectArray = children.Count(x => x.Length == 1) == 1 && children.First() == "Array";
         bool isMap = rootTypeName == "map";
@@ -193,7 +215,7 @@ public class Codegen
 
         ICodegenType? specialType = null;
 
-        // pptr => { m_FileID, m_PathID }
+        // pptr -> { m_FileID, m_PathID }
         if (isPPtr)
         {
             Debug.Assert(children.Count() == 2);
@@ -203,6 +225,28 @@ public class Codegen
             AsciiString typeName = rootTypeName[5..^1];
             if (typeName.StartsWith('$')) typeName = typeName[1..]; // idk what $ means
             specialType = new CodegenPPtrType(typeName);
+        }
+        // string -> (nested string, or char array)
+        else if (isString)
+        {
+            Debug.Assert(children.Count(x => x.Length == 1) == 1);
+            TreePath firstChild = children.First(x => x.Length == 1);
+
+            // Strings can be nested.
+            // If we hit one, just call ourselves recursively on it, which solves the problem.
+            if (firstChild.First.TypeName == "string")
+            {
+                return TryConstructSpecialType(
+                    firstChild,
+                    children.Where(x => x.StartsWith(firstChild)).Skip(1).Select(x => x[1..]),
+                    out type);
+            }
+
+            Debug.Assert(children.Count(x => x == "Array") == 1);
+            Debug.Assert(children.Count(x => x == "Array/data") == 1);
+            Debug.Assert(children.Count(x => x == "Array/size") == 1);
+
+            specialType = new CodegenStringType();
         }
         // map -> { array { data (pair), size ... } }
         else if (isMap)
@@ -308,10 +352,22 @@ public class Codegen
 
     private ICodegenType MergeType(
         ICodegenType type,
-        TreePath root,
+        TreePath _,
         IEnumerable<TreePath> children)
     {
-        // TODO: this is just an assert job, to double check everything is OK.
+        if (type is CodegenStructureType struc)
+        {
+            // TODO These asserts fail. Sometimes there are same type names with different fields.
+            // TODO This probably related to the hash manifest thing in TreeAnalysis.
+            // TODO I think we will have to fragment each type by their field count...
+            //
+            // Debug.Assert(children.Count(x => x.Length == 1) == struc.Fields.Count);
+            // Debug.Assert(children
+            //    .Where(x => x.Length == 1)
+            //    .All(x => struc.Fields
+            //        .Any(y => x.First.Name == y.Name)));
+        }
+
         return type;
     }
 
@@ -345,4 +401,5 @@ public class Codegen
 
     private readonly List<ICodegenType> _types = [];
     private readonly Dictionary<AsciiString, int> _typesIndexLookup = [];
+    private readonly ICodegenType _baseGameType = default!;
 }

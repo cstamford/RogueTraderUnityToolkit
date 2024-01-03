@@ -120,6 +120,8 @@ TreeReport report = TreeAnalysis.CalculateReport(treePathObjects);
 ExportAnalysis(report);
 
 Codegen.Codegen codegen = new(report);
+/* TODO codegen.ReadGameStructures(...); */
+
 ExportCodegen(codegen);
 
 return;
@@ -140,7 +142,7 @@ static void ExportCodegen(Codegen.Codegen codegen)
 
         Directory.CreateDirectory(path);
         codegen.WriteStructures(path);
-        Log.Write($"Wrote codegen structures to {path}", ConsoleColor.Cyan);
+        Log.Write($"Wrote structures to {path}", ConsoleColor.Cyan);
     }
 }
 

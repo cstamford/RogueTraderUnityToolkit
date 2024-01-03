@@ -92,31 +92,6 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             new LogEntry($"]", _col));
     }
 
-    public override void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength)
-    {
-        const int maxLen = 32;
-        string str = nodeReader.ReadString(node, stringLength, maxLen).ToString();
-
-        int remainingElements = stringLength - maxLen;
-        int remainingBytes = 0;
-
-        if (remainingElements > 0)
-        {
-            str += " ...";
-            remainingBytes = remainingElements;
-        }
-
-        Log.Write((_indent + 1) * _spacesPerIndent,
-            new LogEntry($"ReadString", ConsoleColor.Cyan),
-            new LogEntry($" char[{stringLength}]", _col),
-            new LogEntry($" {Range(remainingBytes)} => \"", _col),
-            new LogEntry(str, ConsoleColor.Cyan),
-            new LogEntry($"\"", _col));
-    }
-
     public override void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
