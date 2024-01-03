@@ -174,7 +174,7 @@ namespace RogueTraderUnityToolkit.Unity.File
         UnityObjectType Type,
         bool IsStripped,
         ushort ScriptTypeIdx,
-        Hash128? ScriptHash,
+        Hash128 ScriptHash,
         Hash128 Hash)
     {
         public static SerializedFileObjectInfo Read(EndianBinaryReader reader)
@@ -191,7 +191,7 @@ namespace RogueTraderUnityToolkit.Unity.File
                 throw new($"Unexpected custom scriptTypeIdx {scriptTypeIdx} with type {type}.");
             }
 
-            Hash128? scriptHash = hasScriptType ? Hash128.Read(reader) : default;
+            Hash128 scriptHash = hasScriptType ? Hash128.Read(reader) : default;
             Hash128 hash = Hash128.Read(reader);
 
             return new(

@@ -20,29 +20,11 @@ public readonly record struct AsciiString(
     public AsciiString Slice(int offset) => AsciiStringPool.Slice(this, offset, Length - offset);
     public AsciiString Slice(int offset, int length) => AsciiStringPool.Slice(this, offset, length);
 
-    public bool StartsWith(AsciiString rhs)
-    {
-        ReadOnlySpan<byte> lhsSpan = Bytes;
-        ReadOnlySpan<byte> rhsSpan = rhs.Bytes;
-
-        if (rhs.Length > Length) return false;
-
-        return lhsSpan[..rhs.Length].SequenceEqual(rhsSpan);
-    }
-
-    public bool EndsWith(AsciiString rhs)
-    {
-        ReadOnlySpan<byte> lhsSpan = Bytes;
-        ReadOnlySpan<byte> rhsSpan = rhs.Bytes;
-
-        if (rhs.Length > Length) return false;
-
-        return lhsSpan.Slice(Length - rhs.Length, rhs.Length).SequenceEqual(rhsSpan);
-    }
-
+    public bool StartsWith(byte rhs) => Length > 0 && Bytes[0] == rhs;
+    public bool StartsWith(char rhs) => StartsWith((byte)rhs);
+    public bool StartsWith(AsciiString rhs) => rhs.Length <= Length && Bytes[..rhs.Length].SequenceEqual(rhs.Bytes);
     public bool StartsWith(string rhs)
     {
-        ArgumentNullException.ThrowIfNull(rhs);
         if (rhs.Length > Length) return false;
 
         ReadOnlySpan<byte> lhsSpan = Bytes;
@@ -56,9 +38,11 @@ public readonly record struct AsciiString(
         return true;
     }
 
+    public bool EndsWith(byte rhs) => Length > 0 && Bytes[^1] == rhs;
+    public bool EndsWith(char rhs) => EndsWith((byte)rhs);
+    public bool EndsWith(AsciiString rhs) => rhs.Length <= Length && Bytes[(Length - rhs.Length)..].SequenceEqual(rhs.Bytes);
     public bool EndsWith(string rhs)
     {
-        ArgumentNullException.ThrowIfNull(rhs);
         if (rhs.Length > Length) return false;
 
         ReadOnlySpan<byte> lhsSpan = Bytes[(Length - rhs.Length)..];

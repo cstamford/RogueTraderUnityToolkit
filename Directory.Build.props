@@ -4,6 +4,6 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)'=='Release'">
         <!-- uncomment to enable asserts in release -->
-        <DefineConstants>$(DefineConstants);<!--DEBUG--></DefineConstants>
+        <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
     </PropertyGroup>
 </Project>

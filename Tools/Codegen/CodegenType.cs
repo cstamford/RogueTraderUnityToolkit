@@ -21,13 +21,11 @@ public record class CodegenBuiltInType(
         ObjectParserType.S64 => typeof(long),
         ObjectParserType.S32 => typeof(int),
         ObjectParserType.S16 => typeof(short),
-        ObjectParserType.S8 => typeof(uint),
+        ObjectParserType.S8 => typeof(sbyte),
         ObjectParserType.F64 => typeof(double),
         ObjectParserType.F32 => typeof(float),
         ObjectParserType.Bool => typeof(bool),
         ObjectParserType.Char => typeof(char),
-        ObjectParserType.Complex => typeof(object),
-        ObjectParserType.ReferencedObject => typeof(object), // ruh row?
         ObjectParserType.String => typeof(string),
         _ => throw new()
     };
@@ -43,28 +41,43 @@ public record class CodegenStructureType(
 }
 
 public record class CodegenArrayType(
-    AsciiString Name,
     ICodegenType DataType) : ICodegenType
 {
-    public override string ToString() => $"#{Name}";
+    public AsciiString Name { get; } = AsciiString.From($"Array<{DataType.Name}>");
+    public override string ToString() => Name.ToString();
 }
 
 public record class CodegenMapType(
-    AsciiString Name,
     ICodegenType KeyType,
     ICodegenType ValueType) : ICodegenType
 {
-    public override string ToString() => $"#{Name}";
+    public AsciiString Name { get; } = AsciiString.From($"Map<{KeyType.Name}, {ValueType.Name}>");
+    public override string ToString() => Name.ToString();
 }
 
 public record class CodegenPPtrType(
-    AsciiString Name,
     AsciiString TypeName) : ICodegenType
 {
-    public override string ToString() => $"#{Name}";
+    public AsciiString Name { get; } = AsciiString.From($"PPtr<{TypeName}>");
+    public override string ToString() => Name.ToString();
 }
 
-public record class CodegenEmptyType(AsciiString Name) : ICodegenType
+public record class CodegenRefRegistryType(
+    IReadOnlyList<ICodegenType> Types) : ICodegenType
 {
-    public override string ToString() => $"!{Name} (EMPTY TYPE)";
+    public AsciiString Name { get; } = AsciiString.From($"RefRegistry_{_nextRefRegistry++}");
+    private static int _nextRefRegistry = 0;
+    public override string ToString() => Name.ToString();
+}
+
+public record class CodegenHash128Type : ICodegenType
+{
+    public AsciiString Name { get; } = AsciiString.From("Hash128");
+    public override string ToString() => Name.ToString();
+}
+
+public record class CodegenForwardDeclType(
+    AsciiString Name) : ICodegenType
+{
+    public override string ToString() => $"?{Name}";
 }

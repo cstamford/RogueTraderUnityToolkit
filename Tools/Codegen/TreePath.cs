@@ -25,8 +25,10 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
     public int Length => Data.Length;
     public int Hash => _hash;
 
-
     public TreePathEntry this[int idx] => Data[idx];
+
+    public TreePathEntry First => this[0];
+    public TreePathEntry Last => this[^1];
 
     public TreePath this[string path]
     {
@@ -43,7 +45,6 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
     public TreePath Slice(int offset, int length) => new(Allocation.Slice(offset, length));
 
     public bool StartsWith(TreePath rhs) => Length >= rhs.Length && Data[..rhs.Length].SequenceEqual(rhs.Data);
-    public bool StartsWith(TreePathEntry rhs) => this[0] == rhs;
     public bool StartsWith(string path) => StartWithCount(path, out bool success) > 0 && success;
 
     public static bool operator ==(TreePath lhs, string? rhs) => Equals(lhs, rhs);

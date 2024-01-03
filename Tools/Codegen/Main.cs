@@ -2,6 +2,7 @@
 using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
+using System.Buffers.Binary;
 using System.IO.MemoryMappedFiles;
 
 SuperluminalPerf.Initialize();
@@ -74,7 +75,15 @@ Parallel.ForEach(files
                 }
 
                 SerializedFile serializedFile = SerializedFile.Read(nodeInfo);
-                ProcessSerializedFile(serializedFile, workData);
+
+                if (false)
+                {
+                    MemoryScanSerializedFile(serializedFile);
+                }
+                else
+                {
+                    ProcessSerializedFile(serializedFile, workData);
+                }
             }
         }
         else if (SerializedFile.CanRead(diskFileInfo))
@@ -140,6 +149,7 @@ static void ExportAnalysis(in TreeReport report)
     const bool exportAllPaths = true;
     const bool exportFieldAccessByTypeName = true;
     const bool exportFieldAccessByUnityType = true;
+    const bool exportHashAnalysis = true;
 
     if (exportAllPaths)
     {
@@ -167,6 +177,15 @@ static void ExportAnalysis(in TreeReport report)
         TreeAnalysis.WriteFieldAccessByUnityType(sw, report);
         Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
     }
+
+    if (exportHashAnalysis)
+    {
+        const string path = "hashAnalysis.txt";
+        using FileStream stream = File.Create(path);
+        using StreamWriter sw = new(stream);
+        TreeAnalysis.WriteHashAnalysis(sw, report);
+        Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+    }
 }
 
 static void ProcessSerializedFile(
@@ -184,24 +203,99 @@ static void ProcessSerializedFile(
             withDebugReader: false,
             startIdx: 0,
             endIdx: file.ObjectInstances.Length,
-            fnStartedOne: i =>
-            {
-                int typeIdx = file.ObjectInstances[i].TypeIdx;
-                UnityObjectType type = file.Objects[typeIdx].Info.Type;
-                workData.Reader.StartObject(type);
-            },
-            fnFinishedOne: i =>
-            {
-                int typeIdx = file.ObjectInstances[i].TypeIdx;
-                UnityObjectType type = file.Objects[typeIdx].Info.Type;
-                workData.Reader.FinishObject(type);
-            });
+            fnStartedOne: i => workData.Reader.StartObject(file.Objects[file.ObjectInstances[i].TypeIdx].Info),
+            fnFinishedOne: i => workData.Reader.FinishObject(file.Objects[file.ObjectInstances[i].TypeIdx].Info));
 
         workData.Reader.FinishFile(file);
     }
     else
     {
+        // TODO: These actually have a bunch of instances in them, but don't come with type trees.
+        // So I suppose we need to look up their dependencies and get the type trees from them.
         Log.Write($"{file.Info.Identifier} does not have embedded type tree info.", ConsoleColor.Yellow);
+    }
+}
+
+static void MemoryScanSerializedFile(
+    SerializedFile file)
+{
+    using Stream stream = file.Info.Open();
+
+    Span<byte> hashLittleEndian = stackalloc byte[16];
+    BinaryPrimitives.WriteUInt32LittleEndian(hashLittleEndian[..4], 3082389775);
+    BinaryPrimitives.WriteUInt32LittleEndian(hashLittleEndian[4..8], 2284741498);
+    BinaryPrimitives.WriteUInt32LittleEndian(hashLittleEndian[8..12], 3972055074);
+    BinaryPrimitives.WriteUInt32LittleEndian(hashLittleEndian[12..], 2155042913);
+
+    Span<byte> hashBigEndian = stackalloc byte[16];
+    BinaryPrimitives.WriteUInt32BigEndian(hashBigEndian[..4], 3082389775);
+    BinaryPrimitives.WriteUInt32BigEndian(hashBigEndian[4..8], 2284741498);
+    BinaryPrimitives.WriteUInt32BigEndian(hashBigEndian[8..12], 3972055074);
+    BinaryPrimitives.WriteUInt32BigEndian(hashBigEndian[12..], 2155042913);
+
+    (string, byte[])[] patternsToScan =
+    [
+        ("UnitDismembermentManager name", "UnitDismembermentManager"u8.ToArray()),
+        ("Hash128 little endian", hashLittleEndian.ToArray()),
+        ("Hash128 big endian", hashBigEndian.ToArray())
+    ];
+
+    List<(string, long)> matches = [];
+
+    const int bufferSize = 32768;
+    Span<byte> buffer = stackalloc byte[bufferSize];
+
+    while (true)
+    {
+        buffer = buffer[..Math.Min((int)(stream.Length - stream.Position), bufferSize)];
+        if (buffer.Length == 0) break;
+
+        int bytesRead = stream.Read(buffer);
+
+        foreach ((string name, byte[] pattern) in patternsToScan)
+        {
+            int index = 0;
+            while (index < bytesRead)
+            {
+                int indexOf = buffer.Slice(index, bytesRead - index).IndexOf(pattern);
+                if (indexOf < 0) break;
+
+                matches.Add((name, stream.Position - bytesRead + index));
+                index += indexOf + pattern.Length;
+            }
+        }
+
+        buffer = buffer[..Math.Min((int)(stream.Length - stream.Position), bufferSize)];
+    }
+
+    foreach ((string match, long matchOffset) in matches)
+    {
+        Log.WriteSingle($"Match {match} at offset {matchOffset} in {file.Info.Identifier}");
+
+        if (matchOffset < file.Header.DataOffset)
+        {
+            Log.Write(" Header Segment", ConsoleColor.DarkGreen);
+        }
+        else
+        {
+            long dataOffset = matchOffset - file.Header.DataOffset;
+
+            Log.WriteSingle(" Data Segment in ", ConsoleColor.DarkMagenta);
+
+            foreach (var overlap in file.ObjectInstances
+                .Where(x => x.Offset <= dataOffset && x.Offset + x.Size >= dataOffset)
+                .Select(x => new
+                {
+                    Instance = x,
+                    Object = file.Objects[x.TypeIdx],
+                    RelativeOffset = dataOffset - x.Offset
+                }))
+            {
+                Log.Write($"[{overlap.Instance.TypeIdx}] " +
+                          $"{overlap.Object.Info.Type}" +
+                          $"+0x{overlap.RelativeOffset:X}", ConsoleColor.DarkMagenta);
+            }
+        }
     }
 }
 

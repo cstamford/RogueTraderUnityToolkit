@@ -54,6 +54,24 @@ public record struct ObjectParser
             _extReader.ReadPrimitive(node, nodeReader);
             Offset = nodeReader.End;
         }
+        // string -> char array -> { length, data }, array specialization
+        else if (node.Type == ObjectParserType.String)
+        {
+            if (TryReadString(tree, node, treeDepth, reading,
+                out ObjectParserReader nodeReader,
+                out int stringLength))
+            {
+                _extReader.ReadString(node, nodeReader, stringLength);
+                Offset = nodeReader.End;
+            }
+            else
+            {
+                // Strings can, annoyingly, be nested. So we'll just go one level deeper.
+                ref ObjectParserNode childNode = ref tree[node.FirstChildIdx];
+                Debug.Assert(childNode.Type == ObjectParserType.String, $"Unexpected child node.\n{childNode}");
+                Read(tree, childNode, treeDepth, reading);
+            }
+        }
         // array -> { length, data }
         else if (node.IsArray)
         {
@@ -87,54 +105,58 @@ public record struct ObjectParser
                 }
             }
         }
-        // complex types with manual parsing, for either speed or ease of access
-        else if (node.IsBuiltin)
+        else if (node.IsRefRegistry)
         {
-            Debug.Assert(!node.IsLeaf, $"Builtin is a leaf?\n{node}");
+            ref ObjectParserNode versionNode = ref tree[node.FirstChildIdx];
+            ref ObjectParserNode refIdsNode = ref tree[versionNode.FirstSiblingIdx];
+            ref ObjectParserNode refIdsArrayNode = ref tree[refIdsNode.FirstChildIdx];
+            ref ObjectParserNode refIdsArraySizeNode = ref tree[refIdsArrayNode.FirstChildIdx];
+            ref ObjectParserNode refIdsArrayDataNode = ref tree[refIdsArraySizeNode.FirstSiblingIdx];
 
-            // refObjectTree -> { version, ReferencedObject -> { rid, cls, ns, asm }, data (embedded tree) }
-            if (node.Type == ObjectParserType.ReferencedObject)
+            Debug.Assert(versionNode.Type == ObjectParserType.S32);
+            Debug.Assert(refIdsNode.Type == ObjectParserType.Complex);
+            Debug.Assert(refIdsArrayNode is { Type: ObjectParserType.Complex, IsArray: true });
+            Debug.Assert(refIdsArraySizeNode.Type == ObjectParserType.S32);
+            Debug.Assert(refIdsArrayDataNode.Type == ObjectParserType.Complex);
+
+            if (treeDepth == 0)
             {
-                if (TryReadReferencedObject(tree, node, treeDepth, reading, out long refId, out int typeRefIdx))
-                {
-                    ref SerializedFileTypeReference typeRef = ref _references[typeRefIdx];
-                    _extReader.ReadReferencedObject(node, refId, typeRef.Class, typeRef.Namespace, typeRef.Assembly);
+                Peek(tree, versionNode, treeDepth); // version node only
+                int version = _reader.ReadS32();
+                Debug.Assert(version == 2, $"Unsupported reference registry version {version}");
 
-                    _extReader.BeginTree(typeRef.Tree);
-                    Read(typeRef.Tree, typeRef.Tree.Root, treeDepth + 1, reading: true);
-                    _extReader.EndTree(typeRef.Tree);
-                }
-                else
+                Peek(tree, refIdsNode, treeDepth); // peeks the rest
+                int refs = _reader.ReadS32();
+
+                for (int i = 0; i < refs; ++i)
                 {
-                    Debug.Assert(true, "TryReadReferencedObject can fail with [SerializeReference] sometimes. This is a cosmetic error.");
+                    if (TryReadReferencedObject(tree, refIdsArrayDataNode, reading, out long refId, out int typeRefIdx))
+                    {
+                        ref SerializedFileTypeReference typeRef = ref _references[typeRefIdx];
+                        _extReader.ReadReferencedObject(node, refId, typeRef.Class, typeRef.Namespace, typeRef.Assembly);
+
+                        _extReader.BeginTree(typeRef.Tree);
+                        Read(typeRef.Tree, typeRef.Tree.Root, treeDepth + 1, reading: true);
+                        _extReader.EndTree(typeRef.Tree);
+                    }
+                    else
+                    {
+                        Debug.Assert(true, "TryReadReferencedObject can fail with [SerializeReference] sometimes. This is a cosmetic error.");
+                    }
                 }
             }
-            // string -> char array -> { length, data }, array specialization
-            else if (node.Type == ObjectParserType.String)
+            else
             {
-                if (TryReadString(tree, node, treeDepth, reading,
-                    out ObjectParserReader nodeReader,
-                    out int stringLength))
-                {
-                    _extReader.ReadString(node, nodeReader, stringLength);
-                    Offset = nodeReader.End;
-                }
-                else
-                {
-                    // Strings can, annoyingly, be nested. So we'll just go one level deeper.
-                    ref ObjectParserNode childNode = ref tree[node.FirstChildIdx];
-                    Debug.Assert(childNode.Type == ObjectParserType.String, $"Unexpected child node.\n{childNode}");
-                    Read(tree, childNode, treeDepth, reading);
-                }
+                // Embedded types do not have their registries embedded inside, even though the type tree claims they do.
+                // I've found that UnityDataTools fails in the same way, so it can't read certain assets from RT.
+                // Skipping the embedded registry enables these assets to be fully parsed without any errors.
+                Debug.Assert(true, "Skipping ref registry for child trees");
             }
         }
         // parent -> { children ... }
         else if (!node.IsLeaf)
         {
-            Debug.Assert(node.Type == ObjectParserType.Complex || node.IsBuiltin,
-                $"Non-complex node with children?\n{node}");
-
-            bool readChildren = ShouldReadNodeChildren(node, reading, treeDepth);
+            Debug.Assert(node.Type == ObjectParserType.Complex, $"Non-complex node with children?\n{node}");
 
             ushort startIdx = node.FirstChildIdx;
             ushort endIdx = node.FirstSiblingIdx != 0 ? node.FirstSiblingIdx : (ushort)tree.Length;
@@ -146,7 +168,7 @@ public record struct ObjectParser
 
                 if (childNode.Level == node.Level + 1)
                 {
-                    Read(tree, childNode, treeDepth, reading: readChildren);
+                    Read(tree, childNode, treeDepth, reading);
                 }
 
                 ++childIdx;
@@ -188,7 +210,6 @@ public record struct ObjectParser
         out ObjectParserReader nodeReader,
         out int stringLength)
     {
-        Debug.Assert(node.IsBuiltin);
         Debug.Assert(node.Type == ObjectParserType.String);
 
         ref ObjectParserNode arrayNode = ref tree[node.FirstChildIdx];
@@ -221,13 +242,12 @@ public record struct ObjectParser
     private readonly bool TryReadReferencedObject(
         in ObjectTypeTree tree,
         in ObjectParserNode node,
-        int treeDepth,
         bool reading,
         out long refId,
         out int typeRefIdx)
     {
-        Debug.Assert(node.IsBuiltin);
-        Debug.Assert(node.Type == ObjectParserType.ReferencedObject);
+        Debug.Assert(node.TypeName == "ReferencedObject");
+        Debug.Assert(node.Type == ObjectParserType.Complex);
 
         ref ObjectParserNode refIdNode = ref tree[node.FirstChildIdx];
         ref ObjectParserNode refTypeNode = ref tree[refIdNode.FirstSiblingIdx];
@@ -240,10 +260,7 @@ public record struct ObjectParser
         Debug.Assert(refTypeClsNode.Type == ObjectParserType.String);
         Debug.Assert(refTypeNsNode.Type == ObjectParserType.String);
         Debug.Assert(refTypeAsmNode.Type == ObjectParserType.String);
-
-        Peek(tree, refIdNode, treeDepth);
-        Peek(tree, refTypeNode, treeDepth);
-        Peek(tree, refDataNode, treeDepth);
+        Debug.Assert(refDataNode.TypeName == "ReferencedObjectData");
 
         if (reading)
         {
@@ -286,32 +303,6 @@ public record struct ObjectParser
         int offsetEnd = reading ? offset + length : offset;
         Debug.Assert(offsetEnd <= Length);
         return new(reader, type, _start, offset, offsetEnd);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private readonly bool ShouldReadNodeChildren(
-        in ObjectParserNode node,
-        bool reading,
-        int treeDepth)
-    {
-        if (reading && node.IsRefRegistry)
-        {
-            if (treeDepth != 0)
-            {
-                // Embedded types do not have their registries embedded inside, even though the type tree claims they do.
-                // I've found that UnityDataTools fails in the same way, so it can't read certain assets from RT.
-                // Skipping the embedded registry enables these assets to be fully parsed without any errors.
-                return false;
-            }
-
-            int version = _reader.ReadS32();
-            _reader.Seek(-4);
-
-            reading = version == 2;
-            Debug.Assert(reading, $"Unsupported reference registry version {version}");
-        }
-
-        return reading;
     }
 
     private int _start;

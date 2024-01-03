@@ -92,4 +92,7 @@ public static class Extensions
 
         return info;
     }
+
+    public static IObjectTypeTreeReader WithDebugReader(this IObjectTypeTreeReader reader, Func<int> fnGetOffset) =>
+        new ObjectTypeTreeMultiReader(new ObjectParserDebug(fnGetOffset), reader);
 }

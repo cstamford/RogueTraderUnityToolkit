@@ -2,7 +2,7 @@
 
 namespace RogueTraderUnityToolkit.Unity.File;
 
-public record struct Hash128(
+public readonly record struct Hash128(
     uint Uint0,
     uint Uint1,
     uint Uint2,
@@ -21,4 +21,6 @@ public record struct Hash128(
             Uint2: uint2,
             Uint3: uint3);
     }
+
+    public override string ToString() => $"{Uint0:X8}{Uint1:X8}{Uint2:X8}{Uint3:X8}";
 }

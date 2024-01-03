@@ -12,8 +12,8 @@ public interface ITreeReader : IObjectTypeTreeReader
     public void StartFile(SerializedFile file);
     public void FinishFile(SerializedFile file);
 
-    public void StartObject(UnityObjectType type);
-    public void FinishObject(UnityObjectType type);
+    public void StartObject(in SerializedFileObjectInfo objectInfo);
+    public void FinishObject(in SerializedFileObjectInfo objectInfo);
 }
 
 public sealed class TreeReader(
@@ -24,16 +24,16 @@ public sealed class TreeReader(
     public void StartFile(SerializedFile file) {}
     public void FinishFile(SerializedFile file) {}
 
-    public void StartObject(UnityObjectType type)
+    public void StartObject(in SerializedFileObjectInfo info)
     {
         Debug.Assert(_paths.Count == 0);
         Debug.Assert(_allocations.Count == 0);
         Debug.Assert(_visited.Count == 0);
     }
 
-    public void FinishObject(UnityObjectType type)
+    public void FinishObject(in SerializedFileObjectInfo info)
     {
-        TreePathObject obj = new(type, _paths);
+        TreePathObject obj = new(info.Type, info.ScriptHash, info.Hash, _paths);
 
         if (data.TryAdd(obj, 1))
         {
@@ -124,8 +124,8 @@ public sealed class TreeReaderDebug(Stream stream) : ObjectTypeTreeBasicReader, 
 {
     public void StartFile(SerializedFile file) =>_writer.WriteLine($"#### {file.Info.Identifier} ####");
     public void FinishFile(SerializedFile file) => _writer.WriteLine();
-    public void StartObject(UnityObjectType type) => _writer.WriteLine($"** {type} **");
-    public void FinishObject(UnityObjectType type) => _writer.WriteLine();
+    public void StartObject(in SerializedFileObjectInfo info) => _writer.WriteLine($"** {info} **");
+    public void FinishObject(in SerializedFileObjectInfo info) => _writer.WriteLine();
 
     public override void BeginNode(
         in ObjectParserNode node,

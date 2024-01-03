@@ -133,7 +133,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         // exiting root
         if (_treeDepth == 0)
         {
-            Debug.Assert(_nodeStack.Count == 0);
+            Debug.Assert(_nodeStack.Count == 0, "All nodes should have been popped!");
 
             _arrayStack.Clear();
             _arrayIndices.Clear();
@@ -143,6 +143,8 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         // exiting embedded tree
         else if (_treeDepth == 1)
         {
+            Debug.Assert(_nodeStack.Peek().TreeIdx == 0, "All nodes should have been popped!");
+
             _treeIdx = 0;
             _baseNodeLevel = 0;
         }

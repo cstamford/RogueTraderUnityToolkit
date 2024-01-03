@@ -2,9 +2,6 @@
 
 namespace Codegen;
 
-// TODO: Arrays
-// TODO: References?
-
 public interface ICodegenField
 {
     ICodegenType Type { get; }

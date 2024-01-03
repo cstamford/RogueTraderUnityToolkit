@@ -19,47 +19,32 @@ public class Codegen
             }
         }
 
-        // Every entry represents a unique "object", which has a type and a collection of paths.
-        // The type is the UnityObjectType of the serialized file object it came from.
-        // There will be at least one of these for every UnityObjectType we've read.
-        foreach ((UnityObjectType type, IEnumerable<TreePathObject> pathObjects)
-            in report.AllPathObjects
-            .GroupBy(x => x.Key.Type)
-            .Select(x => (x.Key, x
-                .Select(y => (y.Key, y.Value))
-                .OrderBy(y => y.Value)
-                .Select(y => y.Key))))
+        foreach (TreePathObject pathObject in report.AllPathObjects.Keys)
         {
-            int num = 0;
+            // Grab all the children, ordering by length. (the first entry will be the root node).
+            IEnumerable<TreePath> children = pathObject.Paths.OrderBy(x => x.Length);
+            TreePath root = children.First();
 
-            // Each of these is one unique object layout. We have to make one type per entry.
-            // They're ordered by refs, so the "main" objects come first.
-            // In practice we will produce 1 of every type except MonoBehaviour, of which we'll
-            // produce a ton, and the first one is the base type.
+            Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
+            Debug.Assert(children.All(x => x.StartsWith(root)), "Paths not beginning with root?");
 
-            // TODO: Actually, analyze all common paths and make the first one be the common set.
-            // TODO: Make this first structure a "root structure" (vs a regular one).
-            // TODO: Fragments inherit from the root structure.
+            AsciiString typeName = root.Last.TypeName;
 
-            foreach (TreePathObject pathObject in pathObjects)
+            if (pathObject.Type == UnityObjectType.MonoBehaviour)
             {
-                // Grab all the children, ordering by length. (the first entry will be the root node).
-                IEnumerable<TreePath> children = pathObject.Paths.OrderBy(x => x.Length);
-                TreePath root = children.First();
-
-                Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
-                Debug.Assert(children.All(x => x.StartsWith(root)), "Paths not beginning with root?");
-
-                // Append a number to fragments of this type so they have a unique name.
-                AsciiString typeName = root[^1].TypeName;
-                if (num++ > 0) typeName = AsciiString.From($"{typeName}_{num}");
-
-                // Create the type, which will recursively create its subtypes.
-                ICodegenType rootType = ConstructTypeRecursively(typeName, root, children);
-                LogVerbose(num > 1 ? 4 : 0, $"Constructed {rootType}", ConsoleColor.DarkGray);
+                // TODO: Script names are stored in MonoScript
+                continue;
             }
 
-            Log.Write($"Constructed {num} objects for type {type}", num > 1 ? ConsoleColor.DarkCyan : Log.DefaultColor);
+            if (pathObject.Type != UnityObjectType.MonoScript)
+            {
+                // TODO: First steps...
+                continue;
+            }
+
+            // Create the type, which will recursively create its subtypes.
+            ICodegenType rootType = ConstructTypeRecursively(typeName, root, children);
+            LogVerbose(0, $"Constructed {rootType}", ConsoleColor.DarkGray);
         }
     }
 
@@ -79,6 +64,8 @@ public class Codegen
             .OrderBy(x => x.x.Name)
             .Select(x => _types[x.i]);
 
+        List<AsciiString> allMissingTypes = [];
+
         foreach (ICodegenType rootType in rootStructures)
         {
             Debug.Assert(rootType is CodegenStructureType);
@@ -87,25 +74,47 @@ public class Codegen
             using StreamWriter rootTypeWriter = File.CreateText(rootTypeFile);
 
             writer.WriteHeader(rootTypeWriter);
-            writer.WriteType(rootType, rootTypeWriter);
+            writer.WriteType(rootTypeWriter, rootType, out AsciiString[] missingTypes);
 
+            allMissingTypes.AddRange(missingTypes);
             visited.Add(rootType);
 
             foreach (ICodegenType fragment in _types
                 .Where(x => x.Name.StartsWith($"{rootType.Name}_")))
             {
-                writer.WriteType(fragment, rootTypeWriter);
+                writer.WriteType(rootTypeWriter, fragment, out missingTypes);
+
+                allMissingTypes.AddRange(missingTypes);
                 visited.Add(fragment);
             }
         }
 
-        foreach (ICodegenType otherType in _types.Where(x => !rootStructures.Contains(x)))
+        string referencedTypesFile = Path.Combine(path, $"ReferencedTypes.cs");
+        using StreamWriter referencedTypesWriter = File.CreateText(referencedTypesFile);
+        writer.WriteHeader(referencedTypesWriter);
+
+        foreach (ICodegenType otherType in _types.Where(x => !visited.Contains(x)))
         {
-            // TODO
-
+            writer.WriteType(referencedTypesWriter, otherType, out AsciiString[] missingTypes);
+            allMissingTypes.AddRange(missingTypes);
+            visited.Add(otherType);
         }
-        // Export all
 
+        allMissingTypes = [..allMissingTypes.Distinct()];
+
+        if (allMissingTypes.Count > 0)
+        {
+            Log.WriteSingle($"Writing missing types: ", ConsoleColor.Yellow);
+            Log.WriteSingle(string.Join(", ", allMissingTypes.Take(3).Select(x => x.ToString())), ConsoleColor.Yellow);
+            Log.Write(allMissingTypes.Count > 3 ? $", {allMissingTypes.Count - 3} more..." : "", ConsoleColor.Yellow);
+
+            foreach (AsciiString typeName in allMissingTypes)
+            {
+                writer.WriteType(referencedTypesWriter, new CodegenForwardDeclType(typeName), out _);
+            }
+        }
+
+        Debug.Assert(visited.Count == _types.Count);
     }
 
     private ICodegenType ConstructTypeRecursively(
@@ -140,13 +149,14 @@ public class Codegen
                 return specialType;
             }
 
-            // Check all immediate children, constructing fields from them.
             List<ICodegenField> fields = [];
+
+            // Check all immediate children, constructing fields from them.
             foreach (TreePath child in children.Where(x => x.Length == 1))
             {
                 Debug.Assert(child.Length == 1);
-                ICodegenType childType = ConstructTypeRecursively(child[^1].TypeName, child, children.Where(x => x.StartsWith(child)));
-                fields.Add(new CodegenField(childType, child[^1].Name));
+                ICodegenType childType = ConstructTypeRecursively(child.Last.TypeName, child, children.Where(x => x.StartsWith(child)));
+                fields.Add(new CodegenField(childType, child.Last.Name));
             }
 
             CodegenStructureType rootType = new(typeName, fields);
@@ -156,7 +166,7 @@ public class Codegen
         else
         {
             Log.Write($"Non-builtin type {root} with no children. This is probably weird data.", ConsoleColor.Yellow);
-            type = new CodegenEmptyType(typeName);
+            type = new CodegenForwardDeclType(typeName);
         }
 
         AddType(type);
@@ -171,13 +181,15 @@ public class Codegen
         Debug.Assert(root.Length == 1);
         Debug.Assert(children.All(x => !x.StartsWith(root) && x.Length >= 1));
 
-        AsciiString rootName = root[^1].Name;
-        AsciiString rootTypeName = root[^1].TypeName;
+        AsciiString rootName = root.Last.Name;
+        AsciiString rootTypeName = root.Last.TypeName;
 
         bool isPPtr = rootTypeName.StartsWith("PPtr<");
         bool isDirectArray = rootTypeName == "vector" || rootTypeName == "staticvector";
-        bool isIndirectArray = children.Count(x => x.Length == 1) == 1 && children.First()[^1].Name == "Array";
+        bool isIndirectArray = children.Count(x => x.Length == 1) == 1 && children.First() == "Array";
         bool isMap = rootTypeName == "map";
+        bool isReferencedObjectRegistry = rootTypeName == "ManagedReferencesRegistry";
+        bool isHash128 = rootTypeName == "Hash128";
 
         ICodegenType? specialType = null;
 
@@ -187,7 +199,10 @@ public class Codegen
             Debug.Assert(children.Count() == 2);
             Debug.Assert(children.Count(x => x == "m_FileID") == 1);
             Debug.Assert(children.Count(x => x == "m_PathID") == 1);
-            specialType = new CodegenPPtrType( rootTypeName, rootTypeName[5..^1]);
+
+            AsciiString typeName = rootTypeName[5..^1];
+            if (typeName.StartsWith('$')) typeName = typeName[1..]; // idk what $ means
+            specialType = new CodegenPPtrType(typeName);
         }
         // map -> { array { data (pair), size ... } }
         else if (isMap)
@@ -202,18 +217,16 @@ public class Codegen
             TreePath mapValue = children.First(x => x == "Array/data/second");
 
             ICodegenType mapKeyType = ConstructTypeRecursively(
-                mapKey[^1].TypeName,
+                mapKey.Last.TypeName,
                 mapKey[2..],
                 children.Where(x => x.StartsWith(mapKey)).Select(x => x[2..]));
 
             ICodegenType mapValueType = ConstructTypeRecursively(
-                mapValue[^1].TypeName,
+                mapValue.Last.TypeName,
                 mapValue[2..],
                 children.Where(x => x.StartsWith(mapValue)).Select(x => x[2..]));
 
-            specialType = new CodegenMapType(
-                AsciiString.From($"Map<{mapKeyType.Name}, {mapValueType.Name}>"),
-                mapKeyType, mapValueType);
+            specialType = new CodegenMapType(mapKeyType, mapValueType);
         }
         // isDirectArray: vector -> { array { data, size ... } } where data is primitive type
         // isIndirectArray: (typename) -> array -> { data, size ... } } where data is a complex type
@@ -223,7 +236,7 @@ public class Codegen
             {
                 root = children.First();
 
-                Debug.Assert(root[^1].TypeName == "Array");
+                Debug.Assert(root.Last.TypeName == "Array");
                 Debug.Assert(children.Count(x => x == "Array/data") == 1);
                 Debug.Assert(children.Count(x => x == "Array/size") == 1);
 
@@ -233,16 +246,41 @@ public class Codegen
                     .Select(x => x[1..]);
             }
 
-            TreePath arrayDataPath = children.First(x => x[^1].Name == "data");
+            TreePath arrayDataPath = children.First(x => x.Last.Name == "data");
 
             ICodegenType arrayDataType = ConstructTypeRecursively(
-                arrayDataPath[^1].TypeName,
+                arrayDataPath.Last.TypeName,
                 arrayDataPath,
                 children.Where(x => x.StartsWith(arrayDataPath)));
 
-            specialType = new CodegenArrayType(
-                AsciiString.From($"Array<{arrayDataType.Name}>"),
-                arrayDataType);
+            specialType = new CodegenArrayType(arrayDataType);
+        }
+        // registry -> { a bunch of Bases of unique types ... }
+        else if (isReferencedObjectRegistry)
+        {
+            List<ICodegenType> embeddedTypes = [];
+            children = children.Distinct(); // ensure we trim duplicate paths, since we get one per entry
+
+            foreach ((AsciiString embeddedTypeName, TreePath embeddedTypeRoot) in children
+                .Where(x => x == "Base")
+                .GroupBy(x => x.Last.TypeName)
+                .Select(x => (x.Key, x.First())))
+            {
+                embeddedTypes.Add(ConstructTypeRecursively(
+                    embeddedTypeName,
+                    embeddedTypeRoot,
+                    children.Where(x => x.StartsWith(embeddedTypeRoot))));
+            }
+
+            specialType = new CodegenRefRegistryType(embeddedTypes);
+        }
+        // this one has 16 1-byte fields using array syntax - wtf?
+        else if (isHash128)
+        {
+            Debug.Assert(children.All(x => x.Last.Name.StartsWith("bytes[")));
+            Debug.Assert(children.Count() == 16);
+
+            specialType = new CodegenHash128Type();
         }
 
         // We should have handled arrays already, so if we reach this point, it's a bug.

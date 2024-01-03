@@ -1,6 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Buffers;
+using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.Unity.File;
 
@@ -26,17 +27,6 @@ public readonly struct SerializedFileReader(SerializedFile file)
             offsetEnd = Math.Max(offsetEnd, instance.Offset + instance.Size);
         }
 
-        using Stream stream = file.Info.Open(file.Header.DataOffset + offsetStart, offsetEnd - offsetStart);
-        EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
-
-        ObjectParser parser = new();
-
-        if (withDebugReader)
-        {
-            ObjectParserDebug debugReader = new(() => parser.Offset);
-            treeReader = new ObjectTypeTreeMultiReader(debugReader, treeReader);
-        }
-
         // Construct an ordered subset. We want to read in this specific order:
         // 1. All types first, then MonoBehaviour last, because its type tends to be less predictable.
         //    Leaving them for last allows the readers to cache more efficiently.
@@ -51,20 +41,25 @@ public readonly struct SerializedFileReader(SerializedFile file)
         SerializedFile fileCapture = file;
         indices.Sort(Comparer<int>.Create(IndicesSorter));
 
+        using Stream stream = file.Info.Open(file.Header.DataOffset + offsetStart, offsetEnd - offsetStart);
+        EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
+        ObjectParser parser = new();
+
         foreach (int i in indices)
         {
+            // This allows us to toggle withDebugReader on via debugger. Just set withDebugReader.
+            IObjectTypeTreeReader treeReaderWithDebug = withDebugReader
+                ? treeReader.WithDebugReader(() => parser.Offset)
+                : treeReader;
+
             ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
             int objectBase = (int)(instance.Offset - offsetStart);
 
             fnStartedOne(i);
             reader.Position = objectBase;
-            parser.Read(file.Objects[instance.TypeIdx], instance, file.TypeReferences, reader, treeReader);
+            parser.Read(file.Objects[instance.TypeIdx], instance, file.TypeReferences, reader, treeReaderWithDebug);
+            if (parser.Offset != instance.Size) throw new($"Expected {instance.Size} bytes but read {parser.Offset}.");
             fnFinishedOne(i);
-
-            if (parser.Offset != instance.Size)
-            {
-                throw new($"Expected {instance.Size} bytes but read {parser.Offset}.");
-            }
         }
 
         ArrayPool<int>.Shared.Return(rentedIndices);

@@ -18,10 +18,8 @@ public readonly record struct ObjectParserNode(
     public bool IsArray => (Flags & ObjectParserNodeFlags.IsArray) != 0;
     public bool IsRef => (Flags & ObjectParserNodeFlags.IsRef) != 0;
     public bool IsRefRegistry => (Flags & ObjectParserNodeFlags.IsRefRegistry) != 0;
-
     public bool IsLeaf => FirstChildIdx == 0;
     public bool IsPrimitive => IsLeaf && (Flags & ObjectParserNodeFlags.HasSize) != 0;
-    public bool IsBuiltin => !IsLeaf && (Flags & ObjectParserNodeFlags.IsBuiltin) != 0;
 
     public byte Size => Type.Size();
 
@@ -41,7 +39,7 @@ public readonly record struct ObjectParserNode(
             out ushort firstChildIdx,
             out ushort firstSiblingIdx);
 
-        ObjectParserNodeFlags flags = ResolveFlags(node, type);
+        ObjectParserNodeFlags flags = ResolveFlags(node);
 
         ObjectParserNode parserNode = new(
             Name: name,
@@ -130,9 +128,7 @@ public readonly record struct ObjectParserNode(
         firstSiblingIdx = (ushort)siblingIdx;
     }
 
-    private static ObjectParserNodeFlags ResolveFlags(
-        in ObjectTypeNode node,
-        ObjectParserType type)
+    private static ObjectParserNodeFlags ResolveFlags(in ObjectTypeNode node)
     {
         ObjectParserNodeFlags flags = ObjectParserNodeFlags.None;
 
@@ -154,11 +150,6 @@ public readonly record struct ObjectParserNode(
         if ((node.TypeFlags & ObjectTypeFlags.IsManagedReferenceRegistry) != 0)
         {
             flags |= ObjectParserNodeFlags.IsRefRegistry;
-        }
-
-        if ((int)type > (int)ObjectParserType.Complex)
-        {
-            flags |= ObjectParserNodeFlags.IsBuiltin;
         }
 
         if (node.Size > 0)
@@ -199,9 +190,6 @@ public enum ObjectParserType : byte
 
     // Complex types
     Complex,
-
-    // Builtin types
-    ReferencedObject,
     String
 }
 
@@ -213,8 +201,7 @@ public enum ObjectParserNodeFlags : byte
     IsArray = 1 << 1,
     IsRef = 1 << 2,
     IsRefRegistry = 1 << 3,
-    IsBuiltin = 1 << 4,
-    HasSize = 1 << 5
+    HasSize = 1 << 4
 }
 
 public static class ObjectParserNodeUtil
@@ -273,8 +260,6 @@ public static class ObjectParserNodeUtil
             AsciiString.From("bool"u8)],
         [ObjectParserType.Char] = [
             AsciiString.From("char"u8)],
-        [ObjectParserType.ReferencedObject] = [
-            AsciiString.From("ReferencedObject"u8)],
         [ObjectParserType.String] = [
             AsciiString.From("string"u8)]
     };

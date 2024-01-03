@@ -201,27 +201,6 @@ public sealed class ExportTreesReader(Stream stream, byte[] buffer) : ObjectType
         _writer.Write("\"\n"u8);
     }
 
-    public override void ReadReferencedObject(
-        in ObjectParserNode node,
-        long refId,
-        AsciiString cls,
-        AsciiString ns,
-        AsciiString asm)
-    {
-        _writer.Write(_builder.Span);
-        _writer.Write('$');
-        _writer.Write(_typePoolEntries[node.Type].Span);
-        _writer.Write(" = ["u8);
-        _writer.Write(refId);
-        _writer.Write(", "u8);
-        _writer.Write(asm);
-        _writer.Write(", "u8);
-        _writer.Write(ns);
-        _writer.Write(", "u8);
-        _writer.Write(cls);
-        _writer.Write("]\n"u8);
-    }
-
     private readonly FastTextWriter _writer = new(stream);
     private readonly FastStringBuilder _builder = new(buffer);
     private static readonly Dictionary<ObjectParserType, Memory<byte>> _typePoolEntries =

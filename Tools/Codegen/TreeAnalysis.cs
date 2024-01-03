@@ -1,5 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
+using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -129,7 +130,6 @@ public static class TreeAnalysis
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoOptimization)]
     public static void WriteFieldAccessByTypeName(TextWriter writer, in TreeReport report)
     {
         foreach ((AsciiString typeName, (TreePath, int)[] refs) in report.AllPathsPerType)
@@ -167,6 +167,73 @@ public static class TreeAnalysis
             writer.WriteLine();
         }
     }
+
+    public static void WriteHashAnalysis(TextWriter writer, in TreeReport report)
+    {
+        writer.WriteLine("**Hash**");
+        writer.WriteLine();
+
+        foreach ((Hash128 scriptHash, IEnumerable<TreePathObject> objs) in report.AllPathObjects
+            .GroupBy(x => x.Key.ScriptHash)
+            .Select(x => (x.Key, x.Select(y => y.Key))))
+        {
+            writer.WriteLine($"{scriptHash}");
+
+            IEnumerable<(Hash128, IEnumerable<TreePathObject>)> subgroups = objs
+                .GroupBy(x => x.Hash)
+                .Select(x => (x.Key, x.Select(y => y)));
+
+            IEnumerable<(Hash128, IEnumerable<TreePathObject>)> weirdSubgroups = subgroups
+                .Where(x => x.Item2.All(y => y.Type == UnityObjectType.MonoBehaviour));
+
+            if (weirdSubgroups.Count() > 1)
+            {
+                // I think this is when a MonoBehaviour has default values, we get a version with and without.
+                // E.g.:
+                //
+                //    public bool NeedToRebakeDismemberment;
+                //    public float ImpulseMax = 40f;
+                //
+                // Turns into two:
+                //
+                //    Base/NeedToRebakeDismemberment
+                //    Base/ImpulseMax
+                //
+                //    Base/NeedToRebakeDismemberment
+                //
+                foreach ((Hash128 hash, IEnumerable<TreePathObject> subObjs) in weirdSubgroups)
+                {
+                    writer.WriteLine($"{scriptHash.Uint0} {scriptHash.Uint1} {scriptHash.Uint2} {scriptHash.Uint3}");
+                    writer.WriteLine($"    {hash} count: {subObjs.Count()}");
+                    writer.WriteLine($"    {hash.Uint0} {hash.Uint1} {hash.Uint2} {hash.Uint3}");
+
+                    TreePathObject subObj = subObjs.First();
+                    writer.WriteLine($"        {string.Join("\n        ", subObj.Paths.Select(x => x.ToString()))}");
+                }
+
+                bool same = weirdSubgroups
+                    .Select(x => x.Item2)
+                    .SequenceEqual(weirdSubgroups
+                        .Select(x => x.Item2)
+                        .DistinctBy(x => x.Select(y => y.Paths)));
+
+                Debug.Assert(!same, "Is this a Unity bug?");
+            }
+            else
+            {
+                foreach ((Hash128 hash, IEnumerable<TreePathObject> subObjs) in subgroups)
+                {
+                    writer.WriteLine($"    {hash}");
+
+                    foreach (TreePathObject subObj in subObjs)
+                    {
+                        writer.WriteLine($"        {subObj.Type}");
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 public static class Extensions
@@ -175,7 +242,7 @@ public static class Extensions
         string.Join('/', path.Data.ToArray().Select(x => x.TypeName));
 
     public static void WritePath(this TreePath path, TextWriter writer) =>
-        writer.Write($"{path} {path[^1].GetTypeName()}");
+        writer.Write($"{path} {path.Last.GetTypeName()}");
 
     public static string GetTypeName(this TreePathEntry entry) =>
         entry.Type == ObjectParserType.Complex
