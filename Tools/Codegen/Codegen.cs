@@ -34,6 +34,13 @@ public class Codegen
 
             // Each of these is one unique object layout. We have to make one type per entry.
             // They're ordered by refs, so the "main" objects come first.
+            // In practice we will produce 1 of every type except MonoBehaviour, of which we'll
+            // produce a ton, and the first one is the base type.
+
+            // TODO: Actually, analyze all common paths and make the first one be the common set.
+            // TODO: Make this first structure a "root structure" (vs a regular one).
+            // TODO: Fragments inherit from the root structure.
+
             foreach (TreePathObject pathObject in pathObjects)
             {
                 // Grab all the children, ordering by length. (the first entry will be the root node).
@@ -49,14 +56,56 @@ public class Codegen
 
                 // Create the type, which will recursively create its subtypes.
                 ICodegenType rootType = ConstructTypeRecursively(typeName, root, children);
-
-#if DEBUG_VERBOSE
-                Log.Write(num > 1 ? 4 : 0, $"Constructed {rootType}", ConsoleColor.DarkGray);
-#endif
+                LogVerbose(num > 1 ? 4 : 0, $"Constructed {rootType}", ConsoleColor.DarkGray);
             }
 
             Log.Write($"Constructed {num} objects for type {type}", num > 1 ? ConsoleColor.DarkCyan : Log.DefaultColor);
         }
+    }
+
+    public void WriteStructures(string path)
+    {
+        CodegenCSharpWriter writer = new(_types, _typesIndexLookup);
+
+        HashSet<ICodegenType> visited = [];
+
+        HashSet<AsciiString> rootTypes = Enum.GetValues<UnityObjectType>()
+            .Select(x => AsciiString.From(x.ToString()))
+            .ToHashSet();
+
+        IEnumerable<ICodegenType> rootStructures = _types
+            .Select((x, i) => (x, i))
+            .Where(x => rootTypes.Contains(x.x.Name))
+            .OrderBy(x => x.x.Name)
+            .Select(x => _types[x.i]);
+
+        foreach (ICodegenType rootType in rootStructures)
+        {
+            Debug.Assert(rootType is CodegenStructureType);
+
+            string rootTypeFile = Path.Combine(path, $"{rootType.Name}.cs");
+            using StreamWriter rootTypeWriter = File.CreateText(rootTypeFile);
+
+            writer.WriteHeader(rootTypeWriter);
+            writer.WriteType(rootType, rootTypeWriter);
+
+            visited.Add(rootType);
+
+            foreach (ICodegenType fragment in _types
+                .Where(x => x.Name.StartsWith($"{rootType.Name}_")))
+            {
+                writer.WriteType(fragment, rootTypeWriter);
+                visited.Add(fragment);
+            }
+        }
+
+        foreach (ICodegenType otherType in _types.Where(x => !rootStructures.Contains(x)))
+        {
+            // TODO
+
+        }
+        // Export all
+
     }
 
     private ICodegenType ConstructTypeRecursively(
@@ -78,41 +127,40 @@ public class Codegen
         // Check if this type has been created before.
         if (TryFindType(typeName, out ICodegenType type))
         {
-#if DEBUG_VERBOSE
-            Log.Write(4, $"Found existing type {type}", ConsoleColor.DarkGreen);
-#endif
             return MergeType(type, root, children);
+        }
+
+        // If we don't have any children, we shouldn't reach this point (in theory, though we do in practice).
+        // We expect all leafs to be built-in/primitive types, or in other words, already added.
+        if (children.Any())
+        {
+            // Special type handling! :) (arrays, etc, this handles the wrap-around).
+            if (TryConstructSpecialType(root, children, out ICodegenType specialType))
+            {
+                return specialType;
+            }
+
+            // Check all immediate children, constructing fields from them.
+            List<ICodegenField> fields = [];
+            foreach (TreePath child in children.Where(x => x.Length == 1))
+            {
+                Debug.Assert(child.Length == 1);
+                ICodegenType childType = ConstructTypeRecursively(child[^1].TypeName, child, children.Where(x => x.StartsWith(child)));
+                fields.Add(new CodegenField(childType, child[^1].Name));
+            }
+
+            CodegenStructureType rootType = new(typeName, fields);
+            Debug.Assert(rootType.Fields.Count != 0, $"Complex type with no fields? {rootType}");
+            type = rootType;
         }
         else
         {
-#if DEBUG_VERBOSE
-            Log.Write(4, $"Didn't find type {typeName}", ConsoleColor.DarkRed);
-#endif
+            Log.Write($"Non-builtin type {root} with no children. This is probably weird data.", ConsoleColor.Yellow);
+            type = new CodegenEmptyType(typeName);
         }
 
-        // If a type reaches this point, it MUST have children, or we have some sort of bug. (or: data is weird).
-        Debug.Assert(children.Any(), $"We have a non-builtin type {root} with no children.");
-
-        // Special type handling! :) (arrays, etc, this handles the wrap-around).
-        if (TryConstructSpecialType(root, children, out ICodegenType specialType))
-        {
-            return specialType;
-        }
-
-        // Check all immediate children, constructing fields from them.
-        List<ICodegenField> fields = [];
-        foreach (TreePath child in children.Where(x => x.Length == 1))
-        {
-            Debug.Assert(child.Length == 1);
-            ICodegenType childType = ConstructTypeRecursively(child[^1].TypeName, child, children.Where(x => x.StartsWith(child)));
-            fields.Add(new CodegenField(childType, child[^1].Name));
-        }
-
-        CodegenStructureType rootType = new(typeName, fields);
-        Debug.Assert(rootType.Fields.Count != 0, $"Complex type with no fields? {rootType}");
-
-        AddType(rootType);
-        return rootType;
+        AddType(type);
+        return type;
     }
 
     private bool TryConstructSpecialType(
@@ -235,10 +283,7 @@ public class Codegen
         int typeIdx = _types.Count;
         _typesIndexLookup.Add(type.Name, typeIdx);
         _types.Add(type);
-
-#if DEBUG_VERBOSE
-        Log.Write(4, $"[{typeIdx}] = {type}", ConsoleColor.DarkYellow);
-#endif
+        LogVerbose(4, $"[{typeIdx}] = {type}", ConsoleColor.DarkYellow);
     }
 
     private bool TryFindType(
@@ -248,17 +293,17 @@ public class Codegen
         if (_typesIndexLookup.TryGetValue(name, out int typeIdx))
         {
             type = _types[typeIdx];
+            LogVerbose(4, $"Found existing type {type} at [{typeIdx}] for {name}", ConsoleColor.DarkGreen);
             return true;
         }
 
         type = default!;
+        LogVerbose(4, $"Didn't find type {name}", ConsoleColor.DarkRed);
         return false;
     }
 
-    public void WriteStructures(string path)
-    {
-        // TODO
-    }
+    [Conditional("DEBUG_VERBOSE")]
+    private void LogVerbose(int indent, string msg, ConsoleColor color) => Log.Write(indent, msg, color);
 
     private readonly List<ICodegenType> _types = [];
     private readonly Dictionary<AsciiString, int> _typesIndexLookup = [];

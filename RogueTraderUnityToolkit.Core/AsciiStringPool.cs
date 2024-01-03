@@ -141,7 +141,7 @@ public static class AsciiStringPool
 
         int foldedHash = key.Fold();
 
-        if (memory.Length <= _blockEndIndex)
+        if (memory.Length <= _blockEndIndex && _currentBlockIndex <= _blockEndIndex)
         {
             str = FetchInternal_CreateSmallBlockString(memory.Length, foldedHash);
             memory.CopyTo(_smallStringBlocks[str.BlockIdx]

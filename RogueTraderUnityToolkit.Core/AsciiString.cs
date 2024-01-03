@@ -72,6 +72,9 @@ public readonly record struct AsciiString(
         return true;
     }
 
+    public bool Contains(byte rhs) => Bytes.Contains(rhs);
+    public bool Contains(char rhs) => rhs < 0x7F && Bytes.Contains((byte)rhs);
+
     public int CompareTo(AsciiString rhs) => Bytes.SequenceCompareTo(rhs.Bytes);
     public int CompareTo(string? rhs) => string.CompareOrdinal(ToString(), rhs);
 

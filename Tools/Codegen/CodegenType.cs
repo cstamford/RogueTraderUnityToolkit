@@ -63,3 +63,8 @@ public record class CodegenPPtrType(
 {
     public override string ToString() => $"#{Name}";
 }
+
+public record class CodegenEmptyType(AsciiString Name) : ICodegenType
+{
+    public override string ToString() => $"!{Name} (EMPTY TYPE)";
+}

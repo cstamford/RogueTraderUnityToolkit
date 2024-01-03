@@ -80,8 +80,6 @@ public sealed class TreeReader(
 
             _paths.Add(new(allocation));
             _visited.Add(ourFrame);
-
-            Debug.Assert(_paths.All(x => x.Length > 0));
         }
     }
 
