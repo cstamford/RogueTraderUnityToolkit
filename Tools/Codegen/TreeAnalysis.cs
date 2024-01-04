@@ -8,7 +8,7 @@ namespace Codegen;
 public readonly record struct TreeReport(
     (TreePath Path, int Refcount)[] AllPaths,
     Dictionary<TreePath, int> AllPathsIds,
-    IReadOnlyDictionary<TreePathObject, int> AllPathObjects,
+    (TreePathObject, int)[] AllPathObjects,
     IReadOnlyDictionary<UnityObjectType, (TreePathObject, int)[]> AllPathObjectsPerUnityType,
     IReadOnlyDictionary<AsciiString, (TreePath, int)[]> AllPathsPerType
 );
@@ -18,8 +18,19 @@ public static class TreeAnalysis
     public static TreeReport CalculateReport(
         IReadOnlyDictionary<TreePathObject, int> treePathObjects)
     {
-        (TreePath, int)[] allPaths = treePathObjects
-            .SelectMany(x => x.Key.Paths.Select(y => (y, x.Value)))
+        // Convert to an array of tuples, making sure we order the paths within each object.
+        // This is super important for reporting in a deterministic way (and for codegen).
+        (TreePathObject, int)[] allPathObjects = treePathObjects
+            .Select(x => (
+                new TreePathObject(x.Key.Type, x.Key.ScriptHash, x.Key.Hash, x.Key.Paths.Order().ToList()),
+                x.Value))
+            .OrderBy(x => x.Item1.Hash)
+            .ThenBy(x => x.Item1.ScriptHash)
+            .ThenBy(x => x.Value)
+            .ToArray();
+
+        (TreePath, int)[] allPaths = allPathObjects
+            .SelectMany(x => x.Item1.Paths.Select(y => (y, x.Item2)))
             .ToArray();
 
         Dictionary<TreePath, int> allPathsIds = allPaths
@@ -28,11 +39,11 @@ public static class TreeAnalysis
             .Select(g => g.First())
             .ToDictionary();
 
-        Dictionary<UnityObjectType, (TreePathObject, int)[]> allPathObjectsPerUnityType = treePathObjects
-            .GroupBy(x => x.Key.Type)
+        Dictionary<UnityObjectType, (TreePathObject, int)[]> allPathObjectsPerUnityType = allPathObjects
+            .GroupBy(x => x.Item1.Type)
             .ToDictionary(
                 x => x.Key,
-                x => x.Select(y => (y.Key, y.Value)).ToArray());
+                x => x.Select(y => (y.Item1, y.Item2)).ToArray());
 
         Dictionary<AsciiString, List<(TreePath, int)>> allPathsPerRoot = [];
 
@@ -55,7 +66,7 @@ public static class TreeAnalysis
         return new(
             AllPaths: allPaths,
             AllPathsIds: allPathsIds,
-            AllPathObjects: treePathObjects,
+            AllPathObjects: allPathObjects,
             AllPathObjectsPerUnityType: allPathObjectsPerUnityType,
             AllPathsPerType: allPathsPerRoot.ToDictionary(
                 x => x.Key,
@@ -89,9 +100,7 @@ public static class TreeAnalysis
             {
                 TreePathObject obj = groups.First().Item1;
 
-                foreach (TreePath path in obj.Paths
-                    .OrderBy(x => x.ToString())
-                    .ThenBy(x => x.GetTypePath()))
+                foreach (TreePath path in obj.Paths)
                 {
                     writer.Write(' '.Repeat(4));
                     path.WritePath(writer);
@@ -114,9 +123,7 @@ public static class TreeAnalysis
                 writer.Write($" ({refs} refs)");
                 writer.WriteLine();
 
-                foreach (TreePath path in obj.Paths
-                    .OrderBy(x => x.ToString())
-                    .ThenBy(x => x.GetTypePath()))
+                foreach (TreePath path in obj.Paths)
                 {
                     writer.Write(' '.Repeat(8));
                     path.WritePath(writer);
@@ -134,10 +141,7 @@ public static class TreeAnalysis
         {
             writer.WriteLine($"**{typeName}**");
 
-            foreach (TreePath path in refs
-                .Select(x => x.Item1)
-                .OrderBy(x => x.ToString())
-                .ThenBy(x => x.GetTypePath()))
+            foreach (TreePath path in refs.Select(x => x.Item1))
             {
                 // Find where it intersects.
                 int idx = -1;
@@ -172,8 +176,8 @@ public static class TreeAnalysis
         writer.WriteLine();
 
         foreach ((Hash128 scriptHash, IEnumerable<TreePathObject> objs) in report.AllPathObjects
-            .GroupBy(x => x.Key.ScriptHash)
-            .Select(x => (x.Key, x.Select(y => y.Key))))
+            .GroupBy(x => x.Item1.ScriptHash)
+            .Select(x => (x.Key, x.Select(y => y.Item1))))
         {
             writer.WriteLine($"{scriptHash}");
 
@@ -231,7 +235,6 @@ public static class TreeAnalysis
             }
         }
     }
-
 }
 
 public static class Extensions

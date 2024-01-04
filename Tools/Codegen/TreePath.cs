@@ -18,8 +18,28 @@ public readonly record struct TreePathEntry(
     public override string ToString() => Name.ToString();
 }
 
-public readonly record struct TreePath(TreePathAllocation Allocation)
-    : IEquatable<string>
+public readonly record struct TreePathOrder(
+    ushort NodeId,
+    ushort TreeId)
+    : IComparable<TreePathOrder>
+{
+    public int CompareTo(TreePathOrder rhs)
+    {
+        if (NodeId == 0xFFFF || TreeId == 0xFFFF)
+            throw new("This ordering is no longer valid");
+
+        int treeIdComparison = TreeId.CompareTo(rhs.TreeId);
+        if (treeIdComparison != 0) return treeIdComparison;
+        return NodeId.CompareTo(rhs.NodeId);
+    }
+
+    public static TreePathOrder Invalid => new(0xFFFF, 0xFFFF);
+}
+
+public readonly record struct TreePath(
+    TreePathAllocation Allocation,
+    TreePathOrder Order)
+    : IEquatable<string>, IComparable<TreePath>
 {
     public ReadOnlySpan<TreePathEntry> Data => Allocation.Memory.Span;
     public int Length => Data.Length;
@@ -32,7 +52,7 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
     public override int GetHashCode() => _hash;
 
     public TreePath Slice(int offset) => Slice(offset, Length - offset);
-    public TreePath Slice(int offset, int length) => new(Allocation.Slice(offset, length));
+    public TreePath Slice(int offset, int length) => new(Allocation.Slice(offset, length), TreePathOrder.Invalid);
 
     public bool StartsWith(TreePath path) => Length >= path.Length && Data[..path.Length].SequenceEqual(path.Data);
     public bool EndsWith(TreePath path) => Length >= path.Length && Data[(Length - path.Length)..].SequenceEqual(path.Data);
@@ -42,6 +62,8 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
 
     public bool Equals(TreePath rhs) => Equals(this, rhs);
     public bool Equals(string? rhs) => Equals(this, rhs);
+
+    public int CompareTo(TreePath other) => Order.CompareTo(other.Order);
 
     private readonly int _hash = CalculateHash(Allocation.Memory.Span);
 
@@ -114,5 +136,4 @@ public readonly record struct TreePath(TreePathAllocation Allocation)
         sb.Length -= 1; // trailing slash
         return sb.ToString();
     }
-
 }

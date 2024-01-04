@@ -32,6 +32,8 @@ public sealed class TreeReader(
 
     public void FinishObject(in SerializedFileObjectInfo info)
     {
+        DebugEnsureCorrectness(_paths);
+
         TreePathObject obj = new(info.Type, info.ScriptHash, info.Hash, _paths);
 
         if (data.TryAdd(obj, 1))
@@ -41,12 +43,12 @@ public sealed class TreeReader(
         }
         else
         {
-            // Increment refcount for this tree type.
+            DebugEnsureUniqueness(obj, data.Keys.First(x => x == obj));
+
             data[obj] += 1;
 
             // These paths are a duplicate (exact match of another type), so we free all of our
             // memory and clear our paths, but keep the capacity around.
-
             foreach (TreePathMemoryHandle handle in _allocations)
             {
                 allocator.Return(handle);
@@ -77,7 +79,7 @@ public sealed class TreeReader(
 
             ConstructPathForParents(allocation);
 
-            _paths.Add(new(allocation));
+            _paths.Add(new(allocation, new(ourFrame.NodeIdx, ourFrame.TreeIdx)));
             _visited.Add(ourFrame);
         }
     }
@@ -109,9 +111,105 @@ public sealed class TreeReader(
                 return;
             }
 
-            _paths.Add(new(allocation[..(parentIndices.Length - i)]));
+            _paths.Add(new(
+                allocation[..(parentIndices.Length - i)],
+                new(nodeFrame.NodeIdx, nodeFrame.TreeIdx)));
+
             _visited.Add(nodeFrame);
         }
+    }
+
+    [Conditional("DEBUG_VERBOSE")]
+    private void DebugEnsureCorrectness(IReadOnlyList<TreePath> paths)
+    {
+        List<TreePath> ordered = paths.Order().ToList();
+
+        int idx = 0;
+
+        for (int i = 0; i < Trees.Count; ++i)
+        {
+            int startIdx = idx;
+
+            ObjectTypeTree tree = Trees[i];
+            Debug.Assert(ordered[idx].Order.TreeId == i);
+
+            for (int j = 0; j < tree.Nodes.Length; ++j)
+            {
+                TreePath path = ordered[idx];
+                ObjectParserNode node = tree[j];
+
+                Debug.Assert(path.Order.NodeId == node.Index);
+                Debug.Assert(path.Last.Name == node.Name);
+                Debug.Assert(path.Last.TypeName == node.TypeName);
+                Debug.Assert(path.Last.Type == node.Type);
+
+                ++idx;
+            }
+
+            Debug.Assert(idx == startIdx + tree.Nodes.Length,
+                "We skipped over some nodes while reading!");
+        }
+
+        Debug.Assert(idx == ordered.Count,
+            $"We didn't fully read all trees!");
+    }
+
+    [Conditional("DEBUG_VERBOSE")]
+    private void DebugEnsureUniqueness(TreePathObject ourObj, TreePathObject theirObj)
+    {
+        List<TreePath> ourPathsOrdered = ourObj.Paths.Order().ToList();
+        List<TreePath> theirPathsOrdered = theirObj.Paths.Order().ToList();
+
+        bool pathsEqual = ourPathsOrdered.SequenceEqual(theirPathsOrdered);
+
+        if (!pathsEqual)
+        {
+            Log.Write($"ourObj:{ourObj.GetHashCode()} theirObj:{theirObj.GetHashCode()}");
+
+            if (ourObj.Equals(theirObj))
+            {
+                Log.Write("Object equality but paths differ.",ConsoleColor.Red);
+            }
+
+            if (ourObj.Type != theirObj.Type)
+            {
+                Log.Write($"Type differs. ourObj:{ourObj.Type}, theirObj:{theirObj.Type}", ConsoleColor.Red);
+            }
+
+            if (ourObj.ScriptHash != theirObj.ScriptHash)
+            {
+                Log.Write($"ScriptHash differs. ourObj:{ourObj.ScriptHash}, theirObj:{theirObj.ScriptHash}", ConsoleColor.Red);
+            }
+
+            if (ourObj.Hash != theirObj.Hash)
+            {
+                Log.Write($"Hash differs. ourObj:{ourObj.Hash}, theirObj:{theirObj.Hash}", ConsoleColor.Red);
+            }
+
+            for (int i = 0; i < Math.Max(ourPathsOrdered.Count, theirPathsOrdered.Count); i++)
+            {
+                bool ourObjHasPath = i < ourPathsOrdered.Count;
+                bool theirObjHasPath = i < theirPathsOrdered.Count;
+
+                if (ourObjHasPath && theirObjHasPath)
+                {
+                    if (!ourPathsOrdered[i].Equals(theirPathsOrdered[i]))
+                    {
+                        Log.Write($"Paths differ at index {i}. ourObj:{ourPathsOrdered[i]}, theirObj:{theirPathsOrdered[i]}", ConsoleColor.Yellow);
+                    }
+                }
+                else if (ourObjHasPath)
+                {
+                    Log.Write($"Path only in ourObj at index {i}: {ourPathsOrdered[i]}", ConsoleColor.Yellow);
+                }
+                else // theirObjHasPath
+                {
+                    Log.Write($"Path only in theirObj at index {i}: {theirPathsOrdered[i]}", ConsoleColor.Yellow);
+                }
+            }
+        }
+
+        Debug.Assert(pathsEqual, "We were unable to insert our paths into the collection but they were not equal!");
     }
 
     private List<TreePath> _paths = [];

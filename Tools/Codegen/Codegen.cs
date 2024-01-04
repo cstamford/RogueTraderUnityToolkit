@@ -14,14 +14,14 @@ public class Codegen
             foreach (AsciiString alias in aliases)
             {
                 CodegenBuiltInType builtInType = new(alias, type);
-                Log.Write($"Constructed primitive type {builtInType.Name} for {type}");
+                LogVerbose(0, $"Constructed primitive type {builtInType.Name} for {type}");
                 AddType(builtInType);
             }
         }
 
         foreach ((UnityObjectType type, IEnumerable<TreePathObject> objs) in report.AllPathObjects
-            .GroupBy(x => x.Key.Type)
-            .Select(x => (x.Key, x.Select(y => y.Key))))
+            .GroupBy(x => x.Item1.Type)
+            .Select(x => (x.Key, x.Select(y => y.Item1))))
         {
             bool isGameType = type == UnityObjectType.MonoBehaviour;
             Debug.Assert(isGameType || objs.Count() == 1);
@@ -41,7 +41,7 @@ public class Codegen
         Dictionary<Hash128, AsciiString> scriptTypeNames)
     {
         foreach ((TreePathObject obj, int _) in report.AllPathObjects
-            .Where(x => x.Key.Type == UnityObjectType.MonoBehaviour))
+            .Where(x => x.Item1.Type == UnityObjectType.MonoBehaviour))
         {
             if (scriptTypeNames.TryGetValue(obj.ScriptHash, out AsciiString scriptName))
             {
@@ -122,15 +122,14 @@ public class Codegen
         AsciiString typeName,
         CodegenTypeFlags flags)
     {
-        // Grab all the children, ordering by length. (the first entry will be the root node).
-        IEnumerable<TreePath> children = obj.Paths.OrderBy(x => x.Length);
-        TreePath root = children.First();
+        TreePath root = obj.Paths[0];
+        Debug.Assert(root.Length == 1);
 
         Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
-        Debug.Assert(children.All(x => x.StartsWith(root)), "Paths not beginning with root?");
+        Debug.Assert(obj.Paths.All(x => x.StartsWith(root)), "Paths not beginning with root?");
 
         // Create the type, which will recursively create its subtypes.
-        ICodegenType rootType = ConstructTypeRecursively(typeName, root, children, flags);
+        ICodegenType rootType = ConstructTypeRecursively(typeName, root, obj.Paths, flags);
         LogVerbose(0, $"Constructed {rootType}", ConsoleColor.DarkGray);
 
         return rootType;
@@ -396,7 +395,8 @@ public class Codegen
     }
 
     [Conditional("DEBUG_VERBOSE")]
-    private void LogVerbose(int indent, string msg, ConsoleColor color) => Log.Write(indent, msg, color);
+    private void LogVerbose(int indent, string msg, ConsoleColor color = Log.DefaultColor) =>
+        Log.Write(indent, msg, color);
 
     private readonly List<ICodegenType> _types = [];
     private readonly Dictionary<AsciiString, int> _typesIndexLookup = [];

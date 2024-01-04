@@ -101,13 +101,14 @@ public record struct ObjectParser
             Debug.Assert(refIdsArraySizeNode.Type == ObjectParserType.S32);
             Debug.Assert(refIdsArrayDataNode.Type == ObjectParserType.Complex);
 
+            Peek(tree, versionNode, treeDepth); // version node only
+            Peek(tree, refIdsNode, treeDepth); // peeks the rest
+
             if (treeDepth == 0)
             {
-                Peek(tree, versionNode, treeDepth); // version node only
                 int version = _reader.ReadS32();
                 Debug.Assert(version == 2, $"Unsupported reference registry version {version}");
 
-                Peek(tree, refIdsNode, treeDepth); // peeks the rest
                 int refs = _reader.ReadS32();
 
                 for (int i = 0; i < refs; ++i)

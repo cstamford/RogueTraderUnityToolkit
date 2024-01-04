@@ -113,6 +113,14 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     public override void BeginTree(
         in ObjectTypeTree tree)
     {
+        if (_treeDepth == 0)
+        {
+            _arrayStack.Clear();
+            _arrayIndices.Clear();
+            _trees.Clear();
+            _hasNonZeroArrayIdx = false;
+        }
+
         ++_treeDepth;
         _trees.Add(tree);
 
@@ -125,19 +133,14 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     {
         --_treeDepth;
 
-        // exiting root
         if (_treeDepth == 0)
         {
+            // exiting root
             Debug.Assert(_nodeStack.Count == 0, "All nodes should have been popped!");
-
-            _arrayStack.Clear();
-            _arrayIndices.Clear();
-            _trees.Clear();
-            _hasNonZeroArrayIdx = false;
         }
-        // exiting embedded tree
         else if (_treeDepth == 1)
         {
+            // exiting embedded tree
             Debug.Assert(_nodeStack.Peek().TreeIdx == 0, "All nodes should have been popped!");
 
             _treeIdx = 0;
@@ -202,6 +205,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         _baseNodeLevel = (byte)(node.Level + 1);
     }
 
+    protected IReadOnlyList<ObjectTypeTree> Trees => _trees;
     protected int TreeDepth => _treeDepth;
     protected ushort TreeIdx => (ushort)_treeIdx;
 

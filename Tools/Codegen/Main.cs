@@ -114,10 +114,14 @@ Parallel.ForEach(files
         }
     });
 
-Log.Write($"{treePathObjects.Count} objects", ConsoleColor.Green);
 
 TreeReport report = TreeAnalysis.CalculateReport(treePathObjects);
 ExportAnalysis(report);
+
+
+Log.Write($"{report.AllPathObjects.Length} objects with " +
+          $"{report.AllPathObjects.Sum(x => x.Item2)} refs, " +
+          $"{report.AllPathObjects.Sum(x => x.Item1.Paths.Count)} paths", ConsoleColor.Green);
 
 Codegen.Codegen codegen = new(report);
 /* TODO codegen.ReadGameStructures(...); */

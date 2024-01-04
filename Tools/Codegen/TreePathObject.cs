@@ -23,16 +23,13 @@ public readonly record struct TreePathObject
         _hashCode = CalculateHash(type, scriptHash, hash, paths);
     }
 
-    public bool Equals(TreePathObject rhs)
-    {
-        Debug.Assert(_hash == rhs._hash || !CheckEqualitySlow(_paths, rhs._paths),
-            $"Two tree objects with the same hash are not equivalent. This breaks our invariant.");
-
-        return
-            _hash == rhs._hash &&
-            _type == rhs._type &&
-            _scriptHash == rhs._scriptHash;
-    }
+    public bool Equals(TreePathObject rhs) =>
+        _hashCode == rhs._hashCode &&
+        _paths.Count == rhs._paths.Count &&
+        /* note: we don't compare the paths for equality directly as it's very slow */
+        _type == rhs._type &&
+        _scriptHash == rhs._scriptHash &&
+        _hash == rhs._hash;
 
     public override int GetHashCode() => _hashCode;
 
@@ -55,26 +52,11 @@ public readonly record struct TreePathObject
         hashcode.Add(scriptHash);
         hashcode.Add(hash);
 
-        int pathsHash = 0;
-
         foreach (TreePath path in paths)
         {
-            // Use an aggregate hashcode code that is order-independent.
-            pathsHash ^= path.GetHashCode();
+            hashcode.Add(path.GetHashCode());
         }
 
-        hashcode.Add(pathsHash);
-
         return hashcode.ToHashCode();
-    }
-
-    // Order independent equality - but slow!
-    private static bool CheckEqualitySlow(
-        List<TreePath> lhs,
-        List<TreePath> rhs)
-    {
-        HashSet<TreePath> set1 = [..lhs];
-        HashSet<TreePath> set2 = [..rhs];
-        return set1.SetEquals(set2);
     }
 }
