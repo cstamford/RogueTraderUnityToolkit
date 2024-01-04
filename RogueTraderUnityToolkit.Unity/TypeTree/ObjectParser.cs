@@ -168,7 +168,7 @@ public record struct ObjectParser
         if (!isRoot && node.IsAlignTo4)
         {
             int alignedBytes = reading ? _reader.AlignTo(4) : 0;
-            _extReader.Align(node, alignedBytes);
+            _extReader.Align(node, (byte)alignedBytes);
         }
     }
 

@@ -106,9 +106,8 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             new LogEntry($"]", _col));
     }
 
-    public override void Align(
-        in ObjectParserNode node,
-        int alignedBytes)
+    public override void Align(in ObjectParserNode node,
+        byte alignedBytes)
     {
         bool didAlign = alignedBytes != 0;
         Log.Write(_indent * _spacesPerIndent,

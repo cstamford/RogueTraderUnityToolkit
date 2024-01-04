@@ -1,5 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
@@ -44,7 +45,7 @@ public interface IObjectTypeTreeReader
 
     public void Align(
         in ObjectParserNode node,
-        int alignedBytes);
+        byte alignedBytes);
 };
 
 // Inherit from this if you want absolutely nothing, but want to be insulated against API changes.
@@ -87,12 +88,6 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
         int arrayLength)
     { }
 
-    public virtual void ReadString(
-        in ObjectParserNode node,
-        in ObjectParserReader nodeReader,
-        int stringLength)
-    { }
-
     public virtual void ReadReferencedObject(
         in ObjectParserNode node,
         long refId,
@@ -103,7 +98,7 @@ public abstract class ObjectTypeTreeReaderBase : IObjectTypeTreeReader
 
     public virtual void Align(
         in ObjectParserNode node,
-        int alignedBytes)
+        byte alignedBytes)
     { }
 }
 
@@ -148,11 +143,14 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public override void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
-        _nodeStack.Push(new(NodeIdx: node.Index, TreeIdx: TreeIdx));
+        _nodeStack.Push(new(
+            NodeIdx: node.Index,
+            TreeIdx: TreeIdx));
 
         if (_arrayStack.TryPeek(out ArrayFrame array) &&
             node.Index == array.ArrayDataNodeIndex)
@@ -166,6 +164,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         Debug.Assert(_trees[TreeIdx] == tree);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public override void EndNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
@@ -185,14 +184,15 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         in ObjectParserNode dataNode,
         int arrayLength)
     {
-        if (arrayLength == 0) return;
+        if (arrayLength != 0)
+        {
+            _arrayStack.Push(new(
+                ArrayDataNodeIndex: dataNode.Index,
+                ArrayNodeLevel: (byte)(_baseNodeLevel + node.Level),
+                ArrayIndexListOffset: (byte)_arrayIndices.Count));
 
-        _arrayStack.Push(new(
-            ArrayDataNodeIndex: dataNode.Index,
-            ArrayNodeLevel: (byte)(_baseNodeLevel + node.Level),
-            ArrayIndexListOffset: (byte)_arrayIndices.Count));
-
-        _arrayIndices.Add(~0u);
+            _arrayIndices.Add(~0u);
+        }
     }
 
     public override void ReadReferencedObject(
@@ -209,7 +209,6 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     protected int TreeDepth => _treeDepth;
     protected ushort TreeIdx => (ushort)_treeIdx;
 
-    protected readonly record struct NodeFrame(ushort NodeIdx, ushort TreeIdx);
     protected Stack<NodeFrame> NodeStack => _nodeStack;
 
     protected ref ObjectParserNode GetNode(in NodeFrame frame) => ref _trees[frame.TreeIdx][frame.NodeIdx];
@@ -227,6 +226,10 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
 
         return false;
     }
+
+    protected readonly record struct NodeFrame(
+        ushort NodeIdx,
+        ushort TreeIdx);
 
     private readonly record struct ArrayFrame(
         ushort ArrayDataNodeIndex,
@@ -312,7 +315,7 @@ public sealed class ObjectTypeTreeMultiReader(params IObjectTypeTreeReader[] rea
 
     public void Align(
         in ObjectParserNode node,
-        int alignedBytes)
+        byte alignedBytes)
     {
         foreach (IObjectTypeTreeReader reader in readers) { reader.Align(node, alignedBytes); }
     }
