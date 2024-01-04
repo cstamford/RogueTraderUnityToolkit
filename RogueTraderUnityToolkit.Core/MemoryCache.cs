@@ -19,7 +19,7 @@ public static class MemoryCache
         return new Region(id, 0, length, baseAddress);
     }
 
-    private static readonly LruCache<int, MemoryCacheData> _cache = new(1024*1024*1024);
+    private static readonly LruCache<int, MemoryCacheData> _cache = new(1024 * 1024 * 128);
     private static int _nextId;
 
     public struct Region(int id, int offset, int length, int baseAddress) : IRelocatableMemoryRegion

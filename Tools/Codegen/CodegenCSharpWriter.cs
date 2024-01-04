@@ -12,11 +12,13 @@ public readonly partial struct CodegenCSharpWriter(
         string inNamespace,
         IEnumerable<string> usingNamespace)
     {
-        writer.Write(0, $"namespace RogueTraderUnityToolkit.Unity.{inNamespace};");
+        writer.WriteSingle(0, $"namespace RogueTraderUnityToolkit.UnityGenerated.Types");
+        writer.Write(0, string.IsNullOrEmpty(inNamespace) ? ";" : $".{inNamespace};");
         writer.Write(0, "");
         writer.Write(0, "using Core;");
+        writer.Write(0, "using Unity;");
 
-        foreach (string usingNs in usingNamespace)
+        foreach (string usingNs in usingNamespace.Where(x => !string.IsNullOrEmpty(x)))
         {
             writer.Write(0, $"using {usingNs};");
         }
@@ -37,39 +39,58 @@ public readonly partial struct CodegenCSharpWriter(
 
             string strucType = struc.Fields.All(x => x.Type is CodegenBuiltInType) ? "readonly record struct" : "record class";
 
+            string typeName = SanitizeName(type.Name.ToString());
+
             string[] fieldNames = new string[struc.Fields.Count];
+            string[] fieldVarNames = new string[struc.Fields.Count];
             string[] fieldTypeNames = new string[struc.Fields.Count];
 
             for (int i = 0; i < fieldTypeNames.Length; ++i)
             {
                 fieldNames[i] = SanitizeName(struc.Fields[i].Name.ToString());
+                fieldVarNames[i] = SanitizeName($"_{struc.Fields[i].Name}");
                 fieldTypeNames[i] = GetFieldTypeName(struc.Fields[i].Type);
             }
 
             writer.Write(0, $"/* {type} */");
 
-            writer.Write(0, $"public {strucType} {type.Name}(");
+            writer.Write(0, $"public {strucType} {typeName}(");
 
             writer.WriteSingle(4, string.Join(
                 $",\n{' '.Repeat(4)}",
-                struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]}")));
-            writer.Write(0, ")");
+                struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]} /* {struc.Fields[i].Flags} */")));
+            writer.WriteSingle(0, ")");
 
-            writer.Write(0, "{");
-            writer.Write(4, $"public static {type.Name} Read(EndianBinaryReader reader)");
+            if (struc is CodegenEngineStructureType rootStruc)
+            {
+                writer.Write(0, " : IUnityObject");
+                writer.Write(0, "{");
+                writer.WriteSingle(4, $"public static Hash128 Hash => new(");
+                writer.WriteSingle(0, $"{rootStruc.Hash.Uint0}, ");
+                writer.WriteSingle(0, $"{rootStruc.Hash.Uint1}, ");
+                writer.WriteSingle(0, $"{rootStruc.Hash.Uint2}, ");
+                writer.Write(0, $"{rootStruc.Hash.Uint3});");
+            }
+            else
+            {
+                writer.Write(0, "\n{");
+            }
+
+            writer.Write(4, $"public static {typeName} Read(EndianBinaryReader reader)");
             writer.Write(4, "{");
 
-            // TODO: The order here is probably wrong. I think we need to either bake offsets into the paths or preserve order.
             for (int i = 0; i < fieldTypeNames.Length; ++i)
             {
-                writer.Write(8, $"{fieldTypeNames[i]} {fieldNames[i]} = {GetFieldTypeReader(struc.Fields[i].Type)};");
+                if ((struc.Fields[i].Flags & TreePathFlags.NeedsAlign) != 0)
+                {
+                    writer.Write(8, Align(fieldNames[i]));
+                }
+
+                writer.Write(8, $"{fieldTypeNames[i]} {fieldVarNames[i]} = {GetFieldTypeReader(struc.Fields[i].Type)};");
             }
 
             writer.Write(8, "");
-            writer.Write(8, $"return new({string.Join(
-                $",\n{' '.Repeat(12)}",
-                fieldNames)});");
-
+            writer.Write(8, $"return new({string.Join($",\n{' '.Repeat(12)}", fieldVarNames)});");
             writer.Write(4, "}");
             writer.Write(0, "}");
             writer.Write(0, "");
@@ -78,12 +99,14 @@ public readonly partial struct CodegenCSharpWriter(
         if (type is CodegenForwardDeclType)
         {
             writer.Write(0, $"/* forward decl {type} (no type info) */");
-            writer.Write(0, $"public record struct {type.Name};");
+            writer.Write(0, $"public record struct {SanitizeName(type.Name.ToString())};");
         }
 
         missingTypes = _missingTypes.ToArray();
         _missingTypes.Clear();
     }
+
+    public static string Align(string name) => $"reader.AlignTo(4); /* {name} */";
 
     private readonly HashSet<AsciiString> _missingTypes = [];
 
@@ -123,17 +146,19 @@ public readonly partial struct CodegenCSharpWriter(
             _ => throw new()
         },
         CodegenMapType map => $"Dictionary<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>",
+        CodegenRefRegistryType _ => "RefRegistry",
         CodegenPPtrType pptr => $"PPtr<{GetTypeNameFromReference(pptr.TypeName)}>",
-        _ => type.Name.ToString()
+        _ => SanitizeName(type.Name.ToString())
     };
 
     private string GetFieldTypeReader(ICodegenType type) => type switch
     {
-        CodegenArrayType array => $"Array<{GetFieldTypeName(array.DataType)}>.Read(reader)",
+        CodegenArrayType array => $"BuiltInArray<{GetFieldTypeName(array.DataType)}>.Read(reader)",
         CodegenBuiltInType builtIn => $"reader.Read{builtIn.Type}()",
-        CodegenMapType map => $"Map<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>.Read(reader)",
-        CodegenRefRegistryType => $"/* not yet implemented */",
-        CodegenStringType => "String.Read(reader)",
+        CodegenMapType map => $"BuiltInMap<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>.Read(reader)",
+        CodegenRefRegistryType registry => $"default! /* {registry} */",
+        CodegenStringType => "BuiltInString.Read(reader)",
+        CodegenForwardDeclType decl => $"default! /* {decl} */",
         _ => $"{GetFieldTypeName(type)}.Read(reader)"
     };
 
@@ -142,16 +167,20 @@ public readonly partial struct CodegenCSharpWriter(
         if (!typesIndexLookup.TryGetValue(typeName, out int typeIdx))
         {
             _missingTypes.Add(typeName);
-            return typeName.ToString();
+            return SanitizeName(typeName.ToString());
         }
 
-        return types[typeIdx].Name.ToString();
+        return SanitizeName(types[typeIdx].Name.ToString());
     }
 
     private static string SanitizeName(string str) =>
         SanitizeCSharpKeywords(
             SanitizeArrayNames().Replace(str, "_$1") // transform [n] to _n
-            .Replace(' ', '_')); // replace spaces with underscores
+                .Replace(' ', '_')
+                .Replace("`", "_") // type variants (like TypeName`1)
+                .Replace("<", "__") // compiler generated field like <length>k__BackingField
+                .Replace(">", "__") // see above
+                .Replace("?", "__")); // some field have weird formatting, like Base/m_??ancelButtonLabel (it's a special C)
 
     private static string SanitizeCSharpKeywords(string name) => _csharpKeywords.Contains(name) ? "@" + name : name;
 

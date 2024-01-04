@@ -89,16 +89,11 @@ public static class TreeAnalysis
         {
             writer.WriteLine($"**{type}**");
 
-            IOrderedEnumerable<(TreePathObject, int)> groups = objects
-                .OrderByDescending(x => x.Item2);
+            if (objects.Length == 0) continue;
 
-            int numGroups = groups.Count();
-
-            if (numGroups == 0) continue;
-
-            if (numGroups == 1)
+            if (objects.Length == 1)
             {
-                TreePathObject obj = groups.First().Item1;
+                TreePathObject obj = objects[0].Item1;
 
                 foreach (TreePath path in obj.Paths)
                 {
@@ -112,16 +107,10 @@ public static class TreeAnalysis
                 continue;
             }
 
-            int groupId = 0;
-
-            foreach ((TreePathObject obj, int refs) in groups)
+            foreach ((TreePathObject obj, int refs) in objects.OrderBy(x => x.Item1.Paths.Count))
             {
-                int thisGroupId = groupId++;
-
                 writer.Write(' '.Repeat(4));
-                writer.Write(thisGroupId == 0 ? $"Common" : $"Group {thisGroupId}");
-                writer.Write($" ({refs} refs)");
-                writer.WriteLine();
+                writer.WriteLine($"{obj.Hash} ({refs} refs)");
 
                 foreach (TreePath path in obj.Paths)
                 {
@@ -243,7 +232,7 @@ public static class Extensions
         string.Join('/', path.Data.ToArray().Select(x => x.TypeName));
 
     public static void WritePath(this TreePath path, TextWriter writer) =>
-        writer.Write($"{path} {path.Last.GetTypeName()}");
+        writer.Write($"{path} {path.Last.GetTypeName()} {path.Metadata}");
 
     public static string GetTypeName(this TreePathEntry entry) =>
         entry.Type == ObjectParserType.Complex

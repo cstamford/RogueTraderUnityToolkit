@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.Core;
 
-public class LruCache<TKey, TValue>(int maxSize)
+public class LruCache<TKey, TValue>(long maxSize)
     where TKey : notnull
     where TValue : IDisposable
 {
@@ -37,7 +37,7 @@ public class LruCache<TKey, TValue>(int maxSize)
 
     private readonly ConcurrentQueue<TKey> _lru = [];
     private readonly ConcurrentDictionary<TKey, CacheData> _data = [];
-    private int _residentSize;
+    private long _residentSize;
 
     private class CacheData(Func<TValue> fnLoadValue, int valueSize)
     {

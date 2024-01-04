@@ -1,4 +1,5 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 
 namespace Codegen;
@@ -6,16 +7,6 @@ namespace Codegen;
 public interface ICodegenType
 {
     AsciiString Name { get; }
-    CodegenTypeFlags Flags { get; }
-}
-
-[Flags]
-public enum CodegenTypeFlags
-{
-    None = 0,
-    IsEngineType = 1 << 0,
-    IsGameType = 1 << 1,
-    IsBuiltInType = 1 << 2
 }
 
 public record class CodegenBuiltInType(
@@ -39,30 +30,43 @@ public record class CodegenBuiltInType(
         _ => throw new()
     };
 
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => CSharpType.ToString();
 }
 
 public record class CodegenStructureType(
     AsciiString Name,
-    IReadOnlyList<ICodegenField> Fields,
-    CodegenTypeFlags Flags) : ICodegenType
+    IReadOnlyList<ICodegenField> Fields) : ICodegenType
 {
-    public override string ToString() => $"${Name} ({Fields.Count} fields) ({Flags})";
+    public override string ToString() => $"${Name} ({Fields.Count} fields)";
+}
+
+public record class CodegenEngineStructureType(
+    AsciiString Name,
+    IReadOnlyList<ICodegenField> Fields,
+    Hash128 Hash) : CodegenStructureType(Name, Fields)
+{
+    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}";
+}
+
+public record class CodegenGameStructureType(
+    AsciiString Name,
+    IReadOnlyList<ICodegenField> Fields,
+    Hash128 Hash,
+    Hash128 ScriptHash) : CodegenStructureType(Name, Fields)
+{
+    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}/{ScriptHash}";
 }
 
 public record class CodegenPPtrType(
     AsciiString TypeName) : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From($"PPtr<{TypeName}>");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => Name.ToString();
 }
 
 public record class CodegenStringType : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From($"AsciiString");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => Name.ToString();
 }
 
@@ -70,7 +74,6 @@ public record class CodegenArrayType(
     ICodegenType DataType) : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From($"Array<{DataType.Name}>");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => Name.ToString();
 }
 
@@ -79,7 +82,6 @@ public record class CodegenMapType(
     ICodegenType ValueType) : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From($"Map<{KeyType.Name}, {ValueType.Name}>");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => Name.ToString();
 }
 
@@ -87,7 +89,6 @@ public record class CodegenRefRegistryType(
     IReadOnlyList<ICodegenType> Types) : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From($"RefRegistry_{_nextRefRegistry++}");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     private static int _nextRefRegistry = 0;
     public override string ToString() => Name.ToString();
 }
@@ -95,13 +96,11 @@ public record class CodegenRefRegistryType(
 public record class CodegenHash128Type : ICodegenType
 {
     public AsciiString Name { get; } = AsciiString.From("Hash128");
-    public CodegenTypeFlags Flags => CodegenTypeFlags.IsBuiltInType;
     public override string ToString() => Name.ToString();
 }
 
 public record class CodegenForwardDeclType(
     AsciiString Name) : ICodegenType
 {
-    public CodegenTypeFlags Flags => CodegenTypeFlags.None;
     public override string ToString() => $"?{Name}";
 }
