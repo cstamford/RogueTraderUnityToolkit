@@ -1,28 +1,30 @@
 namespace RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 
 using Core;
+using System.Text;
 using Unity;
 
 /* $Rigidbody (16 fields) 7CDF0ED26B63B4662FF0F7A70274F395 */
 public record class Rigidbody(
-    PPtr<GameObject> m_GameObject /* None */,
-    float m_Mass /* None */,
-    float m_Drag /* None */,
-    float m_AngularDrag /* None */,
-    Vector3f m_CenterOfMass /* None */,
-    Vector3f m_InertiaTensor /* None */,
-    Quaternionf m_InertiaRotation /* None */,
-    BitField m_IncludeLayers /* None */,
-    BitField m_ExcludeLayers /* None */,
-    bool m_ImplicitCom /* None */,
-    bool m_ImplicitTensor /* None */,
-    bool m_UseGravity /* None */,
-    bool m_IsKinematic /* None */,
-    byte m_Interpolate /* None */,
-    int m_Constraints /* NeedsAlign */,
-    int m_CollisionDetection /* None */) : IUnityObject
+    PPtr<GameObject> m_GameObject,
+    float m_Mass,
+    float m_Drag,
+    float m_AngularDrag,
+    Vector3f m_CenterOfMass,
+    Vector3f m_InertiaTensor,
+    Quaternionf m_InertiaRotation,
+    BitField m_IncludeLayers,
+    BitField m_ExcludeLayers,
+    bool m_ImplicitCom,
+    bool m_ImplicitTensor,
+    bool m_UseGravity,
+    bool m_IsKinematic,
+    byte m_Interpolate,
+    int m_Constraints,
+    int m_CollisionDetection) : IUnityEngineStructure
 {
     public static Hash128 Hash => new(2094993106, 1801696358, 804321191, 41218965);
+
     public static Rigidbody Read(EndianBinaryReader reader)
     {
         PPtr<GameObject> _m_GameObject = PPtr<GameObject>.Read(reader);
@@ -39,7 +41,7 @@ public record class Rigidbody(
         bool _m_UseGravity = reader.ReadBool();
         bool _m_IsKinematic = reader.ReadBool();
         byte _m_Interpolate = reader.ReadU8();
-        reader.AlignTo(4); /* m_Constraints */
+        reader.AlignTo(4); /* m_Interpolate */
         int _m_Constraints = reader.ReadS32();
         int _m_CollisionDetection = reader.ReadS32();
         
@@ -59,6 +61,84 @@ public record class Rigidbody(
             _m_Interpolate,
             _m_Constraints,
             _m_CollisionDetection);
+    }
+
+    public override string ToString() => $"Rigidbody\n{ToString(4)}";
+
+    public string ToString(int indent)
+    {
+        StringBuilder sb = new();
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_GameObject: ");
+        sb.AppendLine(m_GameObject.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_Mass: ");
+        sb.AppendLine(m_Mass.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_Drag: ");
+        sb.AppendLine(m_Drag.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_AngularDrag: ");
+        sb.AppendLine(m_AngularDrag.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_CenterOfMass: ");
+        sb.AppendLine();
+        sb.Append(m_CenterOfMass.ToString(indent+4));
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_InertiaTensor: ");
+        sb.AppendLine();
+        sb.Append(m_InertiaTensor.ToString(indent+4));
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_InertiaRotation: ");
+        sb.AppendLine();
+        sb.Append(m_InertiaRotation.ToString(indent+4));
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_IncludeLayers: ");
+        sb.AppendLine();
+        sb.Append(m_IncludeLayers.ToString(indent+4));
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_ExcludeLayers: ");
+        sb.AppendLine();
+        sb.Append(m_ExcludeLayers.ToString(indent+4));
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_ImplicitCom: ");
+        sb.AppendLine(m_ImplicitCom.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_ImplicitTensor: ");
+        sb.AppendLine(m_ImplicitTensor.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_UseGravity: ");
+        sb.AppendLine(m_UseGravity.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_IsKinematic: ");
+        sb.AppendLine(m_IsKinematic.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_Interpolate: ");
+        sb.AppendLine(m_Interpolate.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_Constraints: ");
+        sb.AppendLine(m_Constraints.ToString());
+
+        for (int i = 0; i < indent; ++i) sb.Append(' ');
+        sb.Append("m_CollisionDetection: ");
+        sb.AppendLine(m_CollisionDetection.ToString());
+
+        return sb.ToString();
     }
 }
 
