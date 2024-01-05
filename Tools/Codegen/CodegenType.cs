@@ -37,6 +37,20 @@ public record class CodegenStructureType(
     AsciiString Name,
     IReadOnlyList<ICodegenField> Fields) : ICodegenType
 {
+    public bool Equals(IEnumerable<TreePath> children)
+    {
+        bool matchingFieldCount = children.Count(x => x.Length == 1) == Fields.Count;
+        if (!matchingFieldCount) return false;
+
+        return Fields.Zip(
+                children.Where(x => x.Length == 1), // all immediate children...
+                (x, y) =>
+                    x.Name == y.Last.Name && // are equal (same name)
+                    // TODO: Remove when fixed alignment; see also note in ConstructType
+                    x.Flags == y.Metadata.Flags) // have the same alignment flags
+            .All(x => x);
+    }
+
     public override string ToString() => $"${Name} ({Fields.Count} fields)";
 }
 

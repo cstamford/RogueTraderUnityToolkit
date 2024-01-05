@@ -3,11 +3,13 @@ using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.UnityGenerated;
 
-public readonly record struct PPtr<T>
+public readonly record struct PPtr<T>(int FileId, long PathId)
 {
     public static PPtr<T> Read(EndianBinaryReader reader)
     {
-        return default;
+        int fileId = reader.ReadS32();
+        long pathId = reader.ReadS64();
+        return new(fileId, pathId);
     }
 }
 
@@ -35,8 +37,22 @@ public static class BuiltInArray<T>
 {
     public static T[] Read(EndianBinaryReader reader)
     {
-        return default!;
+        int arrayLen = reader.ReadS32();
+        Debug.Assert(arrayLen >= 0);
+
+        // TODO: Switch on primitive!
+
+        T[] array = new T[arrayLen];
+
+        for (int i = 0; i < arrayLen; ++i)
+        {
+            array[i] = (T)_readFn(reader);
+        }
+
+        return array;
     }
+
+    private static Func<EndianBinaryReader, T> _readFn = typeof(T).GetReadFn<T>();
 }
 
 public static class BuiltInMap<TKey, TValue> where TKey : notnull

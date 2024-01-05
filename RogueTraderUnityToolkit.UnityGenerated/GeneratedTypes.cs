@@ -1,10 +1,13 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
+using System.Diagnostics;
 using System.Reflection;
 
 namespace RogueTraderUnityToolkit.UnityGenerated;
 
 public interface IUnityObject;
+public interface IUnityEngineStructure : IUnityObject; // TODO
+public interface IUnityGameStructue : IUnityObject; // TODO
 
 public static class GeneratedTypes
 {
@@ -15,11 +18,7 @@ public static class GeneratedTypes
             .Where(t => typeof(IUnityObject).IsAssignableFrom(t))
             .Where(t => t is { IsInterface: false, IsAbstract: false }))
         {
-            Hash128 hash = (Hash128)type.GetProperty("Hash", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
-            MethodInfo fnReadInfo = type.GetMethod("Read", BindingFlags.Public | BindingFlags.Static)!;
-            Func<EndianBinaryReader, IUnityObject> fnRead = (Func<EndianBinaryReader, IUnityObject>)Delegate
-                .CreateDelegate(typeof(Func<EndianBinaryReader, IUnityObject>), fnReadInfo);
-            _fnReadLookup.Add(hash, fnRead);
+            _fnReadLookup.Add(type.GetHash(), type.GetReadFn<IUnityObject>());
         }
     }
 
@@ -36,4 +35,19 @@ public static class GeneratedTypes
     }
 
     private static readonly Dictionary<Hash128, Func<EndianBinaryReader, IUnityObject>> _fnReadLookup = [];
+}
+
+public static class GeneratedTypesExtensions
+{
+    public static Hash128 GetHash(this Type type)
+    {
+        Debug.Assert(typeof(IUnityObject).IsAssignableFrom(type));
+        return (Hash128)type.GetProperty("Hash", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+    }
+
+    public static Func<EndianBinaryReader, T> GetReadFn<T>(this Type type)
+    {
+        MethodInfo fnReadInfo = type.GetMethod("Read", BindingFlags.Public | BindingFlags.Static)!;
+        return (Func<EndianBinaryReader, T>)Delegate.CreateDelegate(typeof(Func<EndianBinaryReader, T>), fnReadInfo);
+    }
 }

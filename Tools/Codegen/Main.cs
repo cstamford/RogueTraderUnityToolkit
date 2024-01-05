@@ -40,7 +40,7 @@ ParallelOptions parallelOpts = new();
 
 #if DEBUG_VERBOSE
 parallelOpts.MaxDegreeOfParallelism = 1;
-files = files[..10];
+files = files[..5];
 #endif
 
 ConcurrentBag<ThreadLocalWorkData> workDatas = [];
@@ -269,7 +269,7 @@ static void DeserializeObjects(
     foreach (SerializedFileObjectInstance instance in file.ObjectInstances)
     {
         SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
-        if (info.Type != UnityObjectType.MonoScript) continue;
+        //if (info.Type != UnityObjectType.MonoScript) continue;
 
         reader.Position = (int)instance.Offset;
 

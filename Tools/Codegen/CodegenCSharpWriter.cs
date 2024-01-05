@@ -45,11 +45,23 @@ public readonly partial struct CodegenCSharpWriter(
             string[] fieldVarNames = new string[struc.Fields.Count];
             string[] fieldTypeNames = new string[struc.Fields.Count];
 
+            // Calculate the sanitized field names for each field.
             for (int i = 0; i < fieldTypeNames.Length; ++i)
             {
-                fieldNames[i] = SanitizeName(struc.Fields[i].Name.ToString());
+                fieldNames[i] = SanitizeName($"{struc.Fields[i].Name}");
                 fieldVarNames[i] = SanitizeName($"_{struc.Fields[i].Name}");
                 fieldTypeNames[i] = GetFieldTypeName(struc.Fields[i].Type);
+            }
+
+            // Some types have the same field name as the field's type name, which is a compile error.
+            // If that is the case, we just recalculate them with an extra underscore.
+            for (int i = 0; i < fieldTypeNames.Length; ++i)
+            {
+                if (fieldTypeNames.Any(x => x == fieldNames[i]))
+                {
+                    fieldNames[i] = SanitizeName($"_{struc.Fields[i].Name}");
+                    fieldVarNames[i] = SanitizeName($"__{struc.Fields[i].Name}");
+                }
             }
 
             writer.Write(0, $"/* {type} */");
