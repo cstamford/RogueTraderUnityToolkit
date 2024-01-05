@@ -86,15 +86,7 @@ public class CodegenTypeBuilder
             {
                 Debug.Assert(child.Length == 1);
                 ICodegenType childType = ConstructType(child.Last.TypeName, child, children.Where(x => x.StartsWith(child)));
-
-                // TODO: This is bad! We're putting the flags on the field. This type will be cached and that cached copy returned,
-                // TODO: but it will still have the flags from the original version. These flags are object-unique, not type-unique.
-                // TODO: For now, I've used the aliasing system to hack around it so all reads are (mostly) correctly aligned.
-                // TODO: However, the alignment is only correct one level deep.
-                // TODO: To fix this, I need to add the align flag to each individual path entry, and calculate align per-field when we create it.
-                // TODO: This is actually pretty easy to do - I can just put the parser flag node on the entry.
-                // TODO: Note to self: Align goes AFTER each field read, not before.
-                fields.Add(new CodegenField(childType, child.Last.Name, child.Metadata.Flags));
+                fields.Add(new CodegenField(childType, child.Last.Name, (child.Last.Flags & ObjectParserNodeFlags.IsAlignTo4) != 0));
             }
 
             CodegenStructureType strucType = fnMakeStruc?.Invoke(fields) ?? new(typeName, fields);
@@ -275,10 +267,18 @@ public class CodegenTypeBuilder
         IEnumerable<TreePath> children,
         IEnumerable<TreePath> originalChildren)
     {
+        if (type is CodegenStructureAliasType alias)
+        {
+            // If we're already an alias, just call this function again on our original type. We'll either:
+            // * Match directly, and return original type.
+            // * Match indirectly, via one of the existing aliases (which could well have been ourself - but this simplifies the code!)
+            // * No match, in which case, we'll create an alias of the original type and return it. (important note: NOT an alias of an alias)
+            return MergeType(alias.OriginalType.Name, alias.OriginalType, root, children, originalChildren);
+        }
+
         if (type is CodegenStructureType struc)
         {
-            // Great! We're a direct match. :)
-            if (struc.Equals(children)) return type;
+            if (struc.Equals(children)) return type; // Great! We're a direct match. :)
 
             // Find any aliases this type might already have.
             if (_typeAliases.TryGetValue(type.Name, out List<CodegenStructureType>? aliasTypes))
@@ -300,7 +300,13 @@ public class CodegenTypeBuilder
             // This is the worst outcome. We will have to generate a new name for it, then create it and return that alias.
             AsciiString newTypeName = AsciiString.From($"{typeName}{aliasTypes.Count}");
             Log.Write($"Aliasing {typeName} to {newTypeName}", ConsoleColor.DarkYellow);
-            CodegenStructureType aliasType = (CodegenStructureType)ConstructType(newTypeName, root, originalChildren);
+
+            CodegenStructureType aliasType = (CodegenStructureType)ConstructType(
+                newTypeName,
+                root,
+                originalChildren,
+                f => new CodegenStructureAliasType(newTypeName, f, struc));
+
             aliasTypes.Add(aliasType);
             return aliasType;
         }

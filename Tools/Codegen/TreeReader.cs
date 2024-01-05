@@ -120,14 +120,13 @@ public sealed class TreeReader(
     private bool _needsAlign = false;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TreePath Path(in NodeFrame frame, in TreePathAllocation allocation) => new(allocation, new(
-        frame.NodeIdx, (byte)frame.TreeIdx, _needsAlign ? TreePathFlags.NeedsAlign : TreePathFlags.None));
+    private TreePath Path(in NodeFrame frame, in TreePathAllocation allocation) => new(allocation, new(frame.NodeIdx, (byte)frame.TreeIdx));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private TreePathEntry PathEntry(in NodeFrame frame) => PathEntry(GetNode(frame));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static TreePathEntry PathEntry(in ObjectParserNode node) => new(node.Name, node.TypeName, node.Type);
+    private static TreePathEntry PathEntry(in ObjectParserNode node) => new(node.Name, node.TypeName, node.Type, node.Flags);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ExtractFrames(Span<TreePathEntry> storage)

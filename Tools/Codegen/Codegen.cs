@@ -45,7 +45,7 @@ public class Codegen
         CodegenCSharpWriter writer = new(_typeBuilder.Types, _typeBuilder.TypesIndexLookup);
 
         List<AsciiString> allMissingTypes = [];
-        HashSet<ICodegenType> visited = [];
+        HashSet<AsciiString> visited = [];
 
         bool anyGame = false;
         bool anyEngine = false;
@@ -72,7 +72,7 @@ public class Codegen
             writer.WriteType(typeWriter, type, out AsciiString[] missingTypes);
 
             allMissingTypes.AddRange(missingTypes);
-            visited.Add(type);
+            visited.Add(type.Name);
         }
 
         string referencedTypesFile = Path.Combine(path, $"ReferencedTypes.cs");
@@ -80,14 +80,14 @@ public class Codegen
         writer.WriteHeader(referencedTypesWriter, string.Empty,
             [ anyEngine ? "Engine" : string.Empty, anyGame ? "Game" : string.Empty ]);
 
-        foreach (ICodegenType otherType in _typeBuilder.Types.Where(x => !visited.Contains(x)))
+        foreach (ICodegenType otherType in _typeBuilder.Types.Where(x => !visited.Contains(x.Name)))
         {
             writer.WriteType(referencedTypesWriter, otherType, out AsciiString[] missingTypes);
             allMissingTypes.AddRange(missingTypes);
-            visited.Add(otherType);
+            visited.Add(otherType.Name);
         }
 
-        allMissingTypes = [..allMissingTypes.Distinct()];
+        allMissingTypes = [..allMissingTypes.Distinct().Where(x => !visited.Contains(x))];
 
         if (allMissingTypes.Count > 0)
         {

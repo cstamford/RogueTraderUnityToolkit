@@ -70,7 +70,7 @@ public readonly partial struct CodegenCSharpWriter(
 
             writer.WriteSingle(4, string.Join(
                 $",\n{' '.Repeat(4)}",
-                struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]} /* {struc.Fields[i].Flags} */")));
+                struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]}")));
             writer.WriteSingle(0, ")");
 
             if (struc is CodegenEngineStructureType rootStruc)
@@ -93,12 +93,8 @@ public readonly partial struct CodegenCSharpWriter(
 
             for (int i = 0; i < fieldTypeNames.Length; ++i)
             {
-                if ((struc.Fields[i].Flags & TreePathFlags.NeedsAlign) != 0)
-                {
-                    writer.Write(8, Align(fieldNames[i]));
-                }
-
                 writer.Write(8, $"{fieldTypeNames[i]} {fieldVarNames[i]} = {GetFieldTypeReader(struc.Fields[i].Type)};");
+                if (struc.Fields[i].NeedsAlign) writer.Write(8, Align(fieldNames[i]));
             }
 
             writer.Write(8, "");
@@ -186,18 +182,27 @@ public readonly partial struct CodegenCSharpWriter(
     }
 
     private static string SanitizeName(string str) =>
-        SanitizeCSharpKeywords(
-            SanitizeArrayNames().Replace(str, "_$1") // transform [n] to _n
-                .Replace(' ', '_')
-                .Replace("`", "_") // type variants (like TypeName`1)
-                .Replace("<", "__") // compiler generated field like <length>k__BackingField
-                .Replace(">", "__") // see above
-                .Replace("?", "__")); // some field have weird formatting, like Base/m_??ancelButtonLabel (it's a special C)
+        SanitizeCSharpKeywords(str)
+            .Replace(' ', '_')
+            .Replace("`", "_") // type variants (like TypeName`1)
+            .Replace("<", "__") // compiler generated field like <length>k__BackingField
+            .Replace(">", "__") // see above
+            .Replace("?", "__"); // some field have weird formatting, like Base/m_??ancelButtonLabel (it's a special C)
 
-    private static string SanitizeCSharpKeywords(string name) => _csharpKeywords.Contains(name) ? "@" + name : name;
+    private static string SanitizeCSharpKeywords(string name)
+    {
+        name = _csharpKeywords.Contains(name) ? "@" + name : name;
+        name = SanitizeArrayNames().Replace(name, "_$1"); // transform [n] to _n
+        name = SanitizeReferences().Replace(name, "_$1Ref_"); // transform (...&) to _...Ref_
+        return name;
+    }
 
     [System.Text.RegularExpressions.GeneratedRegex(@"\[\s*(\d+)\s*\]")]
     private static partial System.Text.RegularExpressions.Regex SanitizeArrayNames();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\((\w+)&\)")]
+    private static partial System.Text.RegularExpressions.Regex SanitizeReferences();
+
 }
 
 public static class CodegenCSharpWriterExtensions

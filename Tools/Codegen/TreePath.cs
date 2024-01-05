@@ -8,7 +8,8 @@ namespace Codegen;
 public readonly record struct TreePathEntry(
     AsciiString Name,
     AsciiString TypeName,
-    ObjectParserType Type)
+    ObjectParserType Type,
+    ObjectParserNodeFlags Flags)
 {
     public override string ToString() => Name.ToString();
 }
@@ -110,8 +111,7 @@ public readonly record struct TreePath(
 
 public readonly record struct TreePathMetadata(
     ushort NodeId,
-    byte TreeId,
-    TreePathFlags Flags)
+    byte TreeId)
     : IComparable<TreePathMetadata>
 {
     public int CompareTo(TreePathMetadata rhs)
@@ -121,12 +121,5 @@ public readonly record struct TreePathMetadata(
         return NodeId.CompareTo(rhs.NodeId);
     }
 
-    public override string ToString() => $"{NodeId}/{TreeId}/{Flags}";
-}
-
-[Flags]
-public enum TreePathFlags : byte
-{
-    None = 0,
-    NeedsAlign = 1 << 1
+    public override string ToString() => $"{NodeId}/{TreeId}";
 }

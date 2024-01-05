@@ -6,13 +6,13 @@ public interface ICodegenField
 {
     ICodegenType Type { get; }
     AsciiString Name { get; }
-    TreePathFlags Flags { get; }
+    bool NeedsAlign { get; }
 }
 
 public readonly record struct CodegenField(
     ICodegenType Type,
     AsciiString Name,
-    TreePathFlags Flags) : ICodegenField
+    bool NeedsAlign) : ICodegenField
 {
-    public override string ToString() => $"{Type} {Name} {Flags}";
+    public override string ToString() => $"{Type} {Name} {NeedsAlign}";
 }

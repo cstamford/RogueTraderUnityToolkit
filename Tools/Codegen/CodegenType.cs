@@ -39,19 +39,32 @@ public record class CodegenStructureType(
 {
     public bool Equals(IEnumerable<TreePath> children)
     {
-        bool matchingFieldCount = children.Count(x => x.Length == 1) == Fields.Count;
-        if (!matchingFieldCount) return false;
+        List<TreePath> immediateChildren = children.Where(x => x.Length == 1).ToList();
+        if (immediateChildren.Count != Fields.Count) return false;
 
-        return Fields.Zip(
-                children.Where(x => x.Length == 1), // all immediate children...
-                (x, y) =>
-                    x.Name == y.Last.Name && // are equal (same name)
-                    // TODO: Remove when fixed alignment; see also note in ConstructType
-                    x.Flags == y.Metadata.Flags) // have the same alignment flags
-            .All(x => x);
+        foreach ((ICodegenField field, TreePath treePath) in Fields.Zip(immediateChildren, (f, t) => (f, t)))
+        {
+            if (field.Name != treePath.Last.Name) return false;
+
+            if (field.Type is CodegenStructureType struc)
+            {
+                IEnumerable<TreePath> subChildren = children.Where(x => x.StartsWith(treePath)).Skip(1).Select(x => x[1..]);
+                if (!struc.Equals(subChildren)) return false;
+            }
+        }
+
+        return true;
     }
 
     public override string ToString() => $"${Name} ({Fields.Count} fields)";
+}
+
+public record class CodegenStructureAliasType(
+    AsciiString Name,
+    IReadOnlyList<ICodegenField> Fields,
+    CodegenStructureType OriginalType) : CodegenStructureType(Name, Fields)
+{
+    public override string ToString() => $"${Name} ({Fields.Count} fields) alias of {OriginalType.Name}";
 }
 
 public record class CodegenEngineStructureType(
