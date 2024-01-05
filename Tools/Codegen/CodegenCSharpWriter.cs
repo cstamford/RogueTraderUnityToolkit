@@ -1,11 +1,10 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using System.Diagnostics;
+using System.Text;
 
 namespace Codegen;
 
-public readonly partial struct CodegenCSharpWriter(
-    IReadOnlyList<ICodegenType> types,
-    IReadOnlyDictionary<AsciiString, int> typesIndexLookup)
+public readonly partial struct CodegenCSharpWriter
 {
     public void WriteHeader(
         TextWriter writer,
@@ -16,6 +15,7 @@ public readonly partial struct CodegenCSharpWriter(
         writer.Write(0, string.IsNullOrEmpty(inNamespace) ? ";" : $".{inNamespace};");
         writer.Write(0, "");
         writer.Write(0, "using Core;");
+        writer.Write(0, "using System.Text;");
         writer.Write(0, "using Unity;");
 
         foreach (string usingNs in usingNamespace.Where(x => !string.IsNullOrEmpty(x)))
@@ -26,18 +26,13 @@ public readonly partial struct CodegenCSharpWriter(
         writer.Write(0, "");
     }
 
-    public void WriteType(
-        TextWriter writer,
-        ICodegenType type,
-        out AsciiString[] missingTypes)
+    public void WriteType(TextWriter writer, CodegenType type)
     {
-        Debug.Assert(_missingTypes.Count == 0);
-
         if (type is CodegenStructureType struc)
         {
             Debug.Assert(struc.Fields.Any());
 
-            string strucType = struc.Fields.All(x => x.Type is CodegenBuiltInType) ? "readonly record struct" : "record class";
+            string strucType = struc.Fields.All(x => x.Type is CodegenPrimitiveType) ? "readonly record struct" : "record class";
 
             string typeName = SanitizeName(type.Name.ToString());
 
@@ -71,21 +66,23 @@ public readonly partial struct CodegenCSharpWriter(
             writer.WriteSingle(4, string.Join(
                 $",\n{' '.Repeat(4)}",
                 struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]}")));
-            writer.WriteSingle(0, ")");
+            writer.WriteSingle(0, ") : ");
 
-            if (struc is CodegenEngineStructureType rootStruc)
+            if (struc is CodegenRootType root)
             {
-                writer.Write(0, " : IUnityObject");
+                writer.Write(0, root.IsEngineType ? "IUnityEngineStructure" : "IUnityGameStructure");
                 writer.Write(0, "{");
                 writer.WriteSingle(4, $"public static Hash128 Hash => new(");
-                writer.WriteSingle(0, $"{rootStruc.Hash.Uint0}, ");
-                writer.WriteSingle(0, $"{rootStruc.Hash.Uint1}, ");
-                writer.WriteSingle(0, $"{rootStruc.Hash.Uint2}, ");
-                writer.Write(0, $"{rootStruc.Hash.Uint3});");
+                writer.WriteSingle(0, $"{root.Hash.Uint0}, ");
+                writer.WriteSingle(0, $"{root.Hash.Uint1}, ");
+                writer.WriteSingle(0, $"{root.Hash.Uint2}, ");
+                writer.Write(0, $"{root.Hash.Uint3});");
+                writer.Write(0, "");
             }
             else
             {
-                writer.Write(0, "\n{");
+                writer.Write(0, "IUnityStructure");
+                writer.Write(0, "{");
             }
 
             writer.Write(4, $"public static {typeName} Read(EndianBinaryReader reader)");
@@ -100,6 +97,41 @@ public readonly partial struct CodegenCSharpWriter(
             writer.Write(8, "");
             writer.Write(8, $"return new({string.Join($",\n{' '.Repeat(12)}", fieldVarNames)});");
             writer.Write(4, "}");
+            writer.Write(0, "");
+            writer.Write(4, $"public override string ToString() => $\"{struc.Name}\\n{{ToString(4)}}\";");
+            writer.Write(0, "");
+
+            StringBuilder fieldToStringSb = new();
+            string[] fieldToStringEntries = new string[struc.Fields.Count];
+            string toStringIndent = ' '.Repeat(8);
+
+            for (int i = 0; i < fieldTypeNames.Length; ++i)
+            {
+                fieldToStringSb.AppendLine($"{toStringIndent}for (int i = 0; i < indent; ++i) sb.Append(' ');");
+                fieldToStringSb.AppendLine($"{toStringIndent}sb.Append(\"{fieldNames[i]}: \");");
+
+                if (struc.Fields[i].Type is CodegenStructureType)
+                {
+                    fieldToStringSb.AppendLine($"{toStringIndent}sb.AppendLine();");
+                    fieldToStringSb.AppendLine($"{toStringIndent}sb.Append({fieldNames[i]}.ToString(indent+4));");
+                }
+                else
+                {
+                    fieldToStringSb.AppendLine($"{toStringIndent}sb.AppendLine({fieldNames[i]}.ToString());");
+                }
+
+                fieldToStringEntries[i] = fieldToStringSb.ToString();
+                fieldToStringSb.Length = 0;
+            }
+
+            writer.Write(4, "public string ToString(int indent)");
+            writer.Write(4, "{");
+            writer.Write(8, "StringBuilder sb = new();");
+            writer.Write(0, "");
+            writer.Write(0, string.Join($"\n", fieldToStringEntries));
+            writer.Write(8, "return sb.ToString();");
+            writer.Write(4, "}");
+
             writer.Write(0, "}");
             writer.Write(0, "");
         }
@@ -109,14 +141,9 @@ public readonly partial struct CodegenCSharpWriter(
             writer.Write(0, $"/* forward decl {type} (no type info) */");
             writer.Write(0, $"public record struct {SanitizeName(type.Name.ToString())};");
         }
-
-        missingTypes = _missingTypes.ToArray();
-        _missingTypes.Clear();
     }
 
     public static string Align(string name) => $"reader.AlignTo(4); /* {name} */";
-
-    private readonly HashSet<AsciiString> _missingTypes = [];
 
     private static readonly HashSet<string> _csharpKeywords =
     [
@@ -133,10 +160,10 @@ public readonly partial struct CodegenCSharpWriter(
         "select", "set", "value", "var", "when", "where", "yield"
     ];
 
-    private string GetFieldTypeName(ICodegenType type) => type switch
+    private string GetFieldTypeName(CodegenType type) => type switch
     {
         CodegenArrayType array => $"{GetFieldTypeName(array.DataType)}[]",
-        CodegenBuiltInType builtin => builtin.CSharpType switch
+        CodegenPrimitiveType builtin => builtin.CSharpType switch
         {
             { } t when t == typeof(ulong) => "ulong",
             { } t when t == typeof(uint) => "uint",
@@ -155,31 +182,21 @@ public readonly partial struct CodegenCSharpWriter(
         },
         CodegenMapType map => $"Dictionary<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>",
         CodegenRefRegistryType _ => "RefRegistry",
-        CodegenPPtrType pptr => $"PPtr<{GetTypeNameFromReference(pptr.TypeName)}>",
+        CodegenPPtrType pptr => $"PPtr<{SanitizeName(pptr.NameT.ToString())}>",
+        CodegenStringType _ => $"AsciiString",
         _ => SanitizeName(type.Name.ToString())
     };
 
-    private string GetFieldTypeReader(ICodegenType type) => type switch
+    private string GetFieldTypeReader(CodegenType type) => type switch
     {
         CodegenArrayType array => $"BuiltInArray<{GetFieldTypeName(array.DataType)}>.Read(reader)",
-        CodegenBuiltInType builtIn => $"reader.Read{builtIn.Type}()",
+        CodegenPrimitiveType builtIn => $"reader.Read{builtIn.Type}()",
         CodegenMapType map => $"BuiltInMap<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>.Read(reader)",
         CodegenRefRegistryType registry => $"default! /* {registry} */",
         CodegenStringType => "BuiltInString.Read(reader)",
         CodegenForwardDeclType decl => $"default! /* {decl} */",
         _ => $"{GetFieldTypeName(type)}.Read(reader)"
     };
-
-    private string GetTypeNameFromReference(AsciiString typeName)
-    {
-        if (!typesIndexLookup.TryGetValue(typeName, out int typeIdx))
-        {
-            _missingTypes.Add(typeName);
-            return SanitizeName(typeName.ToString());
-        }
-
-        return SanitizeName(types[typeIdx].Name.ToString());
-    }
 
     private static string SanitizeName(string str) =>
         SanitizeCSharpKeywords(str)

@@ -4,28 +4,24 @@ using System.Diagnostics;
 
 namespace Codegen;
 
-public class CodegenTypeBuilder
+public static class CodegenTypeBuilder
 {
-    public IReadOnlyList<ICodegenType> Types => _types;
-    public IReadOnlyDictionary<AsciiString, int> TypesIndexLookup => _typesIndexLookup;
-
-    public CodegenTypeBuilder()
+    static CodegenTypeBuilder()
     {
         foreach ((ObjectParserType type, AsciiString[] aliases) in ObjectParserNodeUtil.TypeAliases)
         {
             foreach (AsciiString alias in aliases)
             {
-                CodegenBuiltInType builtInType = new(alias, type);
-                LogVerbose(0, $"Constructed primitive type {builtInType.Name} for {type}");
-                AddType(builtInType);
+                CodegenPrimitiveType primitive = new(alias, type);
+                _primitives.Add(alias, primitive);
             }
         }
     }
 
-    public ICodegenType ReadTreeObject(
+    public static CodegenRootType ReadTreeObject(
         TreePathObject obj,
         AsciiString typeName,
-        Func<IReadOnlyList<ICodegenField>, CodegenStructureType> fnMakeStruc)
+        Func<IReadOnlyList<CodegenStructureField>, CodegenStructureType> fnMakeStruc)
     {
         TreePath root = obj.Paths[0];
         Debug.Assert(root.Length == 1);
@@ -33,91 +29,75 @@ public class CodegenTypeBuilder
         Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
         Debug.Assert(obj.Paths.All(x => x.StartsWith(root)), "Paths not beginning with root?");
 
-        // Create the type, which will recursively create its subtypes.
-        ICodegenType rootType = ConstructType(typeName, root, obj.Paths, fnMakeStruc);
-        LogVerbose(0, $"Constructed {rootType}", ConsoleColor.DarkGray);
-
-        return rootType;
+        return (CodegenRootType)ConstructType(typeName, root, obj.Paths, fnMakeStruc);
     }
 
-    private ICodegenType ConstructType(
+    private static CodegenType ConstructType(
         AsciiString typeName,
         TreePath root,
         IEnumerable<TreePath> children,
-        Func<IReadOnlyList<ICodegenField>, CodegenStructureType>? fnMakeStruc = null)
+        Func<IReadOnlyList<CodegenStructureField>, CodegenStructureType>? fnMakeStruc = null)
     {
-        // Grab this for later - it's necessary to merge types, if needed.
-        IEnumerable<TreePath> originalChildren = children;
+        Debug.Assert(root.Length == 1, "Root must be length 1");
+        Debug.Assert(children.First() == root, "Children must include the root");
+        Debug.Assert(children.All(x => x.StartsWith(root)), "All children must start with the root");
 
-        // We expect our input such that: root (level 1) + all children (level 2+).
-        Debug.Assert(root.Length == 1);
-        Debug.Assert(children.First() == root);
         children = children.Skip(1); // skip root
 
-        // If we have any children left, snip off the root.
         if (children.Any())
         {
-            Debug.Assert(children.All(x => x.StartsWith(root) && x.Length >= 2));
+            // Snip off the root from all the children, so they're all length 1 or greater.
+            Debug.Assert(children.All(x => x.Length >= 2));
             children = children.Select(x => x[1..]);
         }
 
-        // Special type handling! :) (arrays, etc, this handles the wrap-around).
-        if (TryConstructSpecialType(root, children, out ICodegenType specialType))
+        // Special type handling! :) (primitives, arrays, etc, this handles the wrap-around).
+        if (TryConstructSpecialType(root, [.. children], out CodegenType specialType))
         {
             // This type won't be added to the type database: it's a built in.
             return specialType;
         }
 
-        // Check if this type has been created before.
-        if (TryFindType(typeName, out ICodegenType type))
-        {
-            // This may return an existing type (if a match) or a type alias (if not).
-            return MergeType(typeName, type, root, children, originalChildren);
-        }
-
-        // If we don't have any children, we shouldn't reach this point (in theory, though we do in practice).
-        // We expect all leafs to be built-in/primitive types, or in other words, already added.
         if (children.Any())
         {
-            List<ICodegenField> fields = [];
+            List<CodegenStructureField> fields = [];
 
             // Check all immediate children, constructing fields from them.
             foreach (TreePath child in children.Where(x => x.Length == 1))
             {
                 Debug.Assert(child.Length == 1);
-                ICodegenType childType = ConstructType(child.Last.TypeName, child, children.Where(x => x.StartsWith(child)));
-                fields.Add(new CodegenField(childType, child.Last.Name, (child.Last.Flags & ObjectParserNodeFlags.IsAlignTo4) != 0));
+                CodegenType childType = ConstructType(child.Last.TypeName, child, [.. children.Where(x => x.StartsWith(child))]);
+                fields.Add(new CodegenStructureField(childType, child.Last.Name,
+                    (child.Last.Flags & ObjectParserNodeFlags.IsAlignTo4) != 0));
             }
 
-            CodegenStructureType strucType = fnMakeStruc?.Invoke(fields) ?? new(typeName, fields);
-            Debug.Assert(strucType.Fields.Count != 0, $"Complex type with no fields? {strucType}");
-            type = strucType;
-        }
-        else
-        {
-            Log.Write($"Non-builtin type {root} with no children. This is probably weird data.", ConsoleColor.Yellow);
-            type = new CodegenForwardDeclType(typeName);
+            Debug.Assert(fields.Count != 0, $"Complex type with no fields?");
+
+            return fnMakeStruc != null ?
+                fnMakeStruc(fields) :
+                new CodegenStructureType(typeName, fields);
         }
 
-        // We do a final check here to ensure that our type hasn't been added already.
-        // This is necessary to resolve circular dependencies (e.g. A -> B -> C -> D -> B), which are present on some pointer types.
-        if (TryFindType(typeName, out ICodegenType circularRefType))
-        {
-            Log.Write($"Circular dependency detected: {type} vs {circularRefType}", ConsoleColor.Yellow);
-            return MergeType(typeName, circularRefType, root, children, originalChildren);
-        }
+        // If we don't have any children, we shouldn't reach this point (in theory, though we do in practice).
+        // We expect all leafs to be built-in/primitive types, or in other words, already added.
 
-        AddType(type);
-        return type;
+        Log.Write($"Non-builtin type {root} with no children. This is probably weird data.", ConsoleColor.Yellow);
+        return new CodegenForwardDeclType(typeName);
     }
 
-    private bool TryConstructSpecialType(
+    private static bool TryConstructSpecialType(
         TreePath root,
         IEnumerable<TreePath> children,
-        out ICodegenType type)
+        out CodegenType type)
     {
         Debug.Assert(root.Length == 1);
         Debug.Assert(children.All(x => !x.StartsWith(root) && x.Length >= 1));
+
+        if (_primitives.TryGetValue(root.Last.TypeName, out CodegenPrimitiveType? primitive))
+        {
+            type = primitive;
+            return true;
+        }
 
         AsciiString rootName = root.Last.Name;
         AsciiString rootTypeName = root.Last.TypeName;
@@ -131,7 +111,7 @@ public class CodegenTypeBuilder
         bool isReferencedObjectRegistry = rootTypeName == "ManagedReferencesRegistry";
         bool isHash128 = rootTypeName == "Hash128";
 
-        ICodegenType? specialType = null;
+        CodegenType? specialType = null;
 
         // pptr -> { m_FileID, m_PathID }
         if (isPPtr)
@@ -178,12 +158,12 @@ public class CodegenTypeBuilder
             TreePath mapKey = children.First(x => x == "Array/data/first");
             TreePath mapValue = children.First(x => x == "Array/data/second");
 
-            ICodegenType mapKeyType = ConstructType(
+            CodegenType mapKeyType = ConstructType(
                 mapKey.Last.TypeName,
                 mapKey[2..],
                 children.Where(x => x.StartsWith(mapKey)).Select(x => x[2..]));
 
-            ICodegenType mapValueType = ConstructType(
+            CodegenType mapValueType = ConstructType(
                 mapValue.Last.TypeName,
                 mapValue[2..],
                 children.Where(x => x.StartsWith(mapValue)).Select(x => x[2..]));
@@ -211,7 +191,7 @@ public class CodegenTypeBuilder
 
             TreePath arrayDataPath = children.First(x => x.Last.Name == "data");
 
-            ICodegenType arrayDataType = ConstructType(
+            CodegenType arrayDataType = ConstructType(
                 arrayDataPath.Last.TypeName,
                 arrayDataPath,
                 children.Where(x => x.StartsWith(arrayDataPath)));
@@ -221,7 +201,7 @@ public class CodegenTypeBuilder
         // registry -> { a bunch of Bases of unique types ... }
         else if (isReferencedObjectRegistry)
         {
-            List<ICodegenType> embeddedTypes = [];
+            List<CodegenType> embeddedTypes = [];
 
             foreach (TreePath refRoot in children.Where(x => x == "Base"))
             {
@@ -245,10 +225,8 @@ public class CodegenTypeBuilder
             specialType = new CodegenHash128Type();
         }
 
-        // We should have handled arrays already, so if we reach this point, it's a bug.
-
-        Debug.Assert(rootName != "Array");
-        Debug.Assert(rootTypeName != "Array");
+        Debug.Assert(rootName != "Array" && rootTypeName != "Array",
+            "We should have handled arrays already");
 
         if (specialType != null)
         {
@@ -260,92 +238,5 @@ public class CodegenTypeBuilder
         return false;
     }
 
-    private ICodegenType MergeType(
-        AsciiString typeName,
-        ICodegenType type,
-        TreePath root,
-        IEnumerable<TreePath> children,
-        IEnumerable<TreePath> originalChildren)
-    {
-        if (type is CodegenStructureAliasType alias)
-        {
-            // If we're already an alias, just call this function again on our original type. We'll either:
-            // * Match directly, and return original type.
-            // * Match indirectly, via one of the existing aliases (which could well have been ourself - but this simplifies the code!)
-            // * No match, in which case, we'll create an alias of the original type and return it. (important note: NOT an alias of an alias)
-            return MergeType(alias.OriginalType.Name, alias.OriginalType, root, children, originalChildren);
-        }
-
-        if (type is CodegenStructureType struc)
-        {
-            if (struc.Equals(children)) return type; // Great! We're a direct match. :)
-
-            // Find any aliases this type might already have.
-            if (_typeAliases.TryGetValue(type.Name, out List<CodegenStructureType>? aliasTypes))
-            {
-                ICodegenType? match = aliasTypes.FirstOrDefault(x => x.Equals(children));
-
-                if (match != null)
-                {
-                    LogVerbose(0, $"Found alias for {typeName}! Original: {type}, alias: {match}.", ConsoleColor.Green);
-                    return match;
-                }
-            }
-            else
-            {
-                aliasTypes = [];
-                _typeAliases.Add(typeName, aliasTypes);
-            }
-
-            // This is the worst outcome. We will have to generate a new name for it, then create it and return that alias.
-            AsciiString newTypeName = AsciiString.From($"{typeName}{aliasTypes.Count}");
-            Log.Write($"Aliasing {typeName} to {newTypeName}", ConsoleColor.DarkYellow);
-
-            CodegenStructureType aliasType = (CodegenStructureType)ConstructType(
-                newTypeName,
-                root,
-                originalChildren,
-                f => new CodegenStructureAliasType(newTypeName, f, struc));
-
-            aliasTypes.Add(aliasType);
-            return aliasType;
-        }
-
-        Debug.Assert(type is CodegenBuiltInType, $"We should never reach this point with a non-primitive type, but we got {type}");
-
-        return type;
-    }
-
-    private void AddType(
-        ICodegenType type)
-    {
-        int typeIdx = _types.Count;
-        _typesIndexLookup.Add(type.Name, typeIdx);
-        _types.Add(type);
-        LogVerbose(4, $"[{typeIdx}] = {type}", ConsoleColor.DarkYellow);
-    }
-
-    private bool TryFindType(
-        AsciiString name,
-        out ICodegenType type)
-    {
-        if (_typesIndexLookup.TryGetValue(name, out int typeIdx))
-        {
-            type = _types[typeIdx];
-            LogVerbose(4, $"Found existing type {type} at [{typeIdx}] for {name}", ConsoleColor.DarkGreen);
-            return true;
-        }
-
-        type = default!;
-        LogVerbose(4, $"Didn't find type {name}", ConsoleColor.DarkRed);
-        return false;
-    }
-
-    [Conditional("DEBUG_VERBOSE")]
-    private void LogVerbose(int indent, string msg, ConsoleColor color = Log.DefaultColor) =>
-        Log.Write(indent, msg, color);
-
-    private readonly List<ICodegenType> _types = [];
-    private readonly Dictionary<AsciiString, int> _typesIndexLookup = [];
-    private readonly Dictionary<AsciiString, List<CodegenStructureType>> _typeAliases = [];
+    private static readonly Dictionary<AsciiString, CodegenPrimitiveType> _primitives = [];
 }

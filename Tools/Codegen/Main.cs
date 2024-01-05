@@ -79,9 +79,9 @@ Log.Write($"{report.AllPathObjects.Length} objects with " +
 
 Codegen.Codegen codegen = new(report);
 
-codegen.ReadGameStructures(report, deserializedScriptInfo
-    .DistinctBy(x => x.m_PropertiesHash)
-    .ToDictionary(x => x.m_PropertiesHash, x => x.m_ClassName));
+//codegen.ReadGameStructures(report, deserializedScriptInfo
+//    .DistinctBy(x => x.m_PropertiesHash)
+//    .ToDictionary(x => x.m_PropertiesHash, x => x.m_ClassName));
 
 ExportCodegen(codegen);
 
@@ -93,7 +93,7 @@ static void ExportCodegen(Codegen.Codegen codegen)
 
     if (exportStructures)
     {
-        const string path = @"D:\\RogueTraderUnityToolkit\\RogueTraderUnityToolkit.UnityGenerated\\Types";
+        const string path = @"D:\RogueTraderUnityToolkit\RogueTraderUnityToolkit.UnityGenerated\Types";
 
         if (Directory.Exists(path))
         {
@@ -269,26 +269,20 @@ static void DeserializeObjects(
     foreach (SerializedFileObjectInstance instance in file.ObjectInstances)
     {
         SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
-        //if (info.Type != UnityObjectType.MonoScript) continue;
+        if (info.Type == UnityObjectType.MonoBehaviour) continue;
 
         reader.Position = (int)instance.Offset;
 
         if (GeneratedTypes.TryCreateType(info.Hash, reader, out IUnityObject obj))
         {
             workData.DeserializedObjects.Add(obj);
-
-#if DEBUG_VERBOSE
-            Log.Write($"Created {obj}!", ConsoleColor.Green);
-#endif
         }
         else
         {
             Log.Write($"Failed to create type {info.Hash}", ConsoleColor.Yellow);
         }
 
-        // Because of the way we handle the alignment (reading top to bottom for performance reasons), we miss the final alignment
-        // at the end of each object, so we have to align the stream position to 4 for this check to make sense.
-        Debug.Assert(Memory.AlignTo(reader.Position, 4) == instance.Offset + instance.Size);
+        Debug.Assert(reader.Position == instance.Offset + instance.Size);
     }
 }
 

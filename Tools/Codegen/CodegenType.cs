@@ -4,15 +4,44 @@ using RogueTraderUnityToolkit.Unity.TypeTree;
 
 namespace Codegen;
 
-public interface ICodegenType
+public record class CodegenType(AsciiString Name);
+
+public record class CodegenStructureType(
+    AsciiString Name,
+    IReadOnlyList<CodegenStructureField> Fields)
+    : CodegenType(Name)
 {
-    AsciiString Name { get; }
+    public virtual bool Equals(CodegenStructureType? rhs) => rhs != null && Name == rhs.Name && Fields.SequenceEqual(rhs.Fields);
+
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(Name);
+        foreach (CodegenStructureField field in Fields) hash.Add(field);
+        return hash.ToHashCode();
+    }
+
+    public override string ToString() => $"${Name} ({Fields.Count} fields)";
 }
 
-public record class CodegenBuiltInType(
+public sealed record class CodegenRootType(
     AsciiString Name,
-    ObjectParserType Type) : ICodegenType
+    IReadOnlyList<CodegenStructureField> Fields,
+    Hash128 Hash,
+    bool IsEngineType)
+    : CodegenStructureType(Name, Fields)
 {
+    public bool Equals(CodegenRootType? rhs) => base.Equals(rhs) && Hash == rhs.Hash && IsEngineType == rhs.IsEngineType;
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Hash, IsEngineType);
+    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}";
+}
+
+public record class CodegenPrimitiveType(AsciiString Name, ObjectParserType Type)
+    : CodegenType(Name)
+{
+    public bool CompatibleWith(IEnumerable<TreePath> children) =>
+        children.Count() == 1 && children.First().Last.Type == Type;
+
     public Type CSharpType => Type switch
     {
         ObjectParserType.U64 => typeof(ulong),
@@ -33,101 +62,49 @@ public record class CodegenBuiltInType(
     public override string ToString() => CSharpType.ToString();
 }
 
-public record class CodegenStructureType(
-    AsciiString Name,
-    IReadOnlyList<ICodegenField> Fields) : ICodegenType
+public record class CodegenPPtrType(AsciiString NameT)
+    : CodegenType(AsciiString.From($"PPtr<{NameT}>"))
 {
-    public bool Equals(IEnumerable<TreePath> children)
-    {
-        List<TreePath> immediateChildren = children.Where(x => x.Length == 1).ToList();
-        if (immediateChildren.Count != Fields.Count) return false;
-
-        foreach ((ICodegenField field, TreePath treePath) in Fields.Zip(immediateChildren, (f, t) => (f, t)))
-        {
-            if (field.Name != treePath.Last.Name) return false;
-
-            if (field.Type is CodegenStructureType struc)
-            {
-                IEnumerable<TreePath> subChildren = children.Where(x => x.StartsWith(treePath)).Skip(1).Select(x => x[1..]);
-                if (!struc.Equals(subChildren)) return false;
-            }
-        }
-
-        return true;
-    }
-
-    public override string ToString() => $"${Name} ({Fields.Count} fields)";
-}
-
-public record class CodegenStructureAliasType(
-    AsciiString Name,
-    IReadOnlyList<ICodegenField> Fields,
-    CodegenStructureType OriginalType) : CodegenStructureType(Name, Fields)
-{
-    public override string ToString() => $"${Name} ({Fields.Count} fields) alias of {OriginalType.Name}";
-}
-
-public record class CodegenEngineStructureType(
-    AsciiString Name,
-    IReadOnlyList<ICodegenField> Fields,
-    Hash128 Hash) : CodegenStructureType(Name, Fields)
-{
-    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}";
-}
-
-public record class CodegenGameStructureType(
-    AsciiString Name,
-    IReadOnlyList<ICodegenField> Fields,
-    Hash128 Hash,
-    Hash128 ScriptHash) : CodegenStructureType(Name, Fields)
-{
-    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}/{ScriptHash}";
-}
-
-public record class CodegenPPtrType(
-    AsciiString TypeName) : ICodegenType
-{
-    public AsciiString Name { get; } = AsciiString.From($"PPtr<{TypeName}>");
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenStringType : ICodegenType
+public record class CodegenStringType()
+    : CodegenType(AsciiString.From("AsciiString"))
 {
-    public AsciiString Name { get; } = AsciiString.From($"AsciiString");
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenArrayType(
-    ICodegenType DataType) : ICodegenType
+public record class CodegenArrayType(CodegenType DataType)
+    : CodegenType(AsciiString.From($"Array<{DataType.Name}>"))
 {
-    public AsciiString Name { get; } = AsciiString.From($"Array<{DataType.Name}>");
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenMapType(
-    ICodegenType KeyType,
-    ICodegenType ValueType) : ICodegenType
+public record class CodegenMapType(CodegenType KeyType, CodegenType ValueType)
+    : CodegenType(AsciiString.From($"Map<{KeyType.Name}, {ValueType.Name}>"))
 {
-    public AsciiString Name { get; } = AsciiString.From($"Map<{KeyType.Name}, {ValueType.Name}>");
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenRefRegistryType(
-    IReadOnlyList<ICodegenType> Types) : ICodegenType
+public record class CodegenRefRegistryType(IReadOnlyList<CodegenType> Types)
+    : CodegenType(AsciiString.From($"RefRegistry"))
 {
-    public AsciiString Name { get; } = AsciiString.From($"RefRegistry_{_nextRefRegistry++}");
-    private static int _nextRefRegistry = 0;
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenHash128Type : ICodegenType
+public record class CodegenHash128Type()
+    : CodegenType(AsciiString.From("Hash128"))
 {
-    public AsciiString Name { get; } = AsciiString.From("Hash128");
     public override string ToString() => Name.ToString();
 }
 
-public record class CodegenForwardDeclType(
-    AsciiString Name) : ICodegenType
+public record class CodegenForwardDeclType( AsciiString Name)
+    : CodegenType(Name)
 {
     public override string ToString() => $"?{Name}";
+}
+
+public record class CodegenStructureField(CodegenType Type, AsciiString Name, bool NeedsAlign)
+{
+    public override string ToString() => $"{Type} {Name} {NeedsAlign}";
 }

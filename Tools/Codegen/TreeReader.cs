@@ -37,7 +37,6 @@ public sealed class TreeReader(
         _allocations.Clear();
         _visited.Clear();
         _paths.Clear();
-        _needsAlign = false;
     }
 
     public void FinishObject(
@@ -101,23 +100,12 @@ public sealed class TreeReader(
                 _paths.Add(Path(frame, allocation[..^idx++]));
                 _visited.Add(frame);
             }
-
-            _needsAlign = false;
         }
-    }
-
-    public override void Align(
-        in ObjectParserNode node,
-        byte alignedBytes)
-    {
-        base.Align(in node, alignedBytes);
-        _needsAlign = true;
     }
 
     private List<TreePath> _paths = [];
     private readonly List<TreePathMemoryHandle> _allocations = [];
     private readonly HashSet<NodeFrame> _visited = [];
-    private bool _needsAlign = false;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private TreePath Path(in NodeFrame frame, in TreePathAllocation allocation) => new(allocation, new(frame.NodeIdx, (byte)frame.TreeIdx));

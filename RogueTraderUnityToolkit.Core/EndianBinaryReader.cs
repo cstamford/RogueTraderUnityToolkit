@@ -140,6 +140,12 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public bool ReadBool() => ReadB8();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public char ReadChar() => (char)ReadByte();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public AsciiString ReadString(int len)
     {
         byte[] memory = ArrayPool<byte>.Shared.Rent(len);
@@ -183,9 +189,6 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
         Seek(1); // skip over the null terminator
         return asciiString;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public bool ReadBool() => ReadB8();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public unsafe byte ReadByte()

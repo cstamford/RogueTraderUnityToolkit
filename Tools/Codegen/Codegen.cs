@@ -19,7 +19,8 @@ public class Codegen
             TreePathObject obj = isGameType ? objs.MinBy(x => x.Paths.Count) : objs.First();
             AsciiString name = AsciiString.From(obj.Type.ToString());
 
-            _typeBuilder.ReadTreeObject(obj, name, x => new CodegenEngineStructureType(name, x, obj.Hash));
+            Log.Write($"Creating engine type {name}");
+            _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, obj.Hash, true)));
         }
     }
 
@@ -32,7 +33,8 @@ public class Codegen
         {
             if (scriptTypeNames.TryGetValue(obj.Hash, out AsciiString name))
             {
-                _typeBuilder.ReadTreeObject(obj, name, x => new CodegenGameStructureType(name, x, obj.Hash, obj.ScriptHash));
+                Log.Write($"Creating game type {name}");
+                _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, obj.Hash, false)));
                 continue;
             }
 
@@ -42,37 +44,28 @@ public class Codegen
 
     public void WriteStructures(string path)
     {
-        CodegenCSharpWriter writer = new(_typeBuilder.Types, _typeBuilder.TypesIndexLookup);
+        IReadOnlyList<CodegenType> types = CalculateExportableTypes();
 
-        List<AsciiString> allMissingTypes = [];
-        HashSet<AsciiString> visited = [];
+        CodegenCSharpWriter writer = new();
 
         bool anyGame = false;
         bool anyEngine = false;
 
-        foreach (ICodegenType type in _typeBuilder.Types)
+        foreach (CodegenRootType root in types.OfType<CodegenRootType>())
         {
-            bool isGame = type is CodegenGameStructureType;
-            bool isEngine = type is CodegenEngineStructureType;
+            anyGame |= !root.IsEngineType;
+            anyEngine |= root.IsEngineType;
 
-            anyGame |= isGame;
-            anyEngine |= isEngine;
-
-            if (!isEngine && !isGame) continue;
-
-            string category = isGame ? "Game" : "Engine";
+            string category = root.IsEngineType ? "Engine" : "Game";
 
             string typeDir = Path.Combine(path, category);
             Directory.CreateDirectory(typeDir);
 
-            string typeFile = Path.Combine(typeDir, $"{type.Name}.cs");
+            string typeFile = Path.Combine(typeDir, $"{root.Name}.cs");
             using StreamWriter typeWriter = File.CreateText(typeFile);
 
-            writer.WriteHeader(typeWriter, category, [isGame ? "Engine" : string.Empty]);
-            writer.WriteType(typeWriter, type, out AsciiString[] missingTypes);
-
-            allMissingTypes.AddRange(missingTypes);
-            visited.Add(type.Name);
+            writer.WriteHeader(typeWriter, category, [root.IsEngineType ? string.Empty : "Engine"]);
+            writer.WriteType(typeWriter, root);
         }
 
         string referencedTypesFile = Path.Combine(path, $"ReferencedTypes.cs");
@@ -80,29 +73,111 @@ public class Codegen
         writer.WriteHeader(referencedTypesWriter, string.Empty,
             [ anyEngine ? "Engine" : string.Empty, anyGame ? "Game" : string.Empty ]);
 
-        foreach (ICodegenType otherType in _typeBuilder.Types.Where(x => !visited.Contains(x.Name)))
+        foreach (CodegenStructureType otherType in types
+            .OfType<CodegenStructureType>()
+            .Where(x => x is not CodegenRootType))
         {
-            writer.WriteType(referencedTypesWriter, otherType, out AsciiString[] missingTypes);
-            allMissingTypes.AddRange(missingTypes);
-            visited.Add(otherType.Name);
+            writer.WriteType(referencedTypesWriter, otherType);
         }
 
-        allMissingTypes = [..allMissingTypes.Distinct().Where(x => !visited.Contains(x))];
-
+        List<CodegenForwardDeclType> allMissingTypes = [..types.OfType<CodegenForwardDeclType>()];
         if (allMissingTypes.Count > 0)
         {
             Log.WriteSingle($"Writing missing types: ", ConsoleColor.Yellow);
             Log.WriteSingle(string.Join(", ", allMissingTypes.Take(3).Select(x => x.ToString())), ConsoleColor.Yellow);
             Log.Write(allMissingTypes.Count > 3 ? $", {allMissingTypes.Count - 3} more..." : "", ConsoleColor.Yellow);
 
-            foreach (AsciiString typeName in allMissingTypes)
+            foreach (CodegenForwardDeclType forwardDecl in allMissingTypes)
             {
-                writer.WriteType(referencedTypesWriter, new CodegenForwardDeclType(typeName), out _);
+                writer.WriteType(referencedTypesWriter, forwardDecl);
+            }
+        }
+    }
+
+    private IReadOnlyList<CodegenType> CalculateExportableTypes()
+    {
+        // Collect a big, flattened array of every type.
+        List<CodegenType> fullTypeList = [];
+        foreach (CodegenRootType type in _types)
+        {
+            GatherAllReferencedTypes(type, fullTypeList);
+        }
+
+        // We've got a whole bunch of types, now select only types that are actually unique types.
+        List<CodegenType> fullTypeListUnique = [..fullTypeList.Distinct()];
+
+        // Strip any forward declarations where we have the full implementation already.
+        foreach (CodegenForwardDeclType decl in fullTypeListUnique.OfType<CodegenForwardDeclType>().ToArray())
+        {
+            if (fullTypeListUnique.Any(x => x.Name == decl.Name && x is not CodegenForwardDeclType))
+            {
+                fullTypeListUnique.Remove(decl);
             }
         }
 
-        Debug.Assert(visited.Count == _typeBuilder.Types.Count);
+        // Construct a list of types that have the same name but different layouts.
+        Dictionary<AsciiString, CodegenType[]> aliases = fullTypeListUnique
+            .GroupBy(x => x.Name)
+            .Where(x => x.Count() > 1)
+            .Select(x => (x.Key, x.Select(y => y).ToArray()))
+            .ToDictionary(x => x.Key, x => x.Item2);
+
+        // Update each type to point their references to the correct one.
+        return fullTypeListUnique.Select(x => UpdateAllAliasTypeReferences(x, aliases)).ToList();
     }
 
-    private readonly CodegenTypeBuilder _typeBuilder = new();
+    private static void GatherAllReferencedTypes(CodegenType type, ICollection<CodegenType> allTypes)
+    {
+        allTypes.Add(type);
+
+        switch (type)
+        {
+            case CodegenStructureType codegenStructureType:
+                foreach (CodegenStructureField field in codegenStructureType.Fields)
+                    GatherAllReferencedTypes(field.Type, allTypes);
+                break;
+
+            case CodegenArrayType codegenArrayType:
+                GatherAllReferencedTypes(codegenArrayType.DataType, allTypes);
+                break;
+
+            case CodegenMapType codegenMapType:
+                GatherAllReferencedTypes(codegenMapType.KeyType, allTypes);
+                GatherAllReferencedTypes(codegenMapType.ValueType, allTypes);
+                break;
+
+            case CodegenPPtrType codegenPPtrType:
+                GatherAllReferencedTypes(new CodegenForwardDeclType(codegenPPtrType.NameT), allTypes);
+                break;
+        }
+    }
+
+    private static CodegenType UpdateAllAliasTypeReferences(
+        CodegenType typeToUpdate,
+        IReadOnlyDictionary<AsciiString, CodegenType[]> aliases)
+    {
+        if (aliases.TryGetValue(typeToUpdate.Name, out CodegenType[]? types))
+        {
+            int oldIdx = Array.IndexOf(types, typeToUpdate);
+            Debug.Assert(oldIdx != -1);
+            typeToUpdate = typeToUpdate with { Name = AsciiString.From($"{typeToUpdate.Name}_{oldIdx}") };
+        }
+
+        return typeToUpdate switch
+        {
+            CodegenArrayType arr => arr with {
+                DataType = UpdateAllAliasTypeReferences(arr.DataType, aliases)
+            },
+            CodegenMapType map => map with {
+                KeyType = UpdateAllAliasTypeReferences(map.KeyType, aliases),
+                ValueType = UpdateAllAliasTypeReferences(map.ValueType, aliases)
+            },
+            CodegenStructureType struc => struc with { Fields = struc.Fields
+                .Select(x => x with { Type = UpdateAllAliasTypeReferences(x.Type, aliases) })
+                .ToList() },
+            _ => typeToUpdate
+        };
+    }
+
+    private readonly List<CodegenRootType> _types = [];
 }
