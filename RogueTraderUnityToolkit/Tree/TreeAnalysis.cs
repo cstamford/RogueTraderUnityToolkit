@@ -3,7 +3,7 @@ using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Tree;
 
 public readonly record struct TreeReport(
     (TreePath Path, int Refcount)[] AllPaths,
@@ -224,6 +224,50 @@ public static class TreeAnalysis
             }
         }
     }
+
+    public static void ExportReport(TreeReport report, string dir)
+    {
+        const bool exportAllPaths = true;
+        const bool exportFieldAccessByTypeName = true;
+        const bool exportFieldAccessByUnityType = true;
+        const bool exportHashAnalysis = true;
+
+        if (exportAllPaths)
+        {
+            string path = Path.Combine(dir, "allPaths.txt");
+            using FileStream stream = File.Create(path);
+            using StreamWriter sw = new(stream);
+            WriteAllPaths(sw, report);
+            Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        }
+
+        if (exportFieldAccessByTypeName)
+        {
+            string path = Path.Combine(dir, "fieldAccessByTypeName.txt");
+            using FileStream stream = File.Create(path);
+            using StreamWriter sw = new(stream);
+            WriteFieldAccessByTypeName(sw, report);
+            Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        }
+
+        if (exportFieldAccessByUnityType)
+        {
+            string path = Path.Combine(dir, "fieldAccessByUnityType.txt");
+            using FileStream stream = File.Create(path);
+            using StreamWriter sw = new(stream);
+            WriteFieldAccessByUnityType(sw, report);
+            Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        }
+
+        if (exportHashAnalysis)
+        {
+            string path = Path.Combine(dir, "hashAnalysis.txt");
+            using FileStream stream = File.Create(path);
+            using StreamWriter sw = new(stream);
+            WriteHashAnalysis(sw, report);
+            Log.Write($"Saved {Path.GetFullPath(path)}", ConsoleColor.Cyan);
+        }
+    }
 }
 
 public static class Extensions
@@ -238,18 +282,4 @@ public static class Extensions
         entry.Type == ObjectParserType.Complex
             ? entry.TypeName.ToString()
             : entry.Type.ToString();
-
-    public static void DumpToLog(this TreePath path)
-    {
-        Log.Write(path.ToString());
-        Log.Write(4, $"Hash: ${path.Hash}");
-        Log.Write(4, $"Length: ${path.Length}");
-
-        for (int i = 0; i < path.Length; ++i)
-        {
-            Log.Write(4, $"[{i}].Name {path[i].Name}");
-            Log.Write(4, $"[{i}].TypeName {path[i].TypeName}");
-            Log.Write(4, $"[{i}].Type {path[i].Type}");
-        }
-    }
 }

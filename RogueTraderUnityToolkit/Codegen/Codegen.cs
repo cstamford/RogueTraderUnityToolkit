@@ -1,8 +1,9 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Tree;
 using RogueTraderUnityToolkit.Unity;
 using System.Diagnostics;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Codegen;
 
 public class Codegen
 {

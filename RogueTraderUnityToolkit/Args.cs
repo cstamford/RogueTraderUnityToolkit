@@ -2,6 +2,11 @@
 
 namespace RogueTraderUnityToolkit;
 
+public enum ProcessMode
+{
+    Codegen
+}
+
 public class Args
 {
     [Option("cores", Default = 0, HelpText = "How many CPU cores to use. Set to 0 for all of them.")]
@@ -13,9 +18,10 @@ public class Args
     [Option("dir", Default = null, HelpText = "If set, exports to this directory.")]
     public string? ExportPath { get; set; }
 
+    [Option("mode", Required = true, HelpText = "The processing mode to use.")]
+    public ProcessMode Mode { get; set; }
+
     [Value(0, MetaName = "paths", HelpText = "Input paths to be processed.", Required = true)]
     public IEnumerable<string> ImportPaths { get; set; } = default!;
 
-    [Option("stdout", Default = false, HelpText = "If set, and outDir is unset, exports to stdout.")]
-    public bool ExportStdOut { get; set; }
 }

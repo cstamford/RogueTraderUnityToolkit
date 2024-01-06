@@ -1,37 +1,20 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
-using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace Codegen;
-
-public interface ITreeReader : IObjectTypeTreeReader
-{
-    public void StartFile(SerializedFile file);
-    public void FinishFile(SerializedFile file);
-
-    public void StartObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance);
-
-    public void FinishObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance);
-}
+namespace RogueTraderUnityToolkit.Tree;
 
 public sealed class TreeReader(
     TreePathAllocator allocator,
     Dictionary<TreePathObject, int> data)
     : ObjectTypeTreeBasicReader, ITreeReader
 {
-    public void StartFile(SerializedFile file) {}
-    public void FinishFile(SerializedFile file) {}
-
     public void StartObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance)
+        UnityObjectType type,
+        Hash128 scriptHash,
+        Hash128 hash)
     {
         // Clear on start, not end, so we can more easily debug issues with past reads.
         _allocations.Clear();
@@ -40,12 +23,13 @@ public sealed class TreeReader(
     }
 
     public void FinishObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance)
+        UnityObjectType type,
+        Hash128 scriptHash,
+        Hash128 hash)
     {
         // At this point, the paths collection should be completely correct and represent an object.
         TreeReaderDebug.EnsureCorrectness(_paths, Trees);
-        TreePathObject obj = new(info.Type, info.ScriptHash, info.Hash, _paths);
+        TreePathObject obj = new(type, scriptHash, hash, _paths);
 
         // If we can insert fully, it's a unique set of paths.
         if (data.TryAdd(obj, 1))
@@ -133,45 +117,6 @@ public sealed class TreeReader(
         Debug.Assert(!_visited.Contains(frame));
         _visited.Add(frame);
     }
-}
-
-public sealed class TreeReaderDebugReader(Stream stream) : ObjectTypeTreeBasicReader, ITreeReader
-{
-    public void StartFile(SerializedFile file) =>_writer.WriteLine($"#### {file.Info.Identifier} ####");
-    public void FinishFile(SerializedFile file) => _writer.WriteLine();
-
-    public void StartObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance) => _writer.WriteLine($"** {info} **");
-
-    public void FinishObject(
-        in SerializedFileObjectInfo info,
-        in SerializedFileObjectInstance instance) => _writer.WriteLine();
-
-    public override void BeginNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        base.BeginNode(node, tree);
-
-        if (IsFirstArrayIndex)
-        {
-            _writer.WriteLine($"{' '.Repeat(_nodeLevel * 4)}{node.ToString()}");
-        }
-
-        ++_nodeLevel;
-    }
-
-    public override void EndNode(
-        in ObjectParserNode node,
-        in ObjectTypeTree tree)
-    {
-        base.EndNode(node, tree);
-        --_nodeLevel;
-    }
-
-    private readonly TextWriter _writer = new StreamWriter(stream) { AutoFlush = true };
-    private int _nodeLevel;
 }
 
 // Define TREE_READER_DEBUG if you're making changes to the node ordering or want to debug

@@ -1,8 +1,9 @@
 ﻿using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.Tree;
 using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Codegen;
 
 public record class CodegenType(AsciiString Name);
 

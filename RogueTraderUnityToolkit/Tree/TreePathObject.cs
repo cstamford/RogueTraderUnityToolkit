@@ -1,6 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Unity;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Tree;
 
 public readonly record struct TreePathObject
 {

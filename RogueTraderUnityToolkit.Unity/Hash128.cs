@@ -1,5 +1,4 @@
 ﻿using RogueTraderUnityToolkit.Core;
-using System.Diagnostics;
 
 namespace RogueTraderUnityToolkit.Unity;
 
@@ -10,6 +9,12 @@ public readonly record struct Hash128(
     uint Uint3)
     : IComparable<Hash128>
 {
+    public Hash128(string hashString) : this(
+        Convert.ToUInt32(hashString[..8], 16),
+        Convert.ToUInt32(hashString[8..16], 16),
+        Convert.ToUInt32(hashString[16..24], 16),
+        Convert.ToUInt32(hashString[24..32], 16)) { }
+
     public static Hash128 Read(EndianBinaryReader reader)
     {
         uint uint0 = reader.ReadU32();

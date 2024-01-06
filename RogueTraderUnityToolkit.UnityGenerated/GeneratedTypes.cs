@@ -1,8 +1,6 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity;
-using System.Diagnostics;
 using System.Reflection;
-using System.Text;
 
 namespace RogueTraderUnityToolkit.UnityGenerated;
 

@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Codegen;
 
 public readonly partial struct CodegenCSharpWriter
 {

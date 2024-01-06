@@ -3,7 +3,7 @@ using RogueTraderUnityToolkit.Unity.TypeTree;
 using System.Diagnostics;
 using System.Text;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Tree;
 
 public readonly record struct TreePathEntry(
     AsciiString Name,

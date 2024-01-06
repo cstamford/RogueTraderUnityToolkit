@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace Codegen;
+namespace RogueTraderUnityToolkit.Tree;
 
 public class TreePathAllocator
 {
