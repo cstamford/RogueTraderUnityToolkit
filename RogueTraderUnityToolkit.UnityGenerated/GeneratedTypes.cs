@@ -10,13 +10,12 @@ public interface IUnityObject;
 public interface IUnityStructure : IUnityObject;
 public interface IUnityRootStructure : IUnityStructure;
 public interface IUnityEngineStructure : IUnityRootStructure;
-public interface IUnityGameStructue : IUnityRootStructure;
+public interface IUnityGameStructure : IUnityRootStructure;
 
 public static class GeneratedTypes
 {
     static GeneratedTypes()
     {
-        // Get all types in the assembly that implement IUnityObject
         foreach (Type type in Assembly.GetExecutingAssembly().GetTypes()
             .Where(t => typeof(IUnityRootStructure).IsAssignableFrom(t))
             .Where(t => t is { IsInterface: false, IsAbstract: false }))

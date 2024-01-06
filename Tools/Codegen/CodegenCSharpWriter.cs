@@ -43,20 +43,9 @@ public readonly partial struct CodegenCSharpWriter
             // Calculate the sanitized field names for each field.
             for (int i = 0; i < fieldTypeNames.Length; ++i)
             {
-                fieldNames[i] = SanitizeName($"{struc.Fields[i].Name}");
-                fieldVarNames[i] = SanitizeName($"_{struc.Fields[i].Name}");
+                fieldNames[i] = GetFieldName(struc.Fields[i]);
+                fieldVarNames[i] = $"{fieldNames[i]}_";
                 fieldTypeNames[i] = GetFieldTypeName(struc.Fields[i].Type);
-            }
-
-            // Some types have the same field name as the field's type name, which is a compile error.
-            // If that is the case, we just recalculate them with an extra underscore.
-            for (int i = 0; i < fieldTypeNames.Length; ++i)
-            {
-                if (fieldTypeNames.Any(x => x == fieldNames[i]))
-                {
-                    fieldNames[i] = SanitizeName($"_{struc.Fields[i].Name}");
-                    fieldVarNames[i] = SanitizeName($"__{struc.Fields[i].Name}");
-                }
             }
 
             writer.Write(0, $"/* {type} */");
@@ -97,40 +86,37 @@ public readonly partial struct CodegenCSharpWriter
             writer.Write(8, "");
             writer.Write(8, $"return new({string.Join($",\n{' '.Repeat(12)}", fieldVarNames)});");
             writer.Write(4, "}");
+
             writer.Write(0, "");
             writer.Write(4, $"public override string ToString() => $\"{struc.Name}\\n{{ToString(4)}}\";");
             writer.Write(0, "");
 
-            StringBuilder fieldToStringSb = new();
-            string[] fieldToStringEntries = new string[struc.Fields.Count];
-            string toStringIndent = ' '.Repeat(8);
-
-            for (int i = 0; i < fieldTypeNames.Length; ++i)
-            {
-                fieldToStringSb.AppendLine($"{toStringIndent}for (int i = 0; i < indent; ++i) sb.Append(' ');");
-                fieldToStringSb.AppendLine($"{toStringIndent}sb.Append(\"{fieldNames[i]}: \");");
-
-                if (struc.Fields[i].Type is CodegenStructureType)
-                {
-                    fieldToStringSb.AppendLine($"{toStringIndent}sb.AppendLine();");
-                    fieldToStringSb.AppendLine($"{toStringIndent}sb.Append({fieldNames[i]}.ToString(indent+4));");
-                }
-                else
-                {
-                    fieldToStringSb.AppendLine($"{toStringIndent}sb.AppendLine({fieldNames[i]}.ToString());");
-                }
-
-                fieldToStringEntries[i] = fieldToStringSb.ToString();
-                fieldToStringSb.Length = 0;
-            }
+            string[] fieldToStringFunc = struc.Fields.Select((_, i) => $"ToString_Field{i}").ToArray();
 
             writer.Write(4, "public string ToString(int indent)");
             writer.Write(4, "{");
             writer.Write(8, "StringBuilder sb = new();");
+            writer.Write(8, "string indent_ = ' '.Repeat(indent);");
             writer.Write(0, "");
-            writer.Write(0, string.Join($"\n", fieldToStringEntries));
+            writer.Write(0, string.Join($"\n", fieldToStringFunc.Select(x => $"{' '.Repeat(8)}{x}(sb, indent, indent_);")));
+            writer.Write(0, "");
             writer.Write(8, "return sb.ToString();");
             writer.Write(4, "}");
+            writer.Write(0, "");
+
+            StringBuilder fieldToStringSb = new();
+
+            for (int i = 0; i < struc.Fields.Count; ++i)
+            {
+                writer.Write(4, $"public void {fieldToStringFunc[i]}(StringBuilder sb, int indent, string indent_)");
+                writer.Write(4, "{");
+                EmitToStringForType(8, struc.Fields[i].Type, fieldToStringSb, fieldNames[i]);
+                writer.Write(0, fieldToStringSb.ToString());
+                writer.Write(4, "}");
+
+                if (i != struc.Fields.Count - 1) writer.Write(0, "");
+                fieldToStringSb.Length = 0;
+            }
 
             writer.Write(0, "}");
             writer.Write(0, "");
@@ -160,7 +146,10 @@ public readonly partial struct CodegenCSharpWriter
         "select", "set", "value", "var", "when", "where", "yield"
     ];
 
-    private string GetFieldTypeName(CodegenType type) => type switch
+    private static string GetFieldName(CodegenStructureField field) =>
+        SanitizeName(field.Name == field.Type.Name ? $"{field.Name}_" : field.Name.ToString());
+
+    private static string GetFieldTypeName(CodegenType type) => type switch
     {
         CodegenArrayType array => $"{GetFieldTypeName(array.DataType)}[]",
         CodegenPrimitiveType builtin => builtin.CSharpType switch
@@ -187,7 +176,7 @@ public readonly partial struct CodegenCSharpWriter
         _ => SanitizeName(type.Name.ToString())
     };
 
-    private string GetFieldTypeReader(CodegenType type) => type switch
+    private static string GetFieldTypeReader(CodegenType type) => type switch
     {
         CodegenArrayType array => $"BuiltInArray<{GetFieldTypeName(array.DataType)}>.Read(reader)",
         CodegenPrimitiveType builtIn => $"reader.Read{builtIn.Type}()",
@@ -214,12 +203,111 @@ public readonly partial struct CodegenCSharpWriter
         return name;
     }
 
+    private static void EmitToStringForType(int indent, CodegenType type, StringBuilder sb, string name) =>
+        EmitToStringForTypeImpl(type, sb, name, name, "indent_", 2, indent);
+
+    // This function is kind of ridiculous. If you value your sanity, stay away!
+    private static void EmitToStringForTypeImpl(
+        CodegenType type,
+        StringBuilder sb,
+        string name,
+        string accessor,
+        string indentVarAccessor,
+        int indentIncrease,
+        int depth)
+    {
+        string indent = ' '.Repeat(depth);
+
+        if (type is CodegenPrimitiveType
+            or CodegenHash128Type
+            or CodegenStringType
+            or CodegenPPtrType)
+        {
+            string connector = name[^1] == ' ' ? string.Empty : ": ";
+            sb.Append($"{indent}sb.AppendLine($\"{{{indentVarAccessor}}}{name}{connector}{AddStringQuotes(type, $"{{{accessor}}}")}\");");
+        }
+        else if (type is CodegenStructureType struc)
+        {
+            string connector = name[^1] == ' ' ? string.Empty : ": ";
+            sb.Append($"{indent}sb.Append($\"{{{indentVarAccessor}}}{name}{connector}{{{{ ");
+
+            if (struc.Fields.Count <= 4 && struc.Fields.All(x => x.Type is CodegenPrimitiveType))
+            {
+                sb.Append(string.Join(", ", struc.Fields.Select(GetFieldName).Select(x => $"{x}: {{{accessor}.{x}}}")));
+            }
+            else
+            {
+                sb.Append($"\\n{{{accessor}.ToString(indent+{indentIncrease})}}{{{indentVarAccessor}}}");
+            }
+
+            sb.Append("}}\\n\");");
+        }
+        else if (type is CodegenArrayType or CodegenMapType)
+        {
+            string foreachCnt = $"_{indentIncrease}i";
+            string foreachVar = $"_{indentIncrease}";
+            string foreachVarType;
+            string foreachIndexAccessor;
+            string foreachValueAccessor;
+            string foreachLengthAccessor;
+            CodegenType foreachDataType;
+
+            if (type is CodegenArrayType array)
+            {
+                foreachVarType = GetFieldTypeName(array.DataType);
+                foreachIndexAccessor = $"[{{{foreachCnt}}}] = ";
+                foreachValueAccessor = foreachVar;
+                foreachLengthAccessor = $"{accessor}.Length";
+                foreachDataType = array.DataType;
+            }
+            else if (type is CodegenMapType map)
+            {
+                foreachVarType = $"KeyValuePair<{GetFieldTypeName(map.KeyType)}, {GetFieldTypeName(map.ValueType)}>";
+                foreachIndexAccessor = $"[{AddStringQuotes(map.KeyType, $"{{{foreachVar}.Key}}")}] = ";
+                foreachValueAccessor = $"{foreachVar}.Value";
+                foreachLengthAccessor = $"{accessor}.Count";
+                foreachDataType = map.ValueType;
+            }
+            else throw new(); // suppress compiler uninitialized warning
+
+            sb.AppendLine($"{indent}sb.Append($\"{{{indentVarAccessor}}}{name}[{{{foreachLengthAccessor}}}] = {{{{\");");
+            sb.AppendLine($"{indent}if ({foreachLengthAccessor} > 0) sb.AppendLine();");
+            sb.AppendLine($"{indent}int {foreachCnt} = 0;");
+            sb.AppendLine($"{indent}foreach ({foreachVarType} {foreachVar} in {accessor})");
+            sb.AppendLine($"{indent}{{");
+
+            EmitToStringForTypeImpl(foreachDataType,
+                sb,
+                foreachIndexAccessor,
+                foreachValueAccessor,
+                $"indent_ + ' '.Repeat({indentIncrease})",
+                indentIncrease + 2,
+                depth + 4);
+
+            sb.AppendLine();
+            sb.AppendLine($"{indent}    if (++{foreachCnt} >= 128) break;");
+            sb.AppendLine($"{indent}}}");
+            sb.AppendLine($"{indent}if ({foreachLengthAccessor} > 0) sb.Append({indentVarAccessor});");
+            sb.Append($"{indent}sb.AppendLine(\"}}\");");
+        }
+        else
+        {
+            sb.Append($"{indent}sb.AppendLine($\"{{{indentVarAccessor}}}{name}: [[unimplemented]]\");");
+        }
+
+        return;
+
+        static string AddStringQuotes(CodegenType type, string accessor)
+        {
+            return type is CodegenStringType ? $"\\\"{accessor}\\\"" : accessor;
+        }
+    }
+
     [System.Text.RegularExpressions.GeneratedRegex(@"\[\s*(\d+)\s*\]")]
     private static partial System.Text.RegularExpressions.Regex SanitizeArrayNames();
 
     [System.Text.RegularExpressions.GeneratedRegex(@"\((\w+)&\)")]
     private static partial System.Text.RegularExpressions.Regex SanitizeReferences();
-
 }
 
 public static class CodegenCSharpWriterExtensions

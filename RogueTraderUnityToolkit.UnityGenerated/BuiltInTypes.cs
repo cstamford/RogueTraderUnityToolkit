@@ -90,7 +90,10 @@ public static class BuiltInMap<TKey, TValue> where TKey : notnull
 
             if (!dict.TryAdd(key, value))
             {
+#if DEBUG_VERBOSE
                 Log.Write($"Dict had duplicate key {key}. Naughty data! Using the most recent one.", ConsoleColor.Yellow);
+#endif
+
                 dict[key] = value;
             }
         }
