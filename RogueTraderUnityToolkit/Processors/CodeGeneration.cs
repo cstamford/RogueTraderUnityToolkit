@@ -7,10 +7,23 @@ using RogueTraderUnityToolkit.UnityGenerated;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Text.Json;
 
 namespace RogueTraderUnityToolkit.Processors;
+
+// Custom AssemblyLoadContext for unloading
+internal class UnityAssemblyContext() : AssemblyLoadContext(isCollectible: true)
+{
+    internal record struct MonoScriptDataCopy(
+        byte[] FilePathsData,
+        byte[] TypesData,
+        int TotalTypes,
+        int TotalFiles,
+        bool IsEditorOnly);
+}
 
 public record class CodeGeneration : IAssetProcessor
 {
@@ -23,6 +36,51 @@ public record class CodeGeneration : IAssetProcessor
         if (typeTreesPath != null)
         {
             _knownTypeTrees = TreeConverter.CreateTypeTreesFromJsonPath(typeTreesPath.FullName);
+        }
+
+        Dictionary<AsciiString, List<(string, int)>> assemblyMonoScriptData = [];
+
+        foreach (FileInfo file in files.Where(x => x.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase)))
+        {
+            UnityAssemblyContext loadContext = new();
+
+            try
+            {
+                Assembly assembly = loadContext.LoadFromAssemblyPath(file.FullName);
+                Type? monoScriptType = assembly.GetType("UnitySourceGeneratedAssemblyMonoScriptTypes_v1", false);
+                if (monoScriptType != null)
+                {
+                    Type dataType = assembly.GetType("UnitySourceGeneratedAssemblyMonoScriptTypes_v1+MonoScriptData", false)!;
+                    MethodInfo monoScriptGet = monoScriptType.GetMethod("Get", BindingFlags.Static | BindingFlags.NonPublic)!;
+                    object data = monoScriptGet.Invoke(null, null)!;
+
+                    byte[] typesData = (byte[])dataType.GetField("TypesData")!.GetValue(data)!;
+                    using MemoryStream stream = new(typesData);
+                    EndianBinaryReader reader = new(stream);
+
+                    while (stream.Position < stream.Length)
+                    {
+                        int unknown = reader.ReadS32(); // 16777216 when it's an engine type, 0 otherwise?
+                        byte len = reader.ReadByte();
+                        AsciiString name = reader.ReadString(len);
+
+                        assemblyMonoScriptData.TryAdd(name, []);
+                        assemblyMonoScriptData[name].Add((file.FullName, unknown));
+                    }
+                }
+            }
+            catch (BadImageFormatException)
+            {
+                // Not a managed assembly, skip this file
+            }
+            catch (FileLoadException)
+            {
+                // File could not be loaded (e.g., not a .NET assembly), skip this file
+            }
+            finally
+            {
+                loadContext.Unload();
+            }
         }
     }
 
@@ -41,71 +99,8 @@ public record class CodeGeneration : IAssetProcessor
 
         if (asset is SerializedFile file)
         {
-            SerializedFileReader fileReader = new(file);
-
-            fileReader.ReadObjectRange(
-                treeReader: workData.Reader,
-                withDebugReader: false,
-                startIdx: 0,
-                endIdx: file.ObjectInstances.Length,
-                fnStartedOne: i =>
-                {
-                    ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
-                    SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
-                    workData.Reader.StartObject(info.Type, info.ScriptHash, info.Hash);
-                },
-                fnFinishedOne: i =>
-                {
-                    ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
-                    ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
-                    SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
-                    workData.Reader.FinishObject(info.Type, info.ScriptHash, info.Hash);
-
-                    // Keep a copy of every script tree, so we can reference it later, for stripped trees.
-                    if (file.Target.WithTypeTree && obj.Info.Type == UnityObjectType.MonoBehaviour)
-                    {
-                        _knownScriptTypeTrees.TryAdd(info.Hash, obj.Tree!);
-                    }
-                },
-                fnGetObjectTypeTree: x =>
-                {
-                    if (x.Type == UnityObjectType.MonoBehaviour)
-                    {
-                        if (_knownScriptTypeTrees.TryGetValue(x.Hash, out ObjectTypeTree? tree))
-                        {
-                            return tree;
-                        }
-
-                        _unknownScriptHashes.AddOrUpdate(
-                            (x.Hash, x.ScriptTypeIdx),
-                            (_) => 1, (_, v) => v + 1);
-
-                        return null;
-                    }
-
-                    return _knownTypeTrees[x.Type];
-                });
-
-            using Stream stream = file.Info.Open(file.Header.DataOffset);
-            EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
-
-            for (int i = 0; i < file.ObjectInstances.Length; ++i)
-            {
-                ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
-                ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
-
-                if (obj.Info.Type == UnityObjectType.MonoScript)
-                {
-                    reader.Position = (int)instance.Offset;
-
-                    if (GeneratedTypes.TryCreateType(obj.Info.Hash, obj.Info.Type, reader, out IUnityObject createdObj))
-                    {
-                        Debug.Assert(reader.Position == instance.Offset + instance.Size);
-                        workData.ScriptObjects.Add(createdObj);
-                    }
-                }
-            }
-
+            Process_ReadAllTypeTrees(file, workData);
+            Process_ReadAllMonoScripts(file, workData);
             assetCountProcessed = file.ObjectInstances.Length;
         }
         else
@@ -120,50 +115,164 @@ public record class CodeGeneration : IAssetProcessor
         Args args,
         ISerializedAsset[] assets)
     {
-        Dictionary<TreePathObject, int> treeObjects = [];
-        List<IUnityObject> scriptObjects = [];
+        End_MergeWorkData(_threadWorkData,
+            out Dictionary<TreePathObject, int> treeObjects,
+            out List<IUnityObject> parsedObjects,
+            out List<DeferredObject> deferredObjects);
 
-        foreach (ThreadWorkData workData in _threadWorkData)
+        End_AddDeferredObjects(treeObjects, parsedObjects, deferredObjects);
+
+        TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
+
+        Codegen.Codegen codegen = new(report);
+        if (args.ExportPath != null)
+        {
+            End_ExportAll(args.ExportPath, report, codegen);
+
+            File.WriteAllText(
+                Path.Combine(args.ExportPath, "deferred.json"),
+                JsonSerializer.Serialize(deferredObjects.Select(x => new
+            {
+                File = x.Owner.Info,
+                ObjectInstance = x.Instance,
+                OBjectInfo = x.Info
+            }), new JsonSerializerOptions() { WriteIndented = true }));
+        }
+    }
+
+    private void Process_ReadAllTypeTrees(
+        SerializedFile file,
+        ThreadWorkData workData)
+    {
+        SerializedFileReader fileReader = new(file);
+
+        fileReader.ReadObjectRange(
+            treeReader: workData.Reader,
+            withDebugReader: false,
+            startIdx: 0,
+            endIdx: file.ObjectInstances.Length,
+            fnStartedOne: i =>
+            {
+                ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
+                SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
+                workData.Reader.StartObject(info.Type, info.ScriptHash, info.Hash);
+            },
+            fnFinishedOne: i =>
+            {
+                ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
+                ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
+                SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
+                workData.Reader.FinishObject(info.Type, info.ScriptHash, info.Hash);
+
+                // Keep a copy of every script tree, so we can reference it later, for stripped trees.
+                if (file.Target.WithTypeTree && obj.Info.Type == UnityObjectType.MonoBehaviour)
+                {
+                    _knownScriptTypeTrees.TryAdd(info.Hash, obj.Tree!);
+                }
+            },
+            fnGetObjectTypeTree: (instance, info) =>
+            {
+                if (info.Type == UnityObjectType.MonoBehaviour)
+                {
+                    if (_knownScriptTypeTrees.TryGetValue(info.Hash, out ObjectTypeTree? tree))
+                    {
+                        return tree;
+                    }
+
+                    // A small subset of game scripts won't have their type tree data available because:
+                    //
+                    // 1. We're in a file without type tree available. (shared assets, etc), and,
+                    // 2a. None of the asset bundles have read this type yet due to ordering, or,
+                    // 2b. None of the asset bundles will ever read this type, because all instances exist
+                    //     inside files without type tree info baked in.
+                    //
+                    // If we reach this point, we collect the memory and object info, because we will later
+                    // (at the end) create the type tree directly from the assembly.
+
+                    using Stream stream = file.Info.Open(file.Header.DataOffset + instance.Offset, instance.Size);
+                    EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
+                    byte[] memoryCopy = new byte[instance.Size];
+                    reader.ReadBytes(memoryCopy.AsSpan());
+                    workData.DeferredObjects.Add(new(file, instance, info, memoryCopy));
+
+                    // Returning null here will cause the reader to skip this particular object.
+
+                    return null;
+                }
+
+                return _knownTypeTrees[info.Type];
+            });
+    }
+
+    private static void Process_ReadAllMonoScripts(
+        SerializedFile file,
+        ThreadWorkData workData)
+    {
+        using Stream stream = file.Info.Open(file.Header.DataOffset);
+        EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
+
+        for (int i = 0; i < file.ObjectInstances.Length; ++i)
+        {
+            ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
+            ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
+
+            if (obj.Info.Type == UnityObjectType.MonoScript)
+            {
+                reader.Position = (int)instance.Offset;
+
+                if (GeneratedTypes.TryCreateType(obj.Info.Hash, obj.Info.Type, reader, out IUnityObject createdObj))
+                {
+                    Debug.Assert(reader.Position == instance.Offset + instance.Size);
+                    workData.ParsedObjects.Add(createdObj);
+                }
+            }
+        }
+    }
+
+    private static void End_MergeWorkData(
+        IEnumerable<ThreadWorkData> allWorkData,
+        out Dictionary<TreePathObject, int> treeObjects,
+        out List<IUnityObject> parsedObjects,
+        out List<DeferredObject> deferredObjects)
+    {
+        treeObjects = [];
+        parsedObjects = [];
+        deferredObjects = [];
+
+        foreach (ThreadWorkData workData in allWorkData)
         {
             foreach ((TreePathObject obj, int refs) in workData.Objects)
             {
                 if (!treeObjects.TryAdd(obj, refs)) treeObjects[obj] += refs;
             }
 
-            scriptObjects.AddRange(workData.ScriptObjects);
+            parsedObjects.AddRange(workData.ParsedObjects);
+            deferredObjects.AddRange(workData.DeferredObjects);
         }
+    }
 
-        TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
-        Codegen.Codegen codegen = new(report);
+    private static void End_AddDeferredObjects(
+        Dictionary<TreePathObject, int> storage,
+        List<IUnityObject> parsedObjects,
+        List<DeferredObject> deferredObjects)
+    {
 
-        if (args.ExportPath != null)
+    }
+
+    private static void End_ExportAll(
+        string path,
+        TreeReport report,
+        Codegen.Codegen codegen)
+    {
+        if (Directory.Exists(path))
         {
-            if (Directory.Exists(args.ExportPath))
-            {
-                Log.Write($"Cleaning up {args.ExportPath}");
-                Directory.Delete(args.ExportPath, recursive: true);
-            }
-
-            Directory.CreateDirectory(args.ExportPath);
-            TreeAnalysis.ExportReport(report, args.ExportPath);
-            codegen.WriteStructures(args.ExportPath);
-
-            File.WriteAllText(
-                Path.Combine(args.ExportPath, "missing_hash_report.json"),
-                JsonSerializer.Serialize(_unknownScriptHashes
-                    .ToDictionary(x => x.Key.ToString(), x => new
-                    {
-                        Refs = x.Value,
-                        ResolvableInScriptTrees = _knownScriptTypeTrees.ContainsKey(x.Key.Item1),
-                        MonoScriptObject = scriptObjects
-                            .OfType<MonoScript>()
-                            .Where(y => y.m_PropertiesHash == x.Key.Item1)
-                            .Select(y => y.ToString())
-                            .FirstOrDefault()
-                    })
-                    .OrderByDescending(x => x.Value.Refs),
-                    new JsonSerializerOptions() { WriteIndented = true }));
+            Log.Write($"Cleaning up {path}");
+            Directory.Delete(path, recursive: true);
         }
+
+        Directory.CreateDirectory(path);
+        TreeAnalysis.ExportReport(report, path);
+        codegen.WriteStructures(path);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -174,7 +283,7 @@ public record class CodeGeneration : IAssetProcessor
         if (!_threadWorkData.TryTake(out ThreadWorkData? workData))
         {
             Dictionary<TreePathObject, int> dict = [];
-            workData = new(new TreeReader(new(), dict), dict, []);
+            workData = new(new TreeReader(new(), dict), dict, [], []);
         }
 
         return workData;
@@ -189,11 +298,18 @@ public record class CodeGeneration : IAssetProcessor
 
     private readonly ConcurrentBag<ThreadWorkData> _threadWorkData = [];
     private readonly ConcurrentDictionary<Hash128, ObjectTypeTree> _knownScriptTypeTrees = [];
-    private readonly ConcurrentDictionary<(Hash128, ushort), int> _unknownScriptHashes = [];
+
     private Dictionary<UnityObjectType, ObjectTypeTree> _knownTypeTrees = [];
 
     private record class ThreadWorkData(
         ITreeReader Reader,
         Dictionary<TreePathObject, int> Objects,
-        List<IUnityObject> ScriptObjects);
+        List<IUnityObject> ParsedObjects,
+        List<DeferredObject> DeferredObjects);
+
+    private record class DeferredObject(
+        SerializedFile Owner,
+        SerializedFileObjectInstance Instance,
+        SerializedFileObjectInfo Info,
+        byte[] Data);
 }

@@ -116,7 +116,7 @@ public readonly partial struct CodegenCSharpWriter
             }
             else
             {
-                writer.Write(0, " => default;");
+                writer.Write(0, " => new();");
             }
 
             writer.Write(0, "}");

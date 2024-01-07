@@ -13,7 +13,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
         int endIdx,
         Action<int> fnStartedOne,
         Action<int> fnFinishedOne,
-        Func<SerializedFileObjectInfo, ObjectTypeTree?> fnGetObjectTypeTree)
+        Func<SerializedFileObjectInstance, SerializedFileObjectInfo, ObjectTypeTree?> fnGetObjectTypeTree)
     {
         using SuperluminalPerf.EventMarker _ = Util.PerfScope("ReadObjectRange", new (0, 255, 0));
 
@@ -56,7 +56,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
             int objectBase = (int)(instance.Offset - offsetStart);
 
             ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
-            ObjectTypeTree? tree = file.Target.WithTypeTree ? obj.Tree : fnGetObjectTypeTree(obj.Info);
+            ObjectTypeTree? tree = file.Target.WithTypeTree ? obj.Tree : fnGetObjectTypeTree(instance, obj.Info);
             if (tree == null) continue;
 
             fnStartedOne(i);
