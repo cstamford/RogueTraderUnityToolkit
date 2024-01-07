@@ -30,30 +30,29 @@ public readonly partial struct CodegenCSharpWriter
     {
         if (type is CodegenStructureType struc)
         {
-            string strucType = struc.Fields.All(x => x.Type is CodegenPrimitiveType) ? "readonly record struct" : "record class";
-
-            string typeName = SanitizeName(type.Name.ToString());
-
             string[] fieldNames = new string[struc.Fields.Count];
             string[] fieldVarNames = new string[struc.Fields.Count];
             string[] fieldTypeNames = new string[struc.Fields.Count];
 
             // Calculate the sanitized field names for each field.
-            for (int i = 0; i < fieldTypeNames.Length; ++i)
+            for (int i = 0; i < struc.Fields.Count; ++i)
             {
                 fieldNames[i] = GetFieldName(struc.Fields[i]);
                 fieldVarNames[i] = $"{fieldNames[i]}_";
                 fieldTypeNames[i] = GetFieldTypeName(struc.Fields[i].Type);
             }
 
+            string strucType = struc is not CodegenRootType &&
+                struc.Fields.All(x => x.Type is CodegenPrimitiveType)
+                ? "readonly record struct"
+                : "record class";
+
+            string typeName = SanitizeName(type.Name.ToString());
+            string fieldList = string.Join($",\n{' '.Repeat(4)}", fieldNames.Select((fieldName, i) => $"{fieldTypeNames[i]} {fieldName}"));
+
             writer.Write(0, $"/* {type} */");
-
-            writer.Write(0, $"public {strucType} {typeName}(");
-
-            writer.WriteSingle(4, string.Join(
-                $",\n{' '.Repeat(4)}",
-                struc.Fields.Select((_, i) => $"{fieldTypeNames[i]} {fieldNames[i]}")));
-            writer.WriteSingle(0, ") : ");
+            writer.WriteSingle(0, $"public {strucType} {typeName} (");
+            writer.WriteSingle(4, $"{fieldList}) : ");
 
             if (struc is CodegenRootType root)
             {
@@ -68,48 +67,56 @@ public readonly partial struct CodegenCSharpWriter
                 writer.Write(0, "{");
             }
 
-            writer.Write(4, $"public static {typeName} Read(EndianBinaryReader reader)");
-            writer.Write(4, "{");
+            writer.WriteSingle(4, $"public static {typeName} Read(EndianBinaryReader reader)");
 
-            for (int i = 0; i < fieldTypeNames.Length; ++i)
+            if (struc.Fields.Count > 0)
             {
-                writer.Write(8, $"{fieldTypeNames[i]} {fieldVarNames[i]} = {GetFieldTypeReader(struc.Fields[i].Type)};");
-                if (struc.Fields[i].NeedsAlign) writer.Write(8, Align(fieldNames[i]));
-            }
-
-            writer.Write(8, "");
-            writer.Write(8, $"return new({string.Join($",\n{' '.Repeat(12)}", fieldVarNames)});");
-            writer.Write(4, "}");
-
-            writer.Write(0, "");
-            writer.Write(4, $"public override string ToString() => $\"{struc.Name}\\n{{ToString(4)}}\";");
-            writer.Write(0, "");
-
-            string[] fieldToStringFunc = struc.Fields.Select((_, i) => $"ToString_Field{i}").ToArray();
-
-            writer.Write(4, "public string ToString(int indent)");
-            writer.Write(4, "{");
-            writer.Write(8, "StringBuilder sb = new();");
-            writer.Write(8, "string indent_ = ' '.Repeat(indent);");
-            writer.Write(0, "");
-            writer.Write(0, string.Join($"\n", fieldToStringFunc.Select(x => $"{' '.Repeat(8)}{x}(sb, indent, indent_);")));
-            writer.Write(0, "");
-            writer.Write(8, "return sb.ToString();");
-            writer.Write(4, "}");
-            writer.Write(0, "");
-
-            StringBuilder fieldToStringSb = new();
-
-            for (int i = 0; i < struc.Fields.Count; ++i)
-            {
-                writer.Write(4, $"public void {fieldToStringFunc[i]}(StringBuilder sb, int indent, string indent_)");
+                writer.Write(0, "");
                 writer.Write(4, "{");
-                EmitToStringForType(8, struc.Fields[i].Type, fieldToStringSb, fieldNames[i]);
-                writer.Write(0, fieldToStringSb.ToString());
-                writer.Write(4, "}");
 
-                if (i != struc.Fields.Count - 1) writer.Write(0, "");
-                fieldToStringSb.Length = 0;
+                for (int i = 0; i < struc.Fields.Count; ++i)
+                {
+                    writer.Write(8, $"{fieldTypeNames[i]} {fieldVarNames[i]} = {GetFieldTypeReader(struc.Fields[i].Type)};");
+                    if (struc.Fields[i].NeedsAlign) writer.Write(8, Align(fieldNames[i]));
+                }
+
+                writer.Write(8, "");
+                writer.Write(8, $"return new({string.Join($",\n{' '.Repeat(12)}", fieldVarNames)});");
+                writer.Write(4, "}");
+                writer.Write(0, "");
+                writer.Write(4, $"public override string ToString() => $\"{struc.Name}\\n{{ToString(4)}}\";");
+                writer.Write(0, "");
+
+                string[] fieldToStringFunc = struc.Fields.Select((_, i) => $"ToString_Field{i}").ToArray();
+
+                writer.Write(4, "public string ToString(int indent)");
+                writer.Write(4, "{");
+                writer.Write(8, "StringBuilder sb = new();");
+                writer.Write(8, "string indent_ = ' '.Repeat(indent);");
+                writer.Write(0, "");
+                writer.Write(0, string.Join($"\n", fieldToStringFunc.Select(x => $"{' '.Repeat(8)}{x}(sb, indent, indent_);")));
+                writer.Write(0, "");
+                writer.Write(8, "return sb.ToString();");
+                writer.Write(4, "}");
+                writer.Write(0, "");
+
+                StringBuilder fieldToStringSb = new();
+
+                for (int i = 0; i < struc.Fields.Count; ++i)
+                {
+                    writer.Write(4, $"public void {fieldToStringFunc[i]}(StringBuilder sb, int indent, string indent_)");
+                    writer.Write(4, "{");
+                    EmitToStringForType(8, struc.Fields[i].Type, fieldToStringSb, fieldNames[i]);
+                    writer.Write(0, fieldToStringSb.ToString());
+                    writer.Write(4, "}");
+
+                    if (i != struc.Fields.Count - 1) writer.Write(0, "");
+                    fieldToStringSb.Length = 0;
+                }
+            }
+            else
+            {
+                writer.Write(0, " => default;");
             }
 
             writer.Write(0, "}");
