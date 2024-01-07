@@ -30,48 +30,14 @@ foreach (FileInfo info in paths
 
 string[] strings =
 [
-    "PlayerSettings",
-    "InputManager",
-    "TagManager",
-    "AudioManager",
-    "ScriptMapper",
-    "MonoManager",
-    "GraphicsSettings",
-    "TimeManager",
-    "DelayedCallManager",
-    "PhysicsManager",
-    "BuildSettings",
-    "QualitySettings",
-    "ResourceManager",
-    "NavMeshProjectSettings",
-    "Physics2DSettings",
-    "RuntimeInitializeOnLoadManager",
-    "UnityConnectSettings",
-    "StreamingManager",
-    "VFXManager"
+    "MonoBehaviour hash",
+    "MonoBehaviour scriptHash"
 ];
 
 Span<Hash128> hashes = stackalloc Hash128[]
 {
-    new ("D2D3AF88ADFC2C6F3B5555C4959F094D"),
-    new ("5C032E59D903C25FDBBAEEBB188794C7"),
-    new ("D197953D3F842B5B278066ECEA0DDD84"),
-    new ("9D77426282A6018654F7E310EE504546"),
-    new ("D2317756261AD8084667018EC046CDDB"),
-    new ("36707914DD4807B86B739B75E1174D9B"),
-    new ("7E5F623B5483022F45905339A4042992"),
-    new ("6523D3A3355A156FCD8279F091C11238"),
-    new ("86113E640E726E7D7E104AE8BD4446B8"),
-    new ("C99F640154DD6EB9FF6CD5EFD89BF79B"),
-    new ("0CDC11E1487707EEAF408BB90FBC06C0"),
-    new ("B9C38D273E2ADE0D7B47E754AA071146"),
-    new ("0E889D0DC7337F079BC9C26F0AA529D6"),
-    new ("F4C2943F0E5F89DAEF4DE9B5F5F3573E"),
-    new ("367DF3D0A75E97FC985A7D933391DAFB"),
-    new ("55A238E3B50102465496FEF531BB8543"),
-    new ("D20A19A1F2AA3CE4E4364300D0BBE1BB"),
-    new ("80963267FB7DBA9219B0A0A8DDAA3DDF"),
-    new ("6BB91ED030F54C04B25E68474082794A")
+    new ("61178B04221A50E2BD25ECD5A9B702D6"),
+    new ("5C15E369908E9C75599B2CD4DF6B2CDA")
 };
 
 byte[] mem = new byte[hashes.Length * 16];
@@ -97,10 +63,7 @@ Parallel.ForEach(files, fileInfo =>
             Log.Write($"{name} {fileInfo.FullName} + {offset}", ConsoleColor.Green);
         }
     }
-    catch (Exception e)
-    {
-        Log.Write($"Failed {fileInfo.FullName}", ConsoleColor.Red);
-    }
+    catch { /* ignored */ }
     finally
     {
         int processed = Interlocked.Increment(ref processedFiles);

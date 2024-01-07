@@ -30,7 +30,16 @@ public static class CodegenTypeBuilder
         Debug.Assert(root.Length == 1, "Root is not root? (ordering problem?)");
         Debug.Assert(obj.Paths.All(x => x.StartsWith(root)), "Paths not beginning with root?");
 
-        return (CodegenRootType)ConstructType(typeName, root, obj.Paths, fnMakeStruc);
+        CodegenType type = ConstructType(typeName, root, obj.Paths, fnMakeStruc);
+
+        if (type is CodegenForwardDeclType)
+        {
+            // This can happen, sometimes, when the type is empty (optimized out in release, probably).
+            // We just make an empty root type to hold it.
+            return (CodegenRootType)fnMakeStruc(Array.Empty<CodegenStructureField>());
+        }
+
+        return (CodegenRootType)type;
     }
 
     private static CodegenType ConstructType(

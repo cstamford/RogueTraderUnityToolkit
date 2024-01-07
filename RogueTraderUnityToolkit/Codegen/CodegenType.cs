@@ -28,13 +28,14 @@ public record class CodegenStructureType(
 public sealed record class CodegenRootType(
     AsciiString Name,
     IReadOnlyList<CodegenStructureField> Fields,
+    UnityObjectType Type,
     Hash128 Hash,
     bool IsEngineType)
     : CodegenStructureType(Name, Fields)
 {
-    public bool Equals(CodegenRootType? rhs) => base.Equals(rhs) && Hash == rhs.Hash && IsEngineType == rhs.IsEngineType;
+    public bool Equals(CodegenRootType? rhs) => base.Equals(rhs) && Type == rhs.Type && Hash == rhs.Hash && IsEngineType == rhs.IsEngineType;
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Hash, IsEngineType);
-    public override string ToString() => $"${Name} ({Fields.Count} fields) {Hash}";
+    public override string ToString() => $"${Name} ({Fields.Count} fields) {Type} {Hash}";
 }
 
 public record class CodegenPrimitiveType(AsciiString Name, ObjectParserType Type)

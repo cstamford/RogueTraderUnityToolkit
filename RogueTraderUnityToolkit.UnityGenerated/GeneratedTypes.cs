@@ -18,31 +18,42 @@ public static class GeneratedTypes
             .Where(t => typeof(IUnityRootStructure).IsAssignableFrom(t))
             .Where(t => t is { IsInterface: false, IsAbstract: false }))
         {
-            _fnReadLookup.Add(type.GetHash(), type.GetReadFunc<IUnityObject>());
+            Func<EndianBinaryReader, IUnityObject> readFn = type.GetReadFunc<IUnityObject>();
+            _fnReadHashLookup.Add(type.GetHash(), readFn);
+            _fnReadObjectTypeLookup.TryAdd(type.GetObjectType(), readFn); // only add the first one
         }
     }
 
-    public static bool TryCreateType(Hash128 hash, EndianBinaryReader reader, out IUnityObject obj)
+    public static bool TryCreateType(Hash128 hash, UnityObjectType type, EndianBinaryReader reader, out IUnityObject obj)
     {
-        if (!_fnReadLookup.TryGetValue(hash, out Func<EndianBinaryReader, IUnityObject>? fnRead))
+        if (_fnReadHashLookup.TryGetValue(hash, out Func<EndianBinaryReader, IUnityObject>? fnRead))
         {
-            obj = default!;
-            return false;
+            obj = fnRead(reader);
+            return true;
         }
 
-        obj = fnRead(reader);
-        return true;
+        if (_fnReadObjectTypeLookup.TryGetValue(type, out fnRead))
+        {
+            obj = fnRead(reader);
+            return true;
+        }
+
+        obj = default!;
+        return false;
     }
 
-    private static readonly Dictionary<Hash128, Func<EndianBinaryReader, IUnityObject>> _fnReadLookup = [];
+    private static readonly Dictionary<Hash128, Func<EndianBinaryReader, IUnityObject>> _fnReadHashLookup = [];
+    private static readonly Dictionary<UnityObjectType, Func<EndianBinaryReader, IUnityObject>> _fnReadObjectTypeLookup = [];
 }
 
 public static class GeneratedTypesExtensions
 {
+    public static UnityObjectType GetObjectType(this Type type) =>
+        (UnityObjectType)type.GetProperty("ObjectType", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+
     public static Hash128 GetHash(this Type type) =>
         (Hash128)type.GetProperty("Hash", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
 
     public static Func<EndianBinaryReader, T> GetReadFunc<T>(this Type type) => (Func<EndianBinaryReader, T>)
-        Delegate.CreateDelegate(typeof(Func<EndianBinaryReader, T>), type.GetMethod("Read", BindingFlags.Public | BindingFlags.Static));
-
+        Delegate.CreateDelegate(typeof(Func<EndianBinaryReader, T>), type.GetMethod("Read", BindingFlags.Public | BindingFlags.Static)!);
 }

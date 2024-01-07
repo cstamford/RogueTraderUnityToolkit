@@ -71,6 +71,7 @@ TimeSpan loadStartTime = sw.Elapsed;
 IAssetLoader[] diskFileLoaders =
 [
     new AssetBundleLoader(),
+    new SerializedFileLoader(),
     new ResourceFileLoader()
 ];
 
@@ -87,8 +88,10 @@ if (arguments.ThreadCount > 0)
     parallelOpts.MaxDegreeOfParallelism = arguments.ThreadCount;
 }
 
-ConcurrentBag<ISerializedAsset> assets = [];
 IAssetProcessor processor = SelectProcessor(arguments);
+processor.Begin(arguments, files);
+
+ConcurrentBag<ISerializedAsset> assets = [];
 
 Parallel.ForEach(
     Partitioner.Create(files, EnumerablePartitionerOptions.NoBuffering),
@@ -98,8 +101,8 @@ Parallel.ForEach(
     if (!TryLoadAssetFromPath(
         diskFileLoaders,
         fileInfo,
-        out MemoryMappedFile? bundleFile,
-        out ISerializedAsset? bundleAsset))
+        out MemoryMappedFile? assetFile,
+        out ISerializedAsset asset))
     {
         Log.Write($"Unable to load {fileInfo.Name}", ConsoleColor.Yellow);
         return;
@@ -107,30 +110,30 @@ Parallel.ForEach(
 
     try
     {
-        AssetBundle? bundle = bundleAsset as AssetBundle;
-        if (bundle == null) return;
-
-        IRelocatableMemoryRegion[] bundleMemory = bundle.CreateRelocatableMemoryRegions();
-
-        foreach (AssetBundleNode bundleNode in bundle.Manifest.Nodes)
+        if (asset is AssetBundle bundle)
         {
-            if (!TryLoadAssetFromInfo(
-                bundleLoaders,
-                bundle.CreateAssetInfoForNode(bundleNode, bundleMemory),
-                out ISerializedAsset asset))
+            IRelocatableMemoryRegion[] bundleMemory = bundle.CreateRelocatableMemoryRegions();
+
+            foreach (AssetBundleNode bundleNode in bundle.Manifest.Nodes)
             {
-                Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
-                continue;
+                if (!TryLoadAssetFromInfo(
+                    bundleLoaders,
+                    bundle.CreateAssetInfoForNode(bundleNode, bundleMemory),
+                    out ISerializedAsset bundleAsset))
+                {
+                    Log.Write($"Unable to load {bundleNode.Path} from {bundle.Info.Identifier}", ConsoleColor.Yellow);
+                    continue;
+                }
+
+                processor.Process(arguments, bundleAsset, out int processed, out int skipped, out int failed);
+                Interlocked.Add(ref assetCountLoaded, processed);
+                Interlocked.Add(ref assetCountSkipped, skipped);
+                Interlocked.Add(ref assetCountFailed, failed);
             }
-
-            processor.Process(
-                arguments,
-                bundle,
-                asset,
-                out int processed,
-                out int skipped,
-                out int failed);
-
+        }
+        else
+        {
+            processor.Process(arguments, asset, out int processed, out int skipped, out int failed);
             Interlocked.Add(ref assetCountLoaded, processed);
             Interlocked.Add(ref assetCountSkipped, skipped);
             Interlocked.Add(ref assetCountFailed, failed);
@@ -138,11 +141,11 @@ Parallel.ForEach(
     }
     catch (Exception e)
     {
-        Log.Write(e.ToString(), ConsoleColor.Red);
+        Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
     }
     finally
     {
-        bundleFile?.Dispose();
+        assetFile?.Dispose();
     }
 
     Interlocked.Increment(ref fileCountLoaded);
@@ -166,7 +169,7 @@ bool TryLoadAssetFromPath(
     IEnumerable<IAssetLoader> loaders,
     FileInfo fileInfo,
     out MemoryMappedFile? file,
-    out ISerializedAsset? asset)
+    out ISerializedAsset asset)
 {
     file = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open);
     SerializedAssetInfo info = new(parent: null, identifier: fileInfo.Name, size: fileInfo.Length, file.CreateViewStream);

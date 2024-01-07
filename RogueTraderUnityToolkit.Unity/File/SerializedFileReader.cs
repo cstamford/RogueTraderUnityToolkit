@@ -12,7 +12,8 @@ public readonly struct SerializedFileReader(SerializedFile file)
         int startIdx,
         int endIdx,
         Action<int> fnStartedOne,
-        Action<int> fnFinishedOne)
+        Action<int> fnFinishedOne,
+        Func<SerializedFileObjectInfo, ObjectTypeTree?> fnGetObjectTypeTree)
     {
         using SuperluminalPerf.EventMarker _ = Util.PerfScope("ReadObjectRange", new (0, 255, 0));
 
@@ -54,10 +55,26 @@ public readonly struct SerializedFileReader(SerializedFile file)
             ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
             int objectBase = (int)(instance.Offset - offsetStart);
 
+            SerializedFileObject obj = file.Objects[instance.TypeIdx];
+            ObjectTypeTree? tree = file.Target.WithTypeTree ? obj.Tree : fnGetObjectTypeTree(obj.Info);
+            if (tree == null) continue;
+
             fnStartedOne(i);
-            reader.Position = objectBase;
-            parser.Read(file.Objects[instance.TypeIdx], instance, file.TypeReferences, reader, treeReaderWithDebug);
-            if (parser.Offset != instance.Size) throw new($"Expected {instance.Size} bytes but read {parser.Offset}.");
+
+            try
+            {
+                reader.Position = objectBase;
+                parser.Read(tree, file.TypeReferences, reader, treeReaderWithDebug, instance.Size);
+                if (parser.Offset != instance.Size)
+                {
+                    throw new($"Expected {instance.Size} bytes but read {parser.Offset}.");
+                }
+            }
+            catch (Exception e)
+            {
+                throw new($"Reading {obj.Info.Type} {obj.Info.Hash} {obj.Info.ScriptHash} instance {i}: {e}");
+            }
+
             fnFinishedOne(i);
         }
 

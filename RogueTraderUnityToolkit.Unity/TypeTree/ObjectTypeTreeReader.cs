@@ -112,6 +112,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         {
             _arrayStack.Clear();
             _arrayIndices.Clear();
+            _arrayIndicesFree.Clear();
             _trees.Clear();
             _hasNonZeroArrayIdx = false;
         }
@@ -175,6 +176,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
             _baseNodeLevel + node.Level <= top.ArrayNodeLevel)
         {
             _arrayStack.Pop();
+            _arrayIndicesFree.Push(top.ArrayIndexListOffset);
             _hasNonZeroArrayIdx = CheckForNonZeroArrayIndex();
         }
     }
@@ -186,12 +188,19 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     {
         if (arrayLength != 0)
         {
+            if (!_arrayIndicesFree.TryPop(out byte idx))
+            {
+                Debug.Assert(_arrayIndices.Count <= 255);
+                idx = (byte)_arrayIndices.Count;
+                _arrayIndices.Add(default);
+            }
+
             _arrayStack.Push(new(
                 ArrayDataNodeIndex: dataNode.Index,
                 ArrayNodeLevel: (byte)(_baseNodeLevel + node.Level),
-                ArrayIndexListOffset: (byte)_arrayIndices.Count));
+                ArrayIndexListOffset: idx));
 
-            _arrayIndices.Add(~0u);
+            _arrayIndices[idx] = ~0u;
         }
     }
 
@@ -210,6 +219,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     protected ushort TreeIdx => (ushort)_treeIdx;
 
     protected Stack<NodeFrame> NodeStack => _nodeStack;
+    protected Stack<ArrayFrame> ArrayStack => _arrayStack;
 
     protected ref ObjectParserNode GetNode(in NodeFrame frame) => ref _trees[frame.TreeIdx][frame.NodeIdx];
 
@@ -231,7 +241,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
         ushort NodeIdx,
         ushort TreeIdx);
 
-    private readonly record struct ArrayFrame(
+    protected readonly record struct ArrayFrame(
         ushort ArrayDataNodeIndex,
         byte ArrayNodeLevel,
         byte ArrayIndexListOffset);
@@ -239,6 +249,7 @@ public abstract class ObjectTypeTreeBasicReader : ObjectTypeTreeReaderBase
     private readonly Stack<NodeFrame> _nodeStack = [];
     private readonly Stack<ArrayFrame> _arrayStack = [];
     private readonly List<uint> _arrayIndices = [];
+    private readonly Stack<byte> _arrayIndicesFree = [];
     private readonly List<ObjectTypeTree> _trees = [];
 
     private int _treeDepth;

@@ -10,6 +10,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\RogueTraderUnityToolkit.Core\RogueTraderUnityToolkit.Core.csproj" />
+      <ProjectReference Include="..\RogueTraderUnityToolkit.UnityGenerated\RogueTraderUnityToolkit.UnityGenerated.csproj" />
       <ProjectReference Include="..\RogueTraderUnityToolkit.Unity\RogueTraderUnityToolkit.Unity.csproj" />
     </ItemGroup>
 

@@ -30,8 +30,6 @@ public readonly partial struct CodegenCSharpWriter
     {
         if (type is CodegenStructureType struc)
         {
-            Debug.Assert(struc.Fields.Any());
-
             string strucType = struc.Fields.All(x => x.Type is CodegenPrimitiveType) ? "readonly record struct" : "record class";
 
             string typeName = SanitizeName(type.Name.ToString());
@@ -61,12 +59,8 @@ public readonly partial struct CodegenCSharpWriter
             {
                 writer.Write(0, root.IsEngineType ? "IUnityEngineStructure" : "IUnityGameStructure");
                 writer.Write(0, "{");
-                writer.WriteSingle(4, $"public static Hash128 Hash => new(");
-                writer.WriteSingle(0, $"{root.Hash.Uint0}, ");
-                writer.WriteSingle(0, $"{root.Hash.Uint1}, ");
-                writer.WriteSingle(0, $"{root.Hash.Uint2}, ");
-                writer.Write(0, $"{root.Hash.Uint3});");
-                writer.Write(0, "");
+                writer.Write(4, $"public static UnityObjectType ObjectType => UnityObjectType.{root.Type};");
+                writer.Write(4, $"public static Hash128 Hash => new(\"{root.Hash}\");");
             }
             else
             {

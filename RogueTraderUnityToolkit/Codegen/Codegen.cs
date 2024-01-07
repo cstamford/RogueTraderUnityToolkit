@@ -13,15 +13,10 @@ public class Codegen
             .GroupBy(x => x.Item1.Type)
             .Select(x => (x.Key, x.Select(y => y.Item1))))
         {
-            bool isGameType = type == UnityObjectType.MonoBehaviour;
-            Debug.Assert(isGameType || objs.Count() == 1);
-
-            // Game script types have a bunch of fragments - only process the one with the lowest field count as the base object.
-            TreePathObject obj = isGameType ? objs.MinBy(x => x.Paths.Count) : objs.First();
+            TreePathObject obj = objs.Where(x => x.Hash != default).FirstOrDefault(objs.First());
             AsciiString name = AsciiString.From(obj.Type.ToString());
-
-            Log.Write($"Creating engine type {name}");
-            _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, obj.Hash, true)));
+            Log.Write($"Creating {type} from {name}");
+            _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, type, obj.Hash, true)));
         }
     }
 
@@ -35,7 +30,7 @@ public class Codegen
             if (scriptTypeNames.TryGetValue(obj.Hash, out AsciiString name))
             {
                 Log.Write($"Creating game type {name}");
-                _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, obj.Hash, false)));
+                _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, obj.Type, obj.Hash, false)));
                 continue;
             }
 

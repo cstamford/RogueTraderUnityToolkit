@@ -16,23 +16,21 @@ public record struct ObjectParser
     public readonly int Length => _end - _start;
 
     public void Read(
-        in SerializedFileObject type,
-        in SerializedFileObjectInstance instance,
+        in ObjectTypeTree tree,
         in SerializedFileTypeReference[] typeReferences,
         EndianBinaryReader reader,
-        IObjectTypeTreeReader extReader)
+        IObjectTypeTreeReader extReader,
+        int size)
     {
         _start = reader.Position;
-        _end = _start + instance.Size;
+        _end = _start + size;
         _references = typeReferences;
         _reader = reader;
         _extReader = extReader;
 
-        Debug.Assert(type.Tree != null);
-
-        _extReader.BeginTree(type.Tree);
-        Read(type.Tree, type.Tree.Root, treeDepth: 0, reading: true);
-        _extReader.EndTree(type.Tree);
+        _extReader.BeginTree(tree);
+        Read(tree, tree.Root, treeDepth: 0, reading: size != 0);
+        _extReader.EndTree(tree);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]

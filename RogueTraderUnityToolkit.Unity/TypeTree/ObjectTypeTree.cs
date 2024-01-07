@@ -21,12 +21,18 @@ public record class ObjectTypeTree(
         byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
         reader.ReadBytes(buffer.AsSpan()[..bufferSize]);
 
-        // We construct a more useful (and smaller) representation for each node for parsing purposes.
+        Span<byte> nodeLevels = stackalloc byte[nodesCount];
+
+        for (int i = 0; i < nodesCount; ++i)
+        {
+            nodeLevels[i] = nodes[i].Level;
+        }
+
         ObjectParserNode[] compactNodes = new ObjectParserNode[nodesCount];
 
         for (int i = 0; i < nodesCount; ++i)
         {
-            compactNodes[i] = ObjectParserNode.Create(i, buffer.AsSpan(), nodes.AsSpan(0, nodesCount));
+            compactNodes[i] = ObjectParserNode.Create(nodes[i], i, buffer.AsSpan(), nodeLevels);
         }
 
         ArrayPool<ObjectTypeNode>.Shared.Return(nodes);

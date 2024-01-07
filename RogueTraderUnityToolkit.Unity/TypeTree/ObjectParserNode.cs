@@ -24,22 +24,27 @@ public readonly record struct ObjectParserNode(
     public byte Size => Type.Size();
 
     public static ObjectParserNode Create(
+        in ObjectTypeNode node,
         int nodeIdx,
         ReadOnlySpan<byte> localBuffer,
-        Span<ObjectTypeNode> nodes)
+        ReadOnlySpan<byte> nodeLevels)
     {
-        ref ObjectTypeNode node = ref nodes[nodeIdx];
-
         ResolveFromNames(node, localBuffer,
             out AsciiString name,
             out AsciiString typeName,
             out ObjectParserType type);
 
-        ResolveHierarchy(node, nodes, nodeIdx,
+        ObjectParserNodeUtil.ResolveHierarchy(
+            nodeIdx,
+            node.Level,
+            nodeLevels,
             out ushort firstChildIdx,
             out ushort firstSiblingIdx);
 
-        ObjectParserNodeFlags flags = ResolveFlags(node);
+        ObjectParserNodeFlags flags = ObjectParserNodeUtil.GetParserFlags(
+            node.Size,
+            node.TypeFlags,
+            node.MetaFlags);
 
         ObjectParserNode parserNode = new(
             Name: name,
@@ -98,68 +103,6 @@ public readonly record struct ObjectParserNode(
         return AsciiString.From(buffer);
     }
 
-    private static void ResolveHierarchy(
-        in ObjectTypeNode node,
-        Span<ObjectTypeNode> nodes,
-        int idx,
-        out ushort firstChildIdx,
-        out ushort firstSiblingIdx)
-    {
-        int childIdx = 0;
-        int siblingIdx = 0;
-
-        int childLevel = node.Level + 1;
-        int siblingLevel = node.Level;
-
-        for (int i = idx + 1; i < nodes.Length; i++)
-        {
-            bool needChildIdx = childIdx == 0;
-            bool needSiblingIdx = siblingIdx == 0;
-
-            if (!needSiblingIdx) break;
-
-            ref ObjectTypeNode otherNode = ref nodes[i];
-
-            if (needChildIdx && otherNode.Level == childLevel) childIdx = i;
-            if (needSiblingIdx && otherNode.Level == siblingLevel) siblingIdx = i;
-        }
-
-        firstChildIdx = (ushort)childIdx;
-        firstSiblingIdx = (ushort)siblingIdx;
-    }
-
-    private static ObjectParserNodeFlags ResolveFlags(in ObjectTypeNode node)
-    {
-        ObjectParserNodeFlags flags = ObjectParserNodeFlags.None;
-
-        if ((node.MetaFlags & (ObjectTypeMetaFlags.AlignBytes | ObjectTypeMetaFlags.AnyChildUsesAlignBytes)) != 0)
-        {
-            flags |= ObjectParserNodeFlags.IsAlignTo4;
-        }
-
-        if ((node.TypeFlags & ObjectTypeFlags.IsArray) != 0)
-        {
-            flags |= ObjectParserNodeFlags.IsArray;
-        }
-
-        if ((node.TypeFlags & ObjectTypeFlags.IsManagedReference) != 0)
-        {
-            flags |= ObjectParserNodeFlags.IsRef;
-        }
-
-        if ((node.TypeFlags & ObjectTypeFlags.IsManagedReferenceRegistry) != 0)
-        {
-            flags |= ObjectParserNodeFlags.IsRefRegistry;
-        }
-
-        if (node.Size > 0)
-        {
-            flags |= ObjectParserNodeFlags.HasSize;
-        }
-
-        return flags;
-    }
-
     public override string ToString() => $"{Name.ToString()} ({TypeName.ToString()}) " +
                                          $"{Type}/{Size} " +
                                          $"level:{Level} " +
@@ -205,6 +148,71 @@ public static class ObjectParserNodeUtil
 {
     public static bool TryGetType(AsciiString typeName, out ObjectParserType type) =>
         _stringToType.TryGetValue(typeName, out type);
+
+    public static ObjectParserNodeFlags GetParserFlags(
+        int size,
+        ObjectTypeFlags typeFlag,
+        ObjectTypeMetaFlags metaFlags)
+    {
+        ObjectParserNodeFlags flags = ObjectParserNodeFlags.None;
+
+        if ((metaFlags & (ObjectTypeMetaFlags.AlignBytes | ObjectTypeMetaFlags.AnyChildUsesAlignBytes)) != 0)
+        {
+            flags |= ObjectParserNodeFlags.IsAlignTo4;
+        }
+
+        if ((typeFlag & ObjectTypeFlags.IsArray) != 0)
+        {
+            flags |= ObjectParserNodeFlags.IsArray;
+        }
+
+        if ((typeFlag & ObjectTypeFlags.IsManagedReference) != 0)
+        {
+            flags |= ObjectParserNodeFlags.IsRef;
+        }
+
+        if ((typeFlag & ObjectTypeFlags.IsManagedReferenceRegistry) != 0)
+        {
+            flags |= ObjectParserNodeFlags.IsRefRegistry;
+        }
+
+        if (size > 0)
+        {
+            flags |= ObjectParserNodeFlags.HasSize;
+        }
+
+        return flags;
+    }
+
+    public static void ResolveHierarchy(
+        int nodeIdx,
+        byte nodeLevel,
+        ReadOnlySpan<byte> allNodeLevels,
+        out ushort firstChildIdx,
+        out ushort firstSiblingIdx)
+    {
+        int childIdx = 0;
+        int siblingIdx = 0;
+
+        int childLevel = nodeLevel + 1;
+        int siblingLevel = nodeLevel;
+
+        for (int i = nodeIdx + 1; i < allNodeLevels.Length; i++)
+        {
+            bool needChildIdx = childIdx == 0;
+            bool needSiblingIdx = siblingIdx == 0;
+
+            if (!needSiblingIdx) break;
+
+            int otherNodeLevel = allNodeLevels[i];
+
+            if (needChildIdx && otherNodeLevel == childLevel) childIdx = i;
+            if (needSiblingIdx && otherNodeLevel == siblingLevel) siblingIdx = i;
+        }
+
+        firstChildIdx = (ushort)childIdx;
+        firstSiblingIdx = (ushort)siblingIdx;
+    }
 
     public static string Dump(this ObjectParserNode node, ObjectTypeTree tree)
     {
