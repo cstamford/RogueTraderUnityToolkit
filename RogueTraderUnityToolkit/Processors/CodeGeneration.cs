@@ -3,6 +3,8 @@ using RogueTraderUnityToolkit.Tree;
 using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
+using RogueTraderUnityToolkit.UnityGenerated;
+using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -60,27 +62,49 @@ public record class CodeGeneration : IAssetProcessor
                     workData.Reader.FinishObject(info.Type, info.ScriptHash, info.Hash);
 
                     // Keep a copy of every script tree, so we can reference it later, for stripped trees.
-                    if (file.Target.WithTypeTree && info.Type == UnityObjectType.MonoBehaviour)
+                    if (file.Target.WithTypeTree && obj.Info.Type == UnityObjectType.MonoBehaviour)
                     {
-                        Debug.Assert(obj.Tree != null);
-                        _knownScriptTypeTrees.TryAdd(info.ScriptHash, obj.Tree!);
+                        _knownScriptTypeTrees.TryAdd(info.Hash, obj.Tree!);
                     }
                 },
                 fnGetObjectTypeTree: x =>
                 {
                     if (x.Type == UnityObjectType.MonoBehaviour)
                     {
-                        if (_knownScriptTypeTrees.TryGetValue(x.ScriptHash, out ObjectTypeTree? tree))
+                        if (_knownScriptTypeTrees.TryGetValue(x.Hash, out ObjectTypeTree? tree))
                         {
                             return tree;
                         }
 
-                        _unknownScriptHashes.AddOrUpdate(x.ScriptHash, (_) => 1, (_, v) => v + 1);
+                        _unknownScriptHashes.AddOrUpdate(
+                            (x.Hash, x.ScriptTypeIdx),
+                            (_) => 1, (_, v) => v + 1);
+
                         return null;
                     }
 
                     return _knownTypeTrees[x.Type];
                 });
+
+            using Stream stream = file.Info.Open(file.Header.DataOffset);
+            EndianBinaryReader reader = new(stream, file.Header.IsBigEndian);
+
+            for (int i = 0; i < file.ObjectInstances.Length; ++i)
+            {
+                ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
+                ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
+
+                if (obj.Info.Type == UnityObjectType.MonoScript)
+                {
+                    reader.Position = (int)instance.Offset;
+
+                    if (GeneratedTypes.TryCreateType(obj.Info.Hash, obj.Info.Type, reader, out IUnityObject createdObj))
+                    {
+                        Debug.Assert(reader.Position == instance.Offset + instance.Size);
+                        workData.ScriptObjects.Add(createdObj);
+                    }
+                }
+            }
 
             assetCountProcessed = file.ObjectInstances.Length;
         }
@@ -96,25 +120,20 @@ public record class CodeGeneration : IAssetProcessor
         Args args,
         ISerializedAsset[] assets)
     {
-        Dictionary<TreePathObject, int> objects = [];
+        Dictionary<TreePathObject, int> treeObjects = [];
+        List<IUnityObject> scriptObjects = [];
 
         foreach (ThreadWorkData workData in _threadWorkData)
         {
             foreach ((TreePathObject obj, int refs) in workData.Objects)
             {
-                if (!objects.TryAdd(obj, refs)) objects[obj] += refs;
+                if (!treeObjects.TryAdd(obj, refs)) treeObjects[obj] += refs;
             }
+
+            scriptObjects.AddRange(workData.ScriptObjects);
         }
 
-        foreach ((Hash128 hash, int refs) in _unknownScriptHashes.OrderBy(x => x.Key.ToString()))
-        {
-            bool resolvableNow = _knownScriptTypeTrees.TryGetValue(hash, out _);
-            Log.Write(
-                $"{hash} ({refs} refs) was unresolveable and {(resolvableNow ? "no longer is!" : "still is!")}",
-                resolvableNow ? ConsoleColor.Red : ConsoleColor.Yellow);
-        }
-
-        TreeReport report = TreeAnalysis.CalculateReport(objects);
+        TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
         Codegen.Codegen codegen = new(report);
 
         if (args.ExportPath != null)
@@ -129,9 +148,20 @@ public record class CodeGeneration : IAssetProcessor
             TreeAnalysis.ExportReport(report, args.ExportPath);
             codegen.WriteStructures(args.ExportPath);
 
-            File.WriteAllText(Path.Combine(args.ExportPath, "missing_hash_report.json"),
+            File.WriteAllText(
+                Path.Combine(args.ExportPath, "missing_hash_report.json"),
                 JsonSerializer.Serialize(_unknownScriptHashes
-                    .ToDictionary(x => x.Key.ToString(), x => x.Value),
+                    .ToDictionary(x => x.Key.ToString(), x => new
+                    {
+                        Refs = x.Value,
+                        ResolvableInScriptTrees = _knownScriptTypeTrees.ContainsKey(x.Key.Item1),
+                        MonoScriptObject = scriptObjects
+                            .OfType<MonoScript>()
+                            .Where(y => y.m_PropertiesHash == x.Key.Item1)
+                            .Select(y => y.ToString())
+                            .FirstOrDefault()
+                    })
+                    .OrderByDescending(x => x.Value.Refs),
                     new JsonSerializerOptions() { WriteIndented = true }));
         }
     }
@@ -144,7 +174,7 @@ public record class CodeGeneration : IAssetProcessor
         if (!_threadWorkData.TryTake(out ThreadWorkData? workData))
         {
             Dictionary<TreePathObject, int> dict = [];
-            workData = new(new TreeReader(new(), dict), dict);
+            workData = new(new TreeReader(new(), dict), dict, []);
         }
 
         return workData;
@@ -159,11 +189,11 @@ public record class CodeGeneration : IAssetProcessor
 
     private readonly ConcurrentBag<ThreadWorkData> _threadWorkData = [];
     private readonly ConcurrentDictionary<Hash128, ObjectTypeTree> _knownScriptTypeTrees = [];
-    private readonly ConcurrentDictionary<Hash128, int> _unknownScriptHashes = [];
-
+    private readonly ConcurrentDictionary<(Hash128, ushort), int> _unknownScriptHashes = [];
     private Dictionary<UnityObjectType, ObjectTypeTree> _knownTypeTrees = [];
 
     private record class ThreadWorkData(
         ITreeReader Reader,
-        Dictionary<TreePathObject, int> Objects);
+        Dictionary<TreePathObject, int> Objects,
+        List<IUnityObject> ScriptObjects);
 }

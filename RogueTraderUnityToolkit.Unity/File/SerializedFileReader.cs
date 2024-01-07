@@ -55,7 +55,7 @@ public readonly struct SerializedFileReader(SerializedFile file)
             ref SerializedFileObjectInstance instance = ref file.ObjectInstances[i];
             int objectBase = (int)(instance.Offset - offsetStart);
 
-            SerializedFileObject obj = file.Objects[instance.TypeIdx];
+            ref SerializedFileObject obj = ref file.Objects[instance.TypeIdx];
             ObjectTypeTree? tree = file.Target.WithTypeTree ? obj.Tree : fnGetObjectTypeTree(obj.Info);
             if (tree == null) continue;
 

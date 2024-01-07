@@ -141,6 +141,7 @@ Parallel.ForEach(
     }
     catch (Exception e)
     {
+        Debugger.Break();
         Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
     }
     finally
