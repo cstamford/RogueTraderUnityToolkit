@@ -13,7 +13,7 @@ public class Codegen
             .GroupBy(x => x.Item1.Type)
             .Select(x => (x.Key, x.Select(y => y.Item1))))
         {
-            TreePathObject obj = objs.Where(x => x.Hash != default).FirstOrDefault(objs.First());
+            TreePathObject obj = objs.Where(x => x.Hash != default).OrderBy(x => x.Paths.Count).FirstOrDefault(objs.First());
             AsciiString name = AsciiString.From(obj.Type.ToString());
             Log.Write($"Creating {type} from {name}");
             _types.Add(CodegenTypeBuilder.ReadTreeObject(obj, name, x => new CodegenRootType(name, x, type, obj.Hash, true)));

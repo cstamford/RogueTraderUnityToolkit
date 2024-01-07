@@ -144,7 +144,7 @@ public record class CodeGeneration : IAssetProcessor
         if (!_threadWorkData.TryTake(out ThreadWorkData? workData))
         {
             Dictionary<TreePathObject, int> dict = [];
-            workData = new(new TreeReader(new(), dict), dict, []);
+            workData = new(new TreeReader(new(), dict), dict);
         }
 
         return workData;
