@@ -22,7 +22,7 @@ public static class TreeBuilderJson
         return typeTrees;
     }
 
-    private static void DoOne(Dictionary<UnityObjectType, ObjectTypeTree> typeTrees, ClassRecord cls)
+    private static void DoOne(IDictionary<UnityObjectType, ObjectTypeTree> typeTrees, ClassRecord cls)
     {
         List<TypeTreeNode> allNodes = [];
         SelectAllTypeTreeNodes(cls.ReleaseRootNode!, allNodes);
@@ -42,11 +42,8 @@ public static class TreeBuilderJson
             convertedNodes[i] = ConvertTypeTreeNode(allNodes[i], allLevels);
         }
 
-        ObjectTypeTree typeTree = new(convertedNodes);
         typeTrees[Enum.Parse<UnityObjectType>(cls.Name)] = new ObjectTypeTree(convertedNodes);
-
     }
-
 
     // Data is sourced from https://github.com/AssetRipper/TypeTreeDumps.
     // We use this for a small number of types which never have their type info embedded in data, e.g. GraphicsSettings.

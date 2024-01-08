@@ -155,11 +155,11 @@ Parallel.ForEach(
 finishedAll = true;
 logThread.Join();
 
-ConsoleColor color = assetCountFailed > 0 ? ConsoleColor.Red : assetCountSkipped > 0 ? ConsoleColor.Yellow : Log.DefaultColor;
+ConsoleColor color = assetCountFailed > 0 ? ConsoleColor.Red : Log.DefaultColor;
 
 Log.Write(
     new LogEntry($"Loaded {assetCountLoaded} assets in {sw.Elapsed.Subtract(loadStartTime).TotalSeconds:f2} seconds ("),
-    new LogEntry($"{assetCountSkipped} skipped, {assetCountFailed} failed", color),
+    new LogEntry($"{assetCountSkipped} resource files, {assetCountFailed} failed", color),
     new LogEntry(")"));
 
 processor.End(arguments, files, [..assets]);

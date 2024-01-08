@@ -5,32 +5,11 @@ using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using RogueTraderUnityToolkit.UnityGenerated;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
-
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
-using System.Text.Json;
 
 namespace RogueTraderUnityToolkit.Processors;
-
-internal class UnityAssemblyContext(string dir) : AssemblyLoadContext(isCollectible: true)
-{
-    internal record struct MonoScriptDataCopy(
-        byte[] FilePathsData,
-        byte[] TypesData,
-        int TotalTypes,
-        int TotalFiles,
-        bool IsEditorOnly);
-
-    protected override Assembly? Load(AssemblyName assemblyName)
-    {
-        string assemblyPath = Path.Combine(dir, assemblyName.Name + ".dll");
-        return File.Exists(assemblyPath) ? LoadFromAssemblyPath(assemblyPath) : null;
-    }
-}
 
 public record class CodeGeneration : IAssetProcessor
 {
@@ -61,8 +40,8 @@ public record class CodeGeneration : IAssetProcessor
 
         if (asset is SerializedFile file)
         {
-            Process_ReadAllTypeTrees(file, workData);
-            Process_ReadAllMonoScripts(file, workData);
+            ReadAllTypeTrees(file, workData);
+            ReadAllMonoScripts(file, workData);
             assetCountProcessed = file.ObjectInstances.Length;
         }
         else
@@ -78,19 +57,19 @@ public record class CodeGeneration : IAssetProcessor
         IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets)
     {
-        End_AddDeferredObjects(args, files, _threadWorkData);
-        Dictionary<TreePathObject, int> treeObjects = End_MergeWorkData(_threadWorkData);
+        ProcessDeferredObjects(args, files);
+        Dictionary<TreePathObject, int> treeObjects = MergeWorkData();
 
         TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
         Codegen.Codegen codegen = new(report);
 
         if (args.ExportPath != null)
         {
-            End_ExportAll(args.ExportPath, report, codegen);
+            ExportAll(args.ExportPath, report, codegen);
         }
     }
 
-    private void Process_ReadAllTypeTrees(
+    private void ReadAllTypeTrees(
         SerializedFile file,
         ThreadWorkData workData)
     {
@@ -159,7 +138,7 @@ public record class CodeGeneration : IAssetProcessor
             });
     }
 
-    private static void Process_ReadAllMonoScripts(
+    private static void ReadAllMonoScripts(
         SerializedFile file,
         ThreadWorkData workData)
     {
@@ -184,27 +163,12 @@ public record class CodeGeneration : IAssetProcessor
         }
     }
 
-    private static Dictionary<TreePathObject, int> End_MergeWorkData(
-        IEnumerable<ThreadWorkData> allWorkData)
-    {
-        Dictionary<TreePathObject, int> treeObjects = [];
-
-        foreach (ThreadWorkData workData in allWorkData)
-        {
-            foreach ((TreePathObject obj, int refs) in workData.Objects)
-            {
-                if (!treeObjects.TryAdd(obj, refs)) treeObjects[obj] += refs;
-            }
-        }
-
-        return treeObjects;
-    }
-
-    private void End_AddDeferredObjects(
+    private void ProcessDeferredObjects(
         Args args,
-        IReadOnlyList<FileInfo> files,
-        IEnumerable<ThreadWorkData> allWorkData)
+        IReadOnlyList<FileInfo> files)
     {
+        using var _ = SuperluminalPerf.BeginEvent("AddDeferredObjects");
+
         List<string> assemblyPaths = files
             .Where(x => x.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
             .Select(x => x.FullName)
@@ -284,16 +248,14 @@ public record class CodeGeneration : IAssetProcessor
                 Debug.Assert(reader.Remaining == 0);
             }
 
-            Interlocked.Add(ref parsedObjectsCount, objects.Count());
-
             ReturnWorkData(workData);
-
+            Interlocked.Add(ref parsedObjectsCount, objects.Count());
         });
 
         Log.Write($"Processed {parsedObjectsCount} deferred objects, skipped {skippedObjectsCount}");
     }
 
-    private static void End_ExportAll(
+    private static void ExportAll(
         string path,
         TreeReport report,
         Codegen.Codegen codegen)
@@ -326,6 +288,22 @@ public record class CodeGeneration : IAssetProcessor
     {
         using var _ = SuperluminalPerf.BeginEvent("ReturnWorkData");
         _threadWorkData.Add(data);
+    }
+
+    private Dictionary<TreePathObject, int> MergeWorkData()
+    {
+        Dictionary<TreePathObject, int> treeObjects = [];
+
+        foreach (ThreadWorkData workData in _threadWorkData)
+        {
+            foreach ((TreePathObject obj, int refs) in workData.Objects)
+            {
+                if (!treeObjects.TryAdd(obj, refs)) treeObjects[obj] += refs;
+            }
+        }
+
+        _threadWorkData.Clear();
+        return treeObjects;
     }
 
     private readonly ConcurrentBag<ThreadWorkData> _threadWorkData = [];
