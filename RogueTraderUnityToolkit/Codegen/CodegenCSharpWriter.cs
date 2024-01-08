@@ -50,7 +50,7 @@ public readonly partial struct CodegenCSharpWriter
             string fieldList = string.Join($",\n{' '.Repeat(4)}", fieldNames.Select((fieldName, i) => $"{fieldTypeNames[i]} {fieldName}"));
 
             writer.Write(0, $"/* {type} */");
-            writer.WriteSingle(0, $"public {strucType} {typeName} (");
+            writer.Write(0, $"public {strucType} {typeName} (");
             writer.WriteSingle(4, $"{fieldList}) : ");
 
             if (struc is CodegenRootType root)
@@ -204,7 +204,7 @@ public readonly partial struct CodegenCSharpWriter
     }
 
     private static void EmitToStringForType(int indent, CodegenType type, StringBuilder sb, string name) =>
-        EmitToStringForTypeImpl(type, sb, name, name, "indent_", 2, indent);
+        EmitToStringForTypeImpl(type, sb, name, name, "indent_", 4, indent);
 
     // This function is kind of ridiculous. If you value your sanity, stay away!
     private static void EmitToStringForTypeImpl(
@@ -234,13 +234,15 @@ public readonly partial struct CodegenCSharpWriter
             if (struc.Fields.Count <= 4 && struc.Fields.All(x => x.Type is CodegenPrimitiveType))
             {
                 sb.Append(string.Join(", ", struc.Fields.Select(GetFieldName).Select(x => $"{x}: {{{accessor}.{x}}}")));
+                sb.Append(" }}");
             }
             else
             {
                 sb.Append($"\\n{{{accessor}.ToString(indent+{indentIncrease})}}{{{indentVarAccessor}}}");
+                sb.Append("}}");
             }
 
-            sb.Append("}}\\n\");");
+            sb.Append("\\n\");");
         }
         else if (type is CodegenArrayType or CodegenMapType)
         {
@@ -281,11 +283,11 @@ public readonly partial struct CodegenCSharpWriter
                 foreachIndexAccessor,
                 foreachValueAccessor,
                 $"indent_ + ' '.Repeat({indentIncrease})",
-                indentIncrease + 2,
+                indentIncrease + 4,
                 depth + 4);
 
             sb.AppendLine();
-            sb.AppendLine($"{indent}    if (++{foreachCnt} >= 128) break;");
+            sb.AppendLine($"{indent}    ++{foreachCnt};");
             sb.AppendLine($"{indent}}}");
             sb.AppendLine($"{indent}if ({foreachLengthAccessor} > 0) sb.Append({indentVarAccessor});");
             sb.Append($"{indent}sb.AppendLine(\"}}\");");

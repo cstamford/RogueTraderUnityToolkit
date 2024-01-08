@@ -57,11 +57,21 @@ public record class CodeGeneration : IAssetProcessor
         IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets)
     {
-        ProcessDeferredObjects(args, files);
-        Dictionary<TreePathObject, int> treeObjects = MergeWorkData();
+        List<MonoScript> monoScripts = _threadWorkData
+            .SelectMany(x => x.ParsedObjects.OfType<MonoScript>())
+            .DistinctBy(x => x.m_PropertiesHash)
+            .ToList();
 
+        ProcessDeferredObjects(args, files, monoScripts);
+
+        Dictionary<TreePathObject, int> treeObjects = MergeWorkData();
         TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
+
         Codegen.Codegen codegen = new(report);
+
+        codegen.ReadGameStructures(report, monoScripts.ToDictionary(
+            x => x.m_PropertiesHash,
+            x => x.m_ClassName));
 
         if (args.ExportPath != null)
         {
@@ -156,7 +166,8 @@ public record class CodeGeneration : IAssetProcessor
 
                 if (GeneratedTypes.TryCreateType(obj.Info.Hash, obj.Info.Type, reader, out IUnityObject createdObj))
                 {
-                    Debug.Assert(reader.Position == instance.Offset + instance.Size);
+                    long remaining = (instance.Offset + instance.Size) - reader.Position;
+                    Debug.Assert(remaining == 0);
                     workData.ParsedObjects.Add(createdObj);
                 }
             }
@@ -165,7 +176,8 @@ public record class CodeGeneration : IAssetProcessor
 
     private void ProcessDeferredObjects(
         Args args,
-        IReadOnlyList<FileInfo> files)
+        IReadOnlyList<FileInfo> files,
+        IReadOnlyList<MonoScript> monoScripts)
     {
         using var _ = SuperluminalPerf.BeginEvent("AddDeferredObjects");
 
@@ -178,7 +190,6 @@ public record class CodeGeneration : IAssetProcessor
         using MetadataLoadContext metadataLoadContext = new(pathResolver);
 
         List<DeferredObject> deferredObjects = _threadWorkData.SelectMany(x => x.DeferredObjects).ToList();
-        List<MonoScript> monoScripts = _threadWorkData.SelectMany(x => x.ParsedObjects.OfType<MonoScript>()).ToList();
 
         IEnumerable<(MonoScript, IEnumerable<DeferredObject>)> objectsToProcess = deferredObjects
             .GroupBy(x => x.Info.Hash)

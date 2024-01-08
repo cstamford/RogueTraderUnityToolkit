@@ -54,7 +54,7 @@ public static class AsciiStringPool
         _blockIsOptimizedString => _optimizedStrings[asciiString.BlockIdx].Slice(
             asciiString.BlockOffset & 0xFF,
             asciiString.BlockOffset >> 8),
-        _blockIsLargeString => _largeStrings[asciiString],
+        _blockIsLargeString => _largeStrings[GetLargeStringIdx(asciiString)],
         _ => _smallStringBlocks[asciiString.BlockIdx].Slice(
             asciiString.BlockOffset,
             asciiString.BlockData)
@@ -115,7 +115,7 @@ public static class AsciiStringPool
     private static readonly ConcurrentDictionary<AsciiStringKey, AsciiString> _pool = [];
     private static readonly Memory<byte>[] _smallStringBlocks;
     private static readonly SemaphoreSlim _smallStringBlocksLock = new(1, 1);
-    private static readonly ConcurrentDictionary<AsciiString, Memory<byte>> _largeStrings = [];
+    private static readonly ConcurrentDictionary<int, Memory<byte>> _largeStrings = [];
     private static readonly Memory<byte>[] _optimizedStrings;
 
     private static int _currentBlockIndex;
@@ -150,7 +150,7 @@ public static class AsciiStringPool
         else
         {
             str = FetchInternal_CreateLargeBlockString(foldedHash);
-            _largeStrings[str] = memory.ToArray(); // owning copy
+            _largeStrings[GetLargeStringIdx(str)] = memory.ToArray(); // owning copy
         }
 
         _pool[key] = str;
@@ -227,6 +227,8 @@ public static class AsciiStringPool
 
         return new(idx, data, offset, foldedHash);
     }
+
+    private static int GetLargeStringIdx(AsciiString str) => str.BlockIdx | str.BlockOffset << 8;
 
     private readonly record struct AsciiStringKey(ulong Hash, int Length)
     {

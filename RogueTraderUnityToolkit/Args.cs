@@ -4,7 +4,8 @@ namespace RogueTraderUnityToolkit;
 
 public enum ProcessMode
 {
-    Codegen
+    Codegen,
+    UnityProjectExport
 }
 
 public class Args
@@ -23,5 +24,4 @@ public class Args
 
     [Value(0, MetaName = "paths", HelpText = "Input paths to be processed.", Required = true)]
     public IEnumerable<string> ImportPaths { get; set; } = default!;
-
 }

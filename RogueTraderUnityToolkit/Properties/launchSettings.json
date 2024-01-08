@@ -6,7 +6,7 @@
     },
     "ProjectExport": {
       "commandName": "Project",
-      "commandLineArgs": ""
+      "commandLineArgs": "--mode UnityProjectExport --dir \"D:\\RogueTraderModding\\UnityProjectExport\" \"D:\\RogueTraderModding\\DumpedTypeTree\" \"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Warhammer 40,000 Rogue Trader"
     }
   }
 }

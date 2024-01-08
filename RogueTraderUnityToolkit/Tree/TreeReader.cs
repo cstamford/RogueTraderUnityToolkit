@@ -65,7 +65,7 @@ public sealed class TreeReader(
         NodeFrame ourFrame = NodeStack.Peek();
         base.EndNode(node, tree);
 
-        if (IsFirstArrayIndex && node.FirstChildIdx == 0)
+        if (TreeDepth == 1 && IsFirstArrayIndex && node.FirstChildIdx == 0)
         {
             TreePathAllocation allocation = allocator.Rent(NodeStack.Count + 1);
             _allocations.Add(allocation.Handle);

@@ -41,7 +41,6 @@ public class Codegen
     public void WriteStructures(string path)
     {
         IReadOnlyList<CodegenType> types = CalculateExportableTypes();
-
         CodegenCSharpWriter writer = new();
 
         bool anyGame = false;
@@ -115,11 +114,25 @@ public class Codegen
         Dictionary<AsciiString, CodegenType[]> aliases = fullTypeListUnique
             .GroupBy(x => x.Name)
             .Where(x => x.Count() > 1)
-            .Select(x => (x.Key, x.Select(y => y).ToArray()))
+            .Select(x => (x.Key, x
+                .OrderByDescending(y => y is CodegenRootType)
+                .ThenBy(y => (y as CodegenStructureType)?.Fields.Count ?? 0)
+                .ToArray()))
             .ToDictionary(x => x.Key, x => x.Item2);
 
+        // This is actually true in quite a few places - mostly 1 field off, with different hashes.
+        // If not for the hashes, I'd be convinced this was a bug of ours...
+        //
+        //      Debug.Assert(aliases.Values.All(types => types.Count(y => y is CodegenRootType) <= 1),
+        //         "Aliases contain more than one root type.");
+
         // Update each type to point their references to the correct one.
-        return fullTypeListUnique.Select(x => UpdateAllAliasTypeReferences(x, aliases)).ToList();
+        List<CodegenType> resolvedTypeList = fullTypeListUnique.Select(x => UpdateAllAliasTypeReferences(x, aliases)).ToList();
+
+        Debug.Assert(!resolvedTypeList.GroupBy(x => x.Name).Any(x => x.Count() > 1),
+            "We had aliased types after resolving aliases.");
+
+        return resolvedTypeList;
     }
 
     private static void GatherAllReferencedTypes(CodegenType type, ICollection<CodegenType> allTypes)
@@ -156,7 +169,8 @@ public class Codegen
         {
             int oldIdx = Array.IndexOf(types, typeToUpdate);
             Debug.Assert(oldIdx != -1);
-            typeToUpdate = typeToUpdate with { Name = AsciiString.From($"{typeToUpdate.Name}_{oldIdx}") };
+            AsciiString updatedName = oldIdx == 0 ? typeToUpdate.Name : AsciiString.From($"{typeToUpdate.Name}_{oldIdx}");
+            typeToUpdate = typeToUpdate with { Name = updatedName };
         }
 
         return typeToUpdate switch

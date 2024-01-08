@@ -19,8 +19,17 @@ public static class GeneratedTypes
             .Where(t => t is { IsInterface: false, IsAbstract: false }))
         {
             Func<EndianBinaryReader, IUnityObject> readFn = type.GetReadFunc<IUnityObject>();
-            _fnReadHashLookup.Add(type.GetHash(), readFn);
-            _fnReadObjectTypeLookup.TryAdd(type.GetObjectType(), readFn); // only add the first one
+
+            try
+            {
+                _fnReadHashLookup.Add(type.GetHash(), readFn);
+                _fnReadObjectTypeLookup.TryAdd(type.GetObjectType(), readFn); // only add the first one
+            }
+            catch (Exception e)
+            {
+                // TODO: very probably it's a double type with the same fields but different alignment flags
+                Log.Write($"When constructing {type}: {e.Message}", ConsoleColor.Yellow);
+            }
         }
     }
 

@@ -14,11 +14,30 @@ public readonly record struct PPtr<T>(int FileId, long PathId)
     }
 }
 
-public readonly record struct RefRegistry
+public readonly record struct RefRegistry(
+    (ulong rid, IUnityObject)[] ReferencedObjects)
 {
     public static RefRegistry Read(EndianBinaryReader reader)
     {
-        return default!;
+        int num = reader.ReadS32();
+
+        for (int i = 0; i < num; ++i)
+        {
+            long rid = reader.ReadS64();
+
+            AsciiString cls = BuiltInString.Read(reader);
+            reader.AlignTo(4);
+
+            AsciiString ns = BuiltInString.Read(reader);
+            reader.AlignTo(4);
+
+            AsciiString asm = BuiltInString.Read(reader);
+            reader.AlignTo(4);
+
+            // TODO: Guess we gotta codegne a cls/ns/asm -> type factory.
+        }
+
+        return new([]);
     }
 }
 

@@ -50,17 +50,15 @@ bool finishedAll = false;
 
 Thread logThread = new(() =>
 {
-    while (!finishedAll) // Use a flag to signal when to stop the thread
+    while (!finishedAll)
     {
-        // Perform the logging
         Log.Write($"{fileCountLoaded} files loaded, " +
                   $"{assetCountLoaded} assets loaded, " +
                   $"{assetCountPending} pending, " +
                   $"{assetCountSkipped} skipped, " +
                   $"{assetCountFailed} failed");
 
-        // Sleep for a short time before logging again
-        Thread.Sleep(500); // Adjust the sleep interval as needed
+        Thread.Sleep(500);
     }
 });
 
@@ -139,11 +137,11 @@ Parallel.ForEach(
             Interlocked.Add(ref assetCountFailed, failed);
         }
     }
-    catch (Exception e)
-    {
-        Debugger.Break();
-        Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
-    }
+    //catch (Exception e)
+    //{
+    //    Debugger.Break();
+    //    Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
+    //}
     finally
     {
         assetFile?.Dispose();
@@ -252,5 +250,6 @@ bool TryLoadAssetFromInfo(
 static IAssetProcessor SelectProcessor(Args args) => args.Mode switch
 {
     ProcessMode.Codegen => new CodeGeneration(),
+    ProcessMode.UnityProjectExport => new UnityProjectExporter(),
     _ => throw new ArgumentOutOfRangeException(nameof(args))
 };
