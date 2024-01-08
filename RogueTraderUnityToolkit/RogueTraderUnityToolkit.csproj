@@ -19,8 +19,4 @@
       <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Analysis\" />
-    </ItemGroup>
-
 </Project>

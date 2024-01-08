@@ -1,20 +1,28 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Unity", "RogueTraderUnityToolkit.Unity\RogueTraderUnityToolkit.Unity.csproj", "{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}"
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RogueTraderUnityToolkit.Unity", "RogueTraderUnityToolkit.Unity\RogueTraderUnityToolkit.Unity.csproj", "{40D2EEAD-0206-4E33-B4A3-3628F04CFBC2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Core", "RogueTraderUnityToolkit.Core\RogueTraderUnityToolkit.Core.csproj", "{3879A3AA-0D8E-4B3F-8483-DD61156C0119}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RogueTraderUnityToolkit.Core", "RogueTraderUnityToolkit.Core\RogueTraderUnityToolkit.Core.csproj", "{3879A3AA-0D8E-4B3F-8483-DD61156C0119}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit", "RogueTraderUnityToolkit\RogueTraderUnityToolkit.csproj", "{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RogueTraderUnityToolkit", "RogueTraderUnityToolkit\RogueTraderUnityToolkit.csproj", "{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.Tests", "RogueTraderUnityToolkit.Tests\RogueTraderUnityToolkit.Tests.csproj", "{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RogueTraderUnityToolkit.Tests", "RogueTraderUnityToolkit.Tests\RogueTraderUnityToolkit.Tests.csproj", "{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tools\Benchmark", "Tools\Benchmark\Benchmark.csproj", "{17E32860-59D7-4CE8-A51C-346E9612FA22}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Benchmark", "Tools\Benchmark\Benchmark.csproj", "{17E32860-59D7-4CE8-A51C-346E9612FA22}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{1226AE59-5EEC-4F14-B04D-D34B470943BC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogueTraderUnityToolkit.UnityGenerated", "RogueTraderUnityToolkit.UnityGenerated\RogueTraderUnityToolkit.UnityGenerated.csproj", "{07EEB986-D0E9-4CF8-87A3-3315CA479357}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RogueTraderUnityToolkit.UnityGenerated", "RogueTraderUnityToolkit.UnityGenerated\RogueTraderUnityToolkit.UnityGenerated.csproj", "{07EEB986-D0E9-4CF8-87A3-3315CA479357}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemoryScan", "Tools\MemoryScan\MemoryScan.csproj", "{8F54FC04-60FD-4E31-AD0A-E05E95B61726}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MemoryScan", "Tools\MemoryScan\MemoryScan.csproj", "{8F54FC04-60FD-4E31-AD0A-E05E95B61726}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{F429E0D4-FCC4-475E-ACB5-9223B0A3C683}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,14 +42,14 @@ Global
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C9DF2FF-A4D4-49C8-AC98-A71315F9AD32}.Release|Any CPU.Build.0 = Release|Any CPU
-		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3DDC357B-DAE2-43B5-933E-BC3AABD7FEEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17E32860-59D7-4CE8-A51C-346E9612FA22}.Release|Any CPU.Build.0 = Release|Any CPU
 		{07EEB986-D0E9-4CF8-87A3-3315CA479357}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{07EEB986-D0E9-4CF8-87A3-3315CA479357}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07EEB986-D0E9-4CF8-87A3-3315CA479357}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -50,6 +58,9 @@ Global
 		{8F54FC04-60FD-4E31-AD0A-E05E95B61726}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F54FC04-60FD-4E31-AD0A-E05E95B61726}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F54FC04-60FD-4E31-AD0A-E05E95B61726}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{17E32860-59D7-4CE8-A51C-346E9612FA22} = {1226AE59-5EEC-4F14-B04D-D34B470943BC}

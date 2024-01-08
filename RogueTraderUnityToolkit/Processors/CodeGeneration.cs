@@ -5,7 +5,9 @@ using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.Unity.TypeTree;
 using RogueTraderUnityToolkit.UnityGenerated;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
+
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -40,10 +42,7 @@ public record class CodeGeneration : IAssetProcessor
 
         if (typeTreesPath != null)
         {
-            TreeBuilderJson.CreateTypeTreesFromJsonPath(
-                typeTreesPath.FullName,
-                out _knownTypeTrees,
-                out _knownTypeSubTrees);
+            _knownTypeTrees = TreeBuilderJson.CreateTypeTreesFromJsonPath(typeTreesPath.FullName);
         }
     }
 
@@ -79,28 +78,15 @@ public record class CodeGeneration : IAssetProcessor
         IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets)
     {
-        End_MergeWorkData(_threadWorkData,
-            out Dictionary<TreePathObject, int> treeObjects,
-            out List<IUnityObject> parsedObjects,
-            out List<DeferredObject> deferredObjects);
-
-        End_AddDeferredObjects(files, treeObjects, parsedObjects, deferredObjects);
+        End_AddDeferredObjects(files, _threadWorkData);
+        Dictionary<TreePathObject, int> treeObjects = End_MergeWorkData(_threadWorkData);
 
         TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
-
         Codegen.Codegen codegen = new(report);
+
         if (args.ExportPath != null)
         {
             End_ExportAll(args.ExportPath, report, codegen);
-
-            File.WriteAllText(
-                Path.Combine(args.ExportPath, "deferred.json"),
-                JsonSerializer.Serialize(deferredObjects.Select(x => new
-            {
-                File = x.Owner.Info,
-                ObjectInstance = x.Instance,
-                OBjectInfo = x.Info
-            }), new JsonSerializerOptions() { WriteIndented = true }));
         }
     }
 
@@ -128,7 +114,7 @@ public record class CodeGeneration : IAssetProcessor
                 SerializedFileObjectInfo info = file.Objects[instance.TypeIdx].Info;
                 workData.Reader.FinishObject(info.Type, info.ScriptHash, info.Hash);
 
-                // Keep a copy of every script tree, so we can reference it later, for stripped trees.
+                // Keep a copy of every script tree, so we can reference it later, for maidenless trees.
                 if (file.Target.WithTypeTree && obj.Info.Type == UnityObjectType.MonoBehaviour)
                 {
                     _knownScriptTypeTrees.TryAdd(info.Hash, obj.Tree!);
@@ -138,6 +124,11 @@ public record class CodeGeneration : IAssetProcessor
             {
                 if (info.Type == UnityObjectType.MonoBehaviour)
                 {
+                    if (info.Hash == default)
+                    {
+                        return _knownTypeTrees[info.Type];
+                    }
+
                     if (_knownScriptTypeTrees.TryGetValue(info.Hash, out ObjectTypeTree? tree))
                     {
                         return tree;
@@ -193,15 +184,10 @@ public record class CodeGeneration : IAssetProcessor
         }
     }
 
-    private static void End_MergeWorkData(
-        IEnumerable<ThreadWorkData> allWorkData,
-        out Dictionary<TreePathObject, int> treeObjects,
-        out List<IUnityObject> parsedObjects,
-        out List<DeferredObject> deferredObjects)
+    private static Dictionary<TreePathObject, int> End_MergeWorkData(
+        IEnumerable<ThreadWorkData> allWorkData)
     {
-        treeObjects = [];
-        parsedObjects = [];
-        deferredObjects = [];
+        Dictionary<TreePathObject, int> treeObjects = [];
 
         foreach (ThreadWorkData workData in allWorkData)
         {
@@ -209,17 +195,14 @@ public record class CodeGeneration : IAssetProcessor
             {
                 if (!treeObjects.TryAdd(obj, refs)) treeObjects[obj] += refs;
             }
-
-            parsedObjects.AddRange(workData.ParsedObjects);
-            deferredObjects.AddRange(workData.DeferredObjects);
         }
+
+        return treeObjects;
     }
 
     private void End_AddDeferredObjects(
         IReadOnlyList<FileInfo> files,
-        Dictionary<TreePathObject, int> storage,
-        List<IUnityObject> parsedObjects,
-        List<DeferredObject> deferredObjects)
+        IEnumerable<ThreadWorkData> allWorkData)
     {
         List<string> assemblyPaths = files
             .Where(x => x.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
@@ -229,15 +212,31 @@ public record class CodeGeneration : IAssetProcessor
         PathAssemblyResolver pathResolver = new(assemblyPaths);
         using MetadataLoadContext metadataLoadContext = new(pathResolver);
 
-        foreach ((MonoScript script, IEnumerable<DeferredObject> objs) in deferredObjects
+        List<DeferredObject> deferredObjects = _threadWorkData.SelectMany(x => x.DeferredObjects).ToList();
+        List<MonoScript> monoScripts = _threadWorkData.SelectMany(x => x.ParsedObjects.OfType<MonoScript>()).ToList();
+
+        IEnumerable<(MonoScript, IEnumerable<DeferredObject>)> objectsToProcess = deferredObjects
             .GroupBy(x => x.Info.Hash)
             .OrderByDescending(x => x.Count())
-            .Select(x => (parsedObjects.OfType<MonoScript>().First(y => x.Key == y.m_PropertiesHash), x.Select(y => y))))
-        {
-            Assembly assembly = metadataLoadContext.LoadFromAssemblyPath(assemblyPaths
-                .First(x => x.Contains(script.m_AssemblyName.ToString())));
+            .ThenBy(x => x.Key)
+            .Select(x => (monoScripts.First(y => x.Key == y.m_PropertiesHash), x.Select(y => y)));
 
-            TreeBuilderAssembly treeBuilder = new(_knownTypeSubTrees);
+        int parsedObjectsCount = 0;
+        int skippedObjectsCount = 0;
+
+        Parallel.ForEach(objectsToProcess, entry =>
+        {
+            (MonoScript script, IEnumerable<DeferredObject> objects) = entry;
+
+            Assembly assembly;
+
+            lock (metadataLoadContext)
+            {
+                assembly = metadataLoadContext.LoadFromAssemblyPath(assemblyPaths
+                    .First(x => x.Contains(script.m_AssemblyName.ToString())));
+            }
+
+            TreeBuilderAssembly treeBuilder = new();
 
             ObjectTypeTree tree = treeBuilder.CreateTypeTreeFromAssembly(
                 assembly,
@@ -245,19 +244,36 @@ public record class CodeGeneration : IAssetProcessor
                 script.m_ClassName,
                 _knownTypeTrees[UnityObjectType.MonoBehaviour].Nodes);
 
-            TreeReader treeReader = new(new(), storage);
+            if (tree.Nodes.Length == 0)
+            {
+                Interlocked.Add(ref skippedObjectsCount, objects.Count());
+                return;
+            }
 
-            foreach (DeferredObject obj in objs)
+            ThreadWorkData workData = TakeWorkData();
+            ITreeReader treeReader = workData.Reader;
+
+            ObjectParser parser = new();
+
+            foreach (DeferredObject obj in objects)
             {
                 using MemoryStream mem = new(obj.Data);
                 EndianBinaryReader reader = new(mem, obj.Owner.Header.IsBigEndian);
-                ObjectParserDebug debugReader = new(() => reader.Position);
 
-                ObjectParser parser = new();
-                parser.Read(tree, [], reader, debugReader, obj.Instance.Size);
+                treeReader.StartObject(obj.Info.Type, obj.Info.ScriptHash, obj.Info.Hash);
+                parser.Read(tree, [], reader, treeReader, obj.Instance.Size);
+                treeReader.FinishObject(obj.Info.Type, obj.Info.ScriptHash, obj.Info.Hash);
+
                 Debug.Assert(reader.Remaining == 0);
             }
-        }
+
+            Interlocked.Add(ref parsedObjectsCount, objects.Count());
+
+            ReturnWorkData(workData);
+
+        });
+
+        Log.Write($"Processed {parsedObjectsCount} deferred objects, skipped {skippedObjectsCount}");
     }
 
     private static void End_ExportAll(
@@ -276,7 +292,6 @@ public record class CodeGeneration : IAssetProcessor
         codegen.WriteStructures(path);
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
     private ThreadWorkData TakeWorkData()
     {
         using var _ = SuperluminalPerf.BeginEvent("TakeWorkData");
@@ -290,7 +305,6 @@ public record class CodeGeneration : IAssetProcessor
         return workData;
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
     private void ReturnWorkData(ThreadWorkData data)
     {
         using var _ = SuperluminalPerf.BeginEvent("ReturnWorkData");
@@ -300,7 +314,6 @@ public record class CodeGeneration : IAssetProcessor
     private readonly ConcurrentBag<ThreadWorkData> _threadWorkData = [];
     private readonly ConcurrentDictionary<Hash128, ObjectTypeTree> _knownScriptTypeTrees = [];
     private Dictionary<UnityObjectType, ObjectTypeTree> _knownTypeTrees = [];
-    private Dictionary<AsciiString, ObjectParserNode[]> _knownTypeSubTrees = []; // for any referenced type inside engine trees
 
     private record class ThreadWorkData(
         ITreeReader Reader,

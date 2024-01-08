@@ -44,8 +44,6 @@ public record class ObjectTypeTree(
     public ref ObjectParserNode this[int index] => ref Nodes[index];
     public ref ObjectParserNode Root => ref Nodes[0];
     public int Length => Nodes.Length;
-
-    public override string ToString() => Root.Dump(this);
 }
 
 public readonly record struct ObjectTypeNode(

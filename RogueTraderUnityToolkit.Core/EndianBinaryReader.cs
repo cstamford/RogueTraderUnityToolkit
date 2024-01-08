@@ -279,7 +279,7 @@ public sealed class EndianBinaryReader(Stream stream, bool isBigEndian = true)
     private readonly int _offset;
     private readonly int _length = -1;
 
-    public override string ToString() => this.Dump();
+    private string DisplayForDebugger => this.Dump();
 }
 
 public static class EndianBinaryReaderExtensions
