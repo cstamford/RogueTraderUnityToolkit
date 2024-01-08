@@ -4,39 +4,35 @@ using System.Text;
 
 namespace RogueTraderUnityToolkit.Unity.TypeTree;
 
-public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectTypeTreeReaderBase
+public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectTypeTreeBasicReader
 {
     public override void BeginTree(
         in ObjectTypeTree tree)
     {
-        _indentStack.Push(_indent);
-        Log.Write(_indent++ * _spacesPerIndent, "BeginTree", ConsoleColor.Green);
+        base.BeginTree(tree);
+        Log.Write(Indent, "BeginTree", ConsoleColor.Green);
+        _lastOffset = 0;
     }
 
     public override void EndTree(
         in ObjectTypeTree tree)
     {
-        _indent = _indentStack.Pop();
-        Log.Write(_indent * _spacesPerIndent, "EndTree", ConsoleColor.Green);
-
-        if (_indentStack.Count == 0)
-        {
-            _lastOffset = 0;
-        }
+        base.EndTree(tree);
+        Log.Write(Indent, "EndTree", ConsoleColor.Green);
     }
 
     public override void BeginNode(
         in ObjectParserNode node,
         in ObjectTypeTree tree)
     {
-        _indent = node.Level;
+        base.BeginNode(node, tree);
 
         string nodeString = node.ToString();
         string nodeNameString = node.Name.ToString();
         int nodeNameIdx = nodeString.IndexOf(nodeNameString, StringComparison.Ordinal);
         Debug.Assert(nodeNameIdx != -1);
 
-        Log.Write(_indent * _spacesPerIndent,
+        Log.Write(Indent,
             new LogEntry(nodeString[..nodeNameIdx], _col),
             new LogEntry(nodeNameString, ConsoleColor.White),
             new LogEntry(nodeString[(nodeNameIdx + node.Name.Length)..], _col));
@@ -46,8 +42,12 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserNode node,
         in ObjectParserReader nodeReader)
     {
+        base.ReadPrimitive(node, nodeReader);
+
+        if (nodeReader.Start == nodeReader.End) return;
+
         string value = ReadPrimitiveAsString(nodeReader, node);
-        Log.Write((_indent + 1) * _spacesPerIndent,
+        Log.Write(Indent + 4,
             new LogEntry("ReadPrimitive", ConsoleColor.Blue),
             new LogEntry($" {Range()} => ", _col),
             new LogEntry(value, ConsoleColor.Blue));
@@ -59,8 +59,17 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserReader nodeReader,
         int arrayLength)
     {
-        const int maxLen = 4;
-        string str = ReadPrimitiveArrayAsString(nodeReader, node, arrayLength, maxLen);
+        base.ReadPrimitiveArray(node, dataNode, nodeReader, arrayLength);
+
+        if (nodeReader.Start == nodeReader.End) return;
+
+        const int maxLenArray = 32;
+        const int maxLenString = 64;
+
+        bool isString = dataNode.Type == ObjectParserType.Char;
+        int maxLen = isString ? maxLenString : maxLenArray;
+
+        string str = ReadPrimitiveArrayAsString(nodeReader, node, arrayLength, maxLen, isString ? string.Empty : ", ");
 
         int remainingElements = arrayLength - maxLen;
         int remainingBytes = 0;
@@ -71,12 +80,16 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
             remainingBytes = remainingElements * dataNode.Size;
         }
 
-        Log.Write((_indent + 1) * _spacesPerIndent,
-            new LogEntry($"ReadPrimitiveArray", ConsoleColor.DarkYellow),
+        ConsoleColor col = isString ? ConsoleColor.Cyan : ConsoleColor.DarkYellow;
+        char startArray = isString ? '\"' : '[';
+        char endArray = isString ? '\"' : ']';
+
+        Log.Write(Indent + 4,
+            new LogEntry($"ReadPrimitiveArray", col),
             new LogEntry($" {dataNode.Type}[{arrayLength}]"),
-            new LogEntry($" {Range(remainingBytes)} => [", _col),
-            new LogEntry(str, ConsoleColor.DarkYellow),
-            new LogEntry($"]", _col));
+            new LogEntry($" {Range(remainingBytes)} => {startArray}", _col),
+            new LogEntry(str, col),
+            new LogEntry($"{endArray}", _col));
     }
 
     public override void ReadComplexArray(
@@ -84,7 +97,9 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         in ObjectParserNode dataNode,
         int arrayLength)
     {
-        Log.Write((_indent + 1) * _spacesPerIndent,
+        base.ReadComplexArray(node, dataNode, arrayLength);
+
+        Log.Write(Indent + 4,
             new LogEntry($"ReadComplexArray", ConsoleColor.Yellow),
             new LogEntry($" {dataNode.TypeName}[{arrayLength}]", _col),
             new LogEntry($" {Range()} => [", _col),
@@ -99,28 +114,31 @@ public sealed class ObjectParserDebug(Func<int> fnReadParserOffset) : ObjectType
         AsciiString ns,
         AsciiString asm)
     {
-        Log.Write((_indent + 1) * _spacesPerIndent,
+        base.ReadReferencedObject(node, refId, cls, ns, asm);
+
+        Log.Write(Indent + 4,
             new LogEntry($"ReadReferencedObject", ConsoleColor.Green),
             new LogEntry($" {Range()} => [", _col),
             new LogEntry($"{refId} {asm}:{ns}.{cls}", ConsoleColor.Green),
             new LogEntry($"]", _col));
     }
 
-    public override void Align(in ObjectParserNode node,
+    public override void Align(
+        in ObjectParserNode node,
         byte alignedBytes)
     {
+        base.Align(node, alignedBytes);
+
         bool didAlign = alignedBytes != 0;
-        Log.Write(_indent * _spacesPerIndent,
+        Log.Write(Indent + 4,
             new LogEntry($"{node.TypeName} Align4", didAlign ? ConsoleColor.Magenta : _col),
             new LogEntry(didAlign ? $" {Range()}" : string.Empty, _col));
     }
 
-    private int _indent;
-    private readonly Stack<int> _indentStack = [];
-    private const int _spacesPerIndent = 4;
-    private const ConsoleColor _col = ConsoleColor.DarkGray;
     private int _lastOffset;
+    private const ConsoleColor _col = ConsoleColor.DarkGray;
 
+    private int Indent => NodeStack.Count * 4;
     private int Offset => fnReadParserOffset();
 
     private string Range(int remaining = 0)

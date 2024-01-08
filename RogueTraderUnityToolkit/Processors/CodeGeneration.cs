@@ -14,8 +14,7 @@ using System.Text.Json;
 
 namespace RogueTraderUnityToolkit.Processors;
 
-// Custom AssemblyLoadContext for unloading
-internal class UnityAssemblyContext() : AssemblyLoadContext(isCollectible: true)
+internal class UnityAssemblyContext(string dir) : AssemblyLoadContext(isCollectible: true)
 {
     internal record struct MonoScriptDataCopy(
         byte[] FilePathsData,
@@ -23,6 +22,12 @@ internal class UnityAssemblyContext() : AssemblyLoadContext(isCollectible: true)
         int TotalTypes,
         int TotalFiles,
         bool IsEditorOnly);
+
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        string assemblyPath = Path.Combine(dir, assemblyName.Name + ".dll");
+        return File.Exists(assemblyPath) ? LoadFromAssemblyPath(assemblyPath) : null;
+    }
 }
 
 public record class CodeGeneration : IAssetProcessor
@@ -35,52 +40,10 @@ public record class CodeGeneration : IAssetProcessor
 
         if (typeTreesPath != null)
         {
-            _knownTypeTrees = TreeConverter.CreateTypeTreesFromJsonPath(typeTreesPath.FullName);
-        }
-
-        Dictionary<AsciiString, List<(string, int)>> assemblyMonoScriptData = [];
-
-        foreach (FileInfo file in files.Where(x => x.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase)))
-        {
-            UnityAssemblyContext loadContext = new();
-
-            try
-            {
-                Assembly assembly = loadContext.LoadFromAssemblyPath(file.FullName);
-                Type? monoScriptType = assembly.GetType("UnitySourceGeneratedAssemblyMonoScriptTypes_v1", false);
-                if (monoScriptType != null)
-                {
-                    Type dataType = assembly.GetType("UnitySourceGeneratedAssemblyMonoScriptTypes_v1+MonoScriptData", false)!;
-                    MethodInfo monoScriptGet = monoScriptType.GetMethod("Get", BindingFlags.Static | BindingFlags.NonPublic)!;
-                    object data = monoScriptGet.Invoke(null, null)!;
-
-                    byte[] typesData = (byte[])dataType.GetField("TypesData")!.GetValue(data)!;
-                    using MemoryStream stream = new(typesData);
-                    EndianBinaryReader reader = new(stream);
-
-                    while (stream.Position < stream.Length)
-                    {
-                        int unknown = reader.ReadS32(); // 16777216 when it's an engine type, 0 otherwise?
-                        byte len = reader.ReadByte();
-                        AsciiString name = reader.ReadString(len);
-
-                        assemblyMonoScriptData.TryAdd(name, []);
-                        assemblyMonoScriptData[name].Add((file.FullName, unknown));
-                    }
-                }
-            }
-            catch (BadImageFormatException)
-            {
-                // Not a managed assembly, skip this file
-            }
-            catch (FileLoadException)
-            {
-                // File could not be loaded (e.g., not a .NET assembly), skip this file
-            }
-            finally
-            {
-                loadContext.Unload();
-            }
+            TreeBuilderJson.CreateTypeTreesFromJsonPath(
+                typeTreesPath.FullName,
+                out _knownTypeTrees,
+                out _knownTypeSubTrees);
         }
     }
 
@@ -113,6 +76,7 @@ public record class CodeGeneration : IAssetProcessor
 
     public void End(
         Args args,
+        IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets)
     {
         End_MergeWorkData(_threadWorkData,
@@ -120,7 +84,7 @@ public record class CodeGeneration : IAssetProcessor
             out List<IUnityObject> parsedObjects,
             out List<DeferredObject> deferredObjects);
 
-        End_AddDeferredObjects(treeObjects, parsedObjects, deferredObjects);
+        End_AddDeferredObjects(files, treeObjects, parsedObjects, deferredObjects);
 
         TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
 
@@ -251,12 +215,49 @@ public record class CodeGeneration : IAssetProcessor
         }
     }
 
-    private static void End_AddDeferredObjects(
+    private void End_AddDeferredObjects(
+        IReadOnlyList<FileInfo> files,
         Dictionary<TreePathObject, int> storage,
         List<IUnityObject> parsedObjects,
         List<DeferredObject> deferredObjects)
     {
+        List<string> assemblyPaths = files
+            .Where(x => x.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.FullName)
+            .ToList();
 
+        PathAssemblyResolver pathResolver = new(assemblyPaths);
+        using MetadataLoadContext metadataLoadContext = new(pathResolver);
+
+        foreach ((MonoScript script, IEnumerable<DeferredObject> objs) in deferredObjects
+            .GroupBy(x => x.Info.Hash)
+            .OrderByDescending(x => x.Count())
+            .Select(x => (parsedObjects.OfType<MonoScript>().First(y => x.Key == y.m_PropertiesHash), x.Select(y => y))))
+        {
+            Assembly assembly = metadataLoadContext.LoadFromAssemblyPath(assemblyPaths
+                .First(x => x.Contains(script.m_AssemblyName.ToString())));
+
+            TreeBuilderAssembly treeBuilder = new(_knownTypeSubTrees);
+
+            ObjectTypeTree tree = treeBuilder.CreateTypeTreeFromAssembly(
+                assembly,
+                script.m_Namespace,
+                script.m_ClassName,
+                _knownTypeTrees[UnityObjectType.MonoBehaviour].Nodes);
+
+            TreeReader treeReader = new(new(), storage);
+
+            foreach (DeferredObject obj in objs)
+            {
+                using MemoryStream mem = new(obj.Data);
+                EndianBinaryReader reader = new(mem, obj.Owner.Header.IsBigEndian);
+                ObjectParserDebug debugReader = new(() => reader.Position);
+
+                ObjectParser parser = new();
+                parser.Read(tree, [], reader, debugReader, obj.Instance.Size);
+                Debug.Assert(reader.Remaining == 0);
+            }
+        }
     }
 
     private static void End_ExportAll(
@@ -298,8 +299,8 @@ public record class CodeGeneration : IAssetProcessor
 
     private readonly ConcurrentBag<ThreadWorkData> _threadWorkData = [];
     private readonly ConcurrentDictionary<Hash128, ObjectTypeTree> _knownScriptTypeTrees = [];
-
     private Dictionary<UnityObjectType, ObjectTypeTree> _knownTypeTrees = [];
+    private Dictionary<AsciiString, ObjectParserNode[]> _knownTypeSubTrees = []; // for any referenced type inside engine trees
 
     private record class ThreadWorkData(
         ITreeReader Reader,

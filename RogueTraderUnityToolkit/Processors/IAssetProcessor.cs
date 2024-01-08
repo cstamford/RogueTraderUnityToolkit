@@ -17,5 +17,6 @@ public interface IAssetProcessor
 
     public void End(
         Args args,
+        IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets);
 }

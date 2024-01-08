@@ -162,7 +162,7 @@ Log.Write(
     new LogEntry($"{assetCountSkipped} skipped, {assetCountFailed} failed", color),
     new LogEntry(")"));
 
-processor.End(arguments, [..assets]);
+processor.End(arguments, files, [..assets]);
 
 return;
 

@@ -6,13 +6,17 @@ using System.Text.Json;
 
 namespace RogueTraderUnityToolkit.Tree;
 
-public static class TreeConverter
+public static class TreeBuilderJson
 {
-    public static Dictionary<UnityObjectType, ObjectTypeTree> CreateTypeTreesFromJsonPath(string jsonPath)
+    public static void CreateTypeTreesFromJsonPath(
+        string jsonPath,
+        out Dictionary<UnityObjectType, ObjectTypeTree> typeTrees,
+        out Dictionary<AsciiString, ObjectParserNode[]> subTrees)
     {
         Root data = JsonSerializer.Deserialize<Root>(File.ReadAllBytes(jsonPath))!;
 
-        Dictionary<UnityObjectType, ObjectTypeTree> ret = [];
+        typeTrees = [];
+        subTrees = [];
 
         foreach (ClassRecord cls in data.Classes)
         {
@@ -37,12 +41,48 @@ public static class TreeConverter
                 convertedNodes[i] = ConvertTypeTreeNode(allNodes[i], allLevelsSpan);
             }
 
-            ret[Enum.Parse<UnityObjectType>(cls.Name)] = new ObjectTypeTree(convertedNodes);
+            ObjectTypeTree typeTree = new(convertedNodes);
+            CollectSubtrees(subTrees, typeTree.Nodes);
+
+            typeTrees[Enum.Parse<UnityObjectType>(cls.Name)] = new ObjectTypeTree(convertedNodes);
 
             ArrayPool<byte>.Shared.Return(allLevels);
         }
+    }
 
-        return ret;
+    private static void CollectSubtrees(
+        IDictionary<AsciiString, ObjectParserNode[]> subTrees,
+        ObjectParserNode[] nodes)
+    {
+        IEnumerable<ObjectParserNode> complexNodes = nodes
+            .Where(x =>
+                x is { IsLeaf: false, IsArray: false, IsPrimitive: false, Level: > 0, Type: ObjectParserType.Complex } &&
+                !subTrees.ContainsKey(x.TypeName) &&
+                x.TypeName != "Array" &&
+                x.TypeName != "vector" &&
+                x.TypeName != "staticvector" &&
+                x.TypeName != "TypelessData" &&
+                x.TypeName != "map" &&
+                x.TypeName != "string")
+            .DistinctBy(x => x.TypeName);
+
+        foreach (ObjectParserNode node in complexNodes)
+        {
+            List<ObjectParserNode> subTreeNodes = [node];
+
+            ushort startIdx = node.FirstChildIdx;
+            ushort endIdx = node.FirstSiblingIdx != 0 ? node.FirstSiblingIdx : (ushort)nodes.Length;
+            ushort childIdx = startIdx;
+
+            while (childIdx < endIdx)
+            {
+                ref ObjectParserNode childNode = ref nodes[childIdx++];
+                if (childNode.Level <= node.Level) break;
+                subTreeNodes.Add(childNode);
+            }
+
+            subTrees.Add(node.TypeName, subTreeNodes.ToArray());
+        }
     }
 
     // Data is sourced from https://github.com/AssetRipper/TypeTreeDumps.

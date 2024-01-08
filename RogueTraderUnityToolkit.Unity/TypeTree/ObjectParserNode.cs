@@ -235,14 +235,16 @@ public static class ObjectParserNodeUtil
     public static IEnumerable<(ObjectParserType, AsciiString[])> TypeAliases => _typeMap
         .Select(x => (x.Key, x.Value));
 
+    public static Dictionary<ObjectParserType, AsciiString[]> TypeMap => _typeMap;
+
     private static readonly Dictionary<ObjectParserType, AsciiString[]> _typeMap = new()
     {
         [ObjectParserType.U64] = [
             AsciiString.From("UInt64"u8),
             AsciiString.From("FileSize"u8)],
         [ObjectParserType.U32] = [
-            AsciiString.From("UInt32"u8),
-            AsciiString.From("unsigned int"u8)],
+            AsciiString.From("unsigned int"u8),
+            AsciiString.From("UInt32"u8)],
         [ObjectParserType.U16] = [
             AsciiString.From("UInt16"u8)],
         [ObjectParserType.U8] = [
@@ -250,8 +252,8 @@ public static class ObjectParserNodeUtil
         [ObjectParserType.S64] = [
             AsciiString.From("SInt64"u8)],
         [ObjectParserType.S32] = [
-            AsciiString.From("SInt32"u8),
             AsciiString.From("int"u8),
+            AsciiString.From("SInt32"u8),
             AsciiString.From("Type*"u8)],
         [ObjectParserType.S16] = [
             AsciiString.From("SInt16"u8)],
