@@ -78,7 +78,7 @@ public record class CodeGeneration : IAssetProcessor
         IReadOnlyList<FileInfo> files,
         ISerializedAsset[] assets)
     {
-        End_AddDeferredObjects(files, _threadWorkData);
+        End_AddDeferredObjects(args, files, _threadWorkData);
         Dictionary<TreePathObject, int> treeObjects = End_MergeWorkData(_threadWorkData);
 
         TreeReport report = TreeAnalysis.CalculateReport(treeObjects);
@@ -201,6 +201,7 @@ public record class CodeGeneration : IAssetProcessor
     }
 
     private void End_AddDeferredObjects(
+        Args args,
         IReadOnlyList<FileInfo> files,
         IEnumerable<ThreadWorkData> allWorkData)
     {
@@ -224,16 +225,31 @@ public record class CodeGeneration : IAssetProcessor
         int parsedObjectsCount = 0;
         int skippedObjectsCount = 0;
 
-        Parallel.ForEach(objectsToProcess, entry =>
+        ParallelOptions parallelOpts = new();
+
+        if (args.ThreadCount > 0)
+        {
+            parallelOpts.MaxDegreeOfParallelism = args.ThreadCount;
+        }
+
+        Parallel.ForEach(objectsToProcess, parallelOpts, entry =>
         {
             (MonoScript script, IEnumerable<DeferredObject> objects) = entry;
+
+            string targetAssemblyName = script.m_AssemblyName.ToString().Replace(".dll", "");
+            string? assemblyPath = assemblyPaths.FirstOrDefault(x => Path.GetFileNameWithoutExtension(x) == targetAssemblyName);
+
+            if (assemblyPath == null)
+            {
+                Log.Write($"Couldn't load assembly {targetAssemblyName}! Was it in the provided directories?");
+                return;
+            }
 
             Assembly assembly;
 
             lock (metadataLoadContext)
             {
-                assembly = metadataLoadContext.LoadFromAssemblyPath(assemblyPaths
-                    .First(x => x.Contains(script.m_AssemblyName.ToString())));
+                assembly = metadataLoadContext.LoadFromAssemblyPath(assemblyPath);
             }
 
             TreeBuilderAssembly treeBuilder = new();
@@ -246,6 +262,7 @@ public record class CodeGeneration : IAssetProcessor
 
             if (tree.Nodes.Length == 0)
             {
+                Log.Write($"Couldn't find type {script.m_Namespace}.{script.m_ClassName} in {assembly.FullName}", ConsoleColor.Yellow);
                 Interlocked.Add(ref skippedObjectsCount, objects.Count());
                 return;
             }

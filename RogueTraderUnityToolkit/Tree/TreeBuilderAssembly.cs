@@ -14,12 +14,8 @@ public readonly ref struct TreeBuilderAssembly()
         AsciiString cls,
         IEnumerable<ObjectParserNode> baseClass)
     {
-        Type? type = assembly.GetTypes().FirstOrDefault(x => cls == x.Name && ns == x.Namespace);
-        if (type == null)
-        {
-            Log.Write($"Couldn't find type {ns}.{cls} in {assembly.FullName}", ConsoleColor.Yellow);
-            return new([]);
-        }
+        Type? type = assembly.GetTypes().FirstOrDefault(x => cls == x.Name && (ns == x.Namespace || (ns.Length == 0 && x.Namespace == null)));
+        if (type == null) return new([]);
 
         _nodes.AddRange(baseClass);
         MakeNodesForTypeChildren(type, 1);
@@ -58,6 +54,9 @@ public readonly ref struct TreeBuilderAssembly()
 
         return tree;
     }
+
+    private readonly List<ObjectParserNode> _nodes = [];
+    private readonly Stack<Type> _visited = [];
 
     private void MakeNodesForType(AsciiString name, Type type, byte level, bool skipAlignment = false)
     {
@@ -205,7 +204,7 @@ public readonly ref struct TreeBuilderAssembly()
         return ((isPublic || isSerializable) && !isNotSerializable) && !isStatic && !isConst && !isReadonly;
     }
 
-    private bool ShouldSerializeFieldType(Type type)
+    private static bool ShouldSerializeFieldType(Type type)
     {
         // Has a field type that can be serialized:
         // Primitive data types (int, float, double, bool, string, etc.)
@@ -237,7 +236,7 @@ public readonly ref struct TreeBuilderAssembly()
         return isPrimitive || isEnum || isSerializable || isUnityObject || isCollection || isBuiltIn;
     }
 
-    private Type? GetBuiltInTypeAlias(Type type)
+    private static Type? GetBuiltInTypeAlias(Type type)
     {
         if (IsUnityEngineType(type))
         {
@@ -322,21 +321,6 @@ public readonly ref struct TreeBuilderAssembly()
         MakeNodesForType(AsciiString.From("m_PathID"), typeof(long), (byte)(level + 1));
     }
 
-    private void CreateSubtree(AsciiString name, ObjectParserNode[] nodes, byte level)
-    {
-        _nodes.Add(nodes[0] with { Index = (ushort)_nodes.Count, Level = level, Name = name });
-
-        for (int i = 1; i < nodes.Length; ++i)
-        {
-            int relLevel = nodes[i].Level - nodes[0].Level;
-            Debug.Assert(relLevel >= 1);
-            _nodes.Add(nodes[i] with { Index = (ushort)_nodes.Count, Level = (byte)(level + relLevel) });
-        }
-    }
-
-    private readonly List<ObjectParserNode> _nodes = [];
-    private readonly Stack<Type> _visited = [];
-
     private readonly static Dictionary<AsciiString, Type> _builtInTypes = new()
     {
         [AsciiString.From("AnimationCurve")] = typeof(TreeBuilderAssemblyBuiltins.AnimationCurve),
@@ -346,10 +330,14 @@ public readonly ref struct TreeBuilderAssembly()
         [AsciiString.From("Gradient")] = typeof(TreeBuilderAssemblyBuiltins.Gradient),
         [AsciiString.From("Keyframe")] = typeof(TreeBuilderAssemblyBuiltins.Keyframe),
         [AsciiString.From("LayerMask")] = typeof(TreeBuilderAssemblyBuiltins.LayerMask),
+        [AsciiString.From("RectOffset")] = typeof(TreeBuilderAssemblyBuiltins.RectOffset),
         [AsciiString.From("Rect")] = typeof(TreeBuilderAssemblyBuiltins.Rectf),
         [AsciiString.From("Vector2")] = typeof(TreeBuilderAssemblyBuiltins.Vector2f),
+        [AsciiString.From("Vector2Int")] = typeof(TreeBuilderAssemblyBuiltins.Vector2i),
         [AsciiString.From("Vector3")] = typeof(TreeBuilderAssemblyBuiltins.Vector3f),
+        [AsciiString.From("Vector3Int")] = typeof(TreeBuilderAssemblyBuiltins.Vector3i),
         [AsciiString.From("Vector4")] = typeof(TreeBuilderAssemblyBuiltins.Vector4f),
+        [AsciiString.From("Vector4Int")] = typeof(TreeBuilderAssemblyBuiltins.Vector4i),
     };
 }
 
@@ -435,6 +423,15 @@ public static class TreeBuilderAssemblyBuiltins
     }
 
     [Serializable]
+    public struct RectOffset
+    {
+        public int left;
+        public int right;
+        public int top;
+        public int bottom;
+    }
+
+    [Serializable]
     public struct Rectf
     {
         public float x;
@@ -469,11 +466,26 @@ public static class TreeBuilderAssemblyBuiltins
     }
 
     [Serializable]
+    public struct Vector2i
+    {
+        public int x;
+        public int y;
+    }
+
+    [Serializable]
     public struct Vector3f
     {
         public float x;
         public float y;
         public float z;
+    }
+
+    [Serializable]
+    public struct Vector3i
+    {
+        public int x;
+        public int y;
+        public int z;
     }
 
     [Serializable]
@@ -483,5 +495,14 @@ public static class TreeBuilderAssemblyBuiltins
         public float y;
         public float z;
         public float w;
+    }
+
+    [Serializable]
+    public struct Vector4i
+    {
+        public int x;
+        public int y;
+        public int z;
+        public int w;
     }
 }
