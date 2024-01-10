@@ -2,7 +2,6 @@
 using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.UnityGenerated;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
@@ -11,11 +10,23 @@ using System.Net.Sockets;
 List<FileInfo> files = Directory
     .EnumerateFiles(@"C:\Program Files (x86)\Steam\steamapps\common\Warhammer 40,000 Rogue Trader", "*", SearchOption.AllDirectories)
     .Select(x => new FileInfo(x))
-    .Where(x => x.Length >= 32)
+    .Where(x => x.Length > 0)
     .OrderByDescending(x => x.Length)
     .ToList();
 
 AssetDatabase db = new(files);
+AssetDatabaseScene testScene = db.LoadScene(AsciiString.From("VoidshipBridge_RTCabin_StaticForArt"));
+
+AssetDatabaseSceneObject obj = testScene.RootObjects
+    .MaxBy(x => x.Children.Length).Children
+    .Where(x => x.Mesh.HasValue)
+    .MaxBy(x => x.Mesh!.Value.Indices.Indices.Length);
+
+AssetDatabaseMesh mesh = obj.Mesh.Value!;
+int start = mesh.SubMeshes[0].IndexOffset;
+int end = start + mesh.SubMeshes[0].IndexCount;
+mesh.TryGetAttributes(VertexAttribute.Position, out MeshVertexData data);
+DebugMeshDisplay.DrawMesh(data, mesh.Indices.Indices[start..end]);
 
 TcpListener tcpListener = new (IPAddress.Loopback, 16253);
 tcpListener.Start();
@@ -56,13 +67,14 @@ async Task HandleClientAsync(TcpClient client)
 
             Log.Write($"Received {request} for {sceneName}");
 
+            /*
             db.LoadScene(
                 sceneName,
-                out GameObject root,
+                out List<GameObject> roots,
                 out Dictionary<GameObject, List<GameObject>> scene,
                 out Dictionary<GameObject, IUnityObject[]> sceneComponents);
 
-            Log.Write($"Sending {scene.Count} objects, root is {root.m_Name}");
+            Log.Write($"Sending {scene.Count} objects, roots are {string.Join(", ", roots.Select(x => x.m_Name))}");
 
             buffer.Span[0] = (byte)request;
             await stream.WriteAsync(buffer[..1]);
@@ -70,7 +82,11 @@ async Task HandleClientAsync(TcpClient client)
             BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.Count);
             await stream.WriteAsync(buffer[..4]);
 
-            await SendAllObjects(stream, buffer, scene, sceneComponents, root);
+            foreach (GameObject root in roots)
+            {
+                await SendAllObjects(stream, buffer, scene, sceneComponents, root);
+            }
+            */
         }
 
         Thread.Sleep(100);
@@ -127,3 +143,8 @@ async Task SendAllObjects(
         await SendAllObjects(stream, buffer, scene, sceneComponents, child);
     }
 }
+
+enum AssetDatabaseRequestType : byte
+{
+    Scene
+};
