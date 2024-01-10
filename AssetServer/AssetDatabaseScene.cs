@@ -3,6 +3,7 @@ using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.UnityGenerated;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
+using System.Diagnostics;
 
 namespace AssetServer;
 
@@ -16,13 +17,14 @@ public readonly record struct AssetDatabaseScene(
     {
         List<AssetDatabaseSceneObject> rootObjects = [];
 
-        foreach (AssetDatabasePtr<GameObject> objPtr in sceneContainer
-            .GetObjectPtrs<GameObject>(UnityObjectType.GameObject))
+        Parallel.ForEach(
+            sceneContainer.GetObjectPtrs<GameObject>(UnityObjectType.GameObject),
+            objPtr =>
         {
             AssetDatabaseSceneObject obj = AssetDatabaseSceneObject.Read(objPtr, out AssetDatabasePtr<Transform> parent);
-            if (parent.Valid) continue; // only take root objects
-            rootObjects.Add(obj);
-        }
+            if (parent.Valid) return; // only take root objects
+            lock (rootObjects) { rootObjects.Add(obj); }
+        });
 
         return new(name, [.. rootObjects]);
     }

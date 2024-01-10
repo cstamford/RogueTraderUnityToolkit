@@ -1,7 +1,5 @@
 ﻿using AssetServer;
 using RogueTraderUnityToolkit.Core;
-using RogueTraderUnityToolkit.UnityGenerated;
-using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
@@ -15,18 +13,7 @@ List<FileInfo> files = Directory
     .ToList();
 
 AssetDatabase db = new(files);
-AssetDatabaseScene testScene = db.LoadScene(AsciiString.From("VoidshipBridge_RTCabin_StaticForArt"));
-
-AssetDatabaseSceneObject obj = testScene.RootObjects
-    .MaxBy(x => x.Children.Length).Children
-    .Where(x => x.Mesh.HasValue)
-    .MaxBy(x => x.Mesh!.Value.Indices.Indices.Length);
-
-AssetDatabaseMesh mesh = obj.Mesh.Value!;
-int start = mesh.SubMeshes[0].IndexOffset;
-int end = start + mesh.SubMeshes[0].IndexCount;
-mesh.TryGetAttributes(VertexAttribute.Position, out MeshVertexData data);
-DebugMeshDisplay.DrawMesh(data, mesh.Indices.Indices[start..end]);
+DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("VoidshipBridge_RTCabin_StaticForArt")));
 
 TcpListener tcpListener = new (IPAddress.Loopback, 16253);
 tcpListener.Start();
@@ -67,26 +54,20 @@ async Task HandleClientAsync(TcpClient client)
 
             Log.Write($"Received {request} for {sceneName}");
 
-            /*
-            db.LoadScene(
-                sceneName,
-                out List<GameObject> roots,
-                out Dictionary<GameObject, List<GameObject>> scene,
-                out Dictionary<GameObject, IUnityObject[]> sceneComponents);
+            AssetDatabaseScene scene = db.LoadScene(sceneName);
 
-            Log.Write($"Sending {scene.Count} objects, roots are {string.Join(", ", roots.Select(x => x.m_Name))}");
+            Log.Write($"Sending {scene.RootObjects} objects, roots are {string.Join(", ", scene.RootObjects.Select(x => x.Name))}");
 
             buffer.Span[0] = (byte)request;
             await stream.WriteAsync(buffer[..1]);
 
-            BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.Count);
+            BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.RootObjects.Length);
             await stream.WriteAsync(buffer[..4]);
 
-            foreach (GameObject root in roots)
+            foreach (AssetDatabaseSceneObject root in scene.RootObjects)
             {
-                await SendAllObjects(stream, buffer, scene, sceneComponents, root);
+                await SendObject(stream, buffer, root);
             }
-            */
         }
 
         Thread.Sleep(100);
@@ -110,37 +91,64 @@ async Task SendManifest(
     }
 }
 
-async Task SendAllObjects(
-    Stream stream,
-    Memory<byte> buffer,
-    IReadOnlyDictionary<GameObject, List<GameObject>> scene,
-    IReadOnlyDictionary<GameObject, IUnityObject[]> sceneComponents,
-    GameObject obj)
+async Task SendObject(Stream stream, Memory<byte> buffer, AssetDatabaseSceneObject obj)
 {
-    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, obj.m_Name.Length);
+    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, obj.Name.Length);
 
     await stream.WriteAsync(buffer[..4]);
-    await stream.WriteAsync(obj.m_Name.Memory);
+    await stream.WriteAsync(obj.Name.Memory);
 
-    Transform transform = sceneComponents[obj].OfType<Transform>().First();
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, transform.m_LocalPosition.x);
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.x);
     await stream.WriteAsync(buffer[..4]);
 
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, transform.m_LocalPosition.y);
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.y);
     await stream.WriteAsync(buffer[..4]);
 
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, transform.m_LocalPosition.z);
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.z);
     await stream.WriteAsync(buffer[..4]);
 
-    List<GameObject> children = scene[obj];
+    bool hasMesh = obj.Mesh.HasValue;
+    buffer.Span[0] = (byte)(hasMesh ? 1 : 0);
+    await stream.WriteAsync(buffer[..1]);
 
-    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, children.Count);
-    await stream.WriteAsync(buffer[..4]);
-
-    foreach (GameObject child in scene[obj])
+    if (hasMesh)
     {
-        await SendAllObjects(stream, buffer, scene, sceneComponents, child);
+        AssetDatabaseMesh mesh = obj.Mesh!.Value;
+
+        // TODO: Send int16 indices if available
+
+        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, mesh.Indices.Length);
+        await stream.WriteAsync(buffer[..4]);
+
+        foreach (uint idx in mesh.Indices)
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(buffer[..4].Span, idx);
+            await stream.WriteAsync(buffer[..4]);
+        }
+
+        bool hasPosition = mesh.TryGetAttributes(VertexAttribute.Position, out MeshVertexData positionData);
+        Debug.Assert(hasPosition);
+        Debug.Assert(positionData.Stride == 3);
+
+        int vertCount = positionData.Vertices.Length / positionData.Stride;
+        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, vertCount);
+        await stream.WriteAsync(buffer[..4]);
+
+        foreach (MeshVertex vtx in positionData.Vertices)
+        {
+            BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, vtx.f32);
+            await stream.WriteAsync(buffer[..4]);
+        }
+
+        // TODO: send submeshes
+    }
+
+    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, obj.Children.Length);
+    await stream.WriteAsync(buffer[..4]);
+
+    foreach (AssetDatabaseSceneObject child in obj.Children)
+    {
+        await SendObject(stream, buffer, child);
     }
 }
 

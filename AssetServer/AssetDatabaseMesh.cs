@@ -9,7 +9,8 @@ namespace AssetServer;
 
 public readonly record struct AssetDatabaseMesh(
     MeshSubMesh[] SubMeshes,
-    MeshIndexData Indices,
+    IndexFormat IndicesFormat,
+    uint[] Indices,
     MeshVertexData[] Vertices)
 {
     public bool TryGetAttributes(VertexAttribute attr, out MeshVertexData data)
@@ -56,7 +57,7 @@ public readonly record struct AssetDatabaseMesh(
         else
         {
             stream = new MemoryStream(mesh.m_VertexData.m_DataSize);
-            reader = new(stream);
+            reader = new(stream, ptr.File.Header.IsBigEndian);
         }
 
         IEnumerable<(ChannelInfo, VertexAttribute, int)> activeChannels = mesh.m_VertexData.m_Channels
@@ -76,6 +77,9 @@ public readonly record struct AssetDatabaseMesh(
         {
             foreach (MeshVertexData data in vertices)
             {
+                Debug.Assert(i != 0 || reader.Position == activeChannels.First(x => x.Item2 == data.Attribute).Item1.offset,
+                    "The offsets in the channels are weird, so we're going to read out of order.");
+
                 VertexAttributeFormat format = data.Format;
                 int size = format.Size();
 
@@ -103,18 +107,11 @@ public readonly record struct AssetDatabaseMesh(
         Debug.Assert(reader.Remaining == 0);
 
         stream.Dispose();
-        return new(subMeshes, new(indexFormat, indices), vertices);
+        return new(subMeshes, indexFormat, indices, vertices);
     }
 }
 
 public readonly record struct MeshSubMesh(int IndexOffset, int IndexCount);
-
-public readonly record struct MeshIndexData(
-    IndexFormat Format,
-    uint[] Indices)
-{
-    public override string ToString() => $"{Format} {Indices.Length}";
-}
 
 public readonly record struct MeshVertexData(
     VertexAttribute Attribute,

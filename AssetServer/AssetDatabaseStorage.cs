@@ -3,7 +3,6 @@ using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.UnityGenerated;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 
 namespace AssetServer;
