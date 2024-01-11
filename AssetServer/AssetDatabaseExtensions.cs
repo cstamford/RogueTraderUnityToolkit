@@ -32,13 +32,6 @@ public static class AssetDatabaseExtensions
 
     public static AssetDatabasePtr<T> Ptr<T>(this SerializedFile file, PPtr<T> pptr) => new(file, pptr);
 
-    public static int Size(this IndexFormat format) => format switch
-    {
-        IndexFormat.UInt16 => 2,
-        IndexFormat.UInt32 => 4,
-        _ => throw new()
-    };
-
     public static int Size(this VertexAttributeFormat format) => format switch
     {
         VertexAttributeFormat.Float32 => 4,

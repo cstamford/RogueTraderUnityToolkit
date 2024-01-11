@@ -1,5 +1,6 @@
 ﻿using AssetServer;
 using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.UnityGenerated.Types;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Buffers.Binary;
 using System.Diagnostics;
@@ -167,33 +168,42 @@ internal static class Extensions
 
     public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AssetDatabaseMesh mesh)
     {
-        // TODO:
-        // * 2 byte indices where appropriate
-        // * verts sent as the right type
-        // * submeshes
+        await stream.WriteAsync(buffer, mesh.Name);
+        await stream.WriteAsync(buffer, mesh.SubMeshes.Length);
 
-        await stream.WriteAsync(buffer, mesh.Indices.Length);
-
-        foreach (uint idx in mesh.Indices)
+        foreach (SubMesh submesh in mesh.SubMeshes)
         {
-            await stream.WriteAsync(buffer, idx);
+            await stream.WriteAsync(buffer, (int)submesh.firstByte / (mesh.IndexFormat == 0 ? 2 : 4));
+            await stream.WriteAsync(buffer, (int)submesh.indexCount);
+            await stream.WriteAsync(buffer, submesh.topology);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Center.x);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Center.y);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Center.z);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Extent.x);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Center.y);
+            await stream.WriteAsync(buffer, submesh.localAABB.m_Center.z);
+            await stream.WriteAsync(buffer, (int)submesh.baseVertex);
+            await stream.WriteAsync(buffer, (int)submesh.firstVertex);
+            await stream.WriteAsync(buffer, (int)submesh.vertexCount);
         }
 
-        await stream.WriteAsync(buffer, mesh.Vertices.Length);
+        await stream.WriteAsync(buffer, mesh.IndexCount);
+        await stream.WriteAsync(buffer, mesh.IndexFormat);
+        await stream.WriteAsync(mesh.IndexData);
 
-        foreach (MeshVertexData data in mesh.Vertices)
+        await stream.WriteAsync(buffer, mesh.VertexCount);
+        await stream.WriteAsync(buffer, mesh.VertexSize);
+        await stream.WriteAsync(buffer, mesh.VertexChannels.Length);
+
+        foreach ((int attr, ChannelInfo channel) in mesh.VertexChannels)
         {
-            await stream.WriteAsync(buffer, (int)data.Attribute);
-            await stream.WriteAsync(buffer, (int)data.Format);
-            await stream.WriteAsync(buffer, data.Stride);
-
-            await stream.WriteAsync(buffer, data.Vertices.Length / data.Stride);
-
-            foreach (MeshVertex vtx in data.Vertices)
-            {
-                await stream.WriteAsync(buffer, vtx.f32);
-            }
+            await stream.WriteAsync(buffer, attr);
+            await stream.WriteAsync(buffer, channel.format);
+            await stream.WriteAsync(buffer, channel.dimension & 0xF);
         }
+
+        await stream.WriteAsync(buffer, mesh.VertexStreamData.Length);
+        await stream.WriteAsync(mesh.VertexStreamData);
     }
 
     public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AssetDatabaseMaterial mat)
