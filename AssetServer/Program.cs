@@ -13,7 +13,7 @@ List<FileInfo> files = Directory
     .ToList();
 
 AssetDatabase db = new(files);
-DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("VoidshipBridge_RTCabin_StaticForArt")));
+DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("CassiaRoom_StaticForArt")));
 
 TcpListener tcpListener = new (IPAddress.Loopback, 16253);
 tcpListener.Start();
@@ -105,6 +105,27 @@ async Task SendObject(Stream stream, Memory<byte> buffer, AssetDatabaseSceneObje
     await stream.WriteAsync(buffer[..4]);
 
     BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.z);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.x);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.y);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.z);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.w);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.x);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.y);
+    await stream.WriteAsync(buffer[..4]);
+
+    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.z);
     await stream.WriteAsync(buffer[..4]);
 
     bool hasMesh = obj.Mesh.HasValue;
