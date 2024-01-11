@@ -13,7 +13,7 @@ List<FileInfo> files = Directory
     .ToList();
 
 AssetDatabase db = new(files);
-DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("CassiaRoom_StaticForArt")));
+DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("Marazhai_Bloodright_Static")));
 
 TcpListener tcpListener = new (IPAddress.Loopback, 16253);
 tcpListener.Start();
@@ -64,10 +64,15 @@ async Task HandleClientAsync(TcpClient client)
             BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.RootObjects.Length);
             await stream.WriteAsync(buffer[..4]);
 
+            BufferedStream bufferedStream = new(stream, 1024*128);
+
             foreach (AssetDatabaseSceneObject root in scene.RootObjects)
             {
-                await SendObject(stream, buffer, root);
+                await SendObject(bufferedStream, buffer, root);
+                await bufferedStream.FlushAsync();
             }
+
+            await bufferedStream.FlushAsync();
         }
 
         Thread.Sleep(100);
