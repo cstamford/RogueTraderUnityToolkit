@@ -34,6 +34,7 @@ public record struct AssetDatabaseSceneObject(
     AsciiString Name,
     Transform Transform,
     AssetDatabaseMesh? Mesh,
+    AssetDatabaseMaterial[] MeshMaterials,
     AssetDatabaseSceneObject[] Children)
 {
     public static AssetDatabaseSceneObject Read(
@@ -45,15 +46,22 @@ public record struct AssetDatabaseSceneObject(
         IEnumerable<AssetDatabasePtr<IUnityObject>> componentPtrs = self.m_Component
             .Select(x => ptr.File.Ptr(x.component).Retype<IUnityObject>());
 
-        AssetDatabaseMesh? mesh = null;
+        AssetDatabasePtr<IUnityObject> meshFilterPtr = componentPtrs.FirstOrDefault(x => x.Fetch() is MeshFilter);
+        AssetDatabasePtr<IUnityObject> meshRendererPtr = componentPtrs.FirstOrDefault(x => x.Fetch() is MeshRenderer);
 
-        foreach (AssetDatabasePtr<IUnityObject> component in componentPtrs)
+        AssetDatabaseMesh? databaseMesh = null;
+        AssetDatabaseMaterial[] databaseMeshMaterials = Array.Empty<AssetDatabaseMaterial>();
+
+        if (meshFilterPtr.Valid && meshRendererPtr.Valid)
         {
-            IUnityObject componentData = component.Fetch();
-            if (componentData is MeshFilter filter)
+            databaseMesh = AssetDatabaseMesh.Read(new(meshFilterPtr.File, meshFilterPtr.Fetch<MeshFilter>().m_Mesh));
+
+            MeshRenderer meshRenderer = meshRendererPtr.Fetch<MeshRenderer>();
+            databaseMeshMaterials = new AssetDatabaseMaterial[meshRenderer.m_Materials.Length];
+
+            for (int i = 0; i < meshRenderer.m_Materials.Length; ++i)
             {
-                mesh = AssetDatabaseMesh.Read(component.File.Ptr(filter.m_Mesh));
-                break;
+                databaseMeshMaterials[i] = AssetDatabaseMaterial.Read(new(meshRendererPtr.File, meshRenderer.m_Materials[i]));
             }
         }
 
@@ -72,7 +80,8 @@ public record struct AssetDatabaseSceneObject(
         return new(
             Name: self.m_Name,
             Transform: transform,
-            Mesh: mesh,
+            Mesh: databaseMesh,
+            MeshMaterials: databaseMeshMaterials,
             Children: [..children]);
     }
 }

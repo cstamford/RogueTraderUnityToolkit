@@ -194,7 +194,13 @@ public static class DebugSceneDisplay
 
         if (obj.Mesh.HasValue)
         {
-            draws.Add(new(obj, obj.Mesh.Value, GL.GenBuffer(), GL.GenBuffer(), GL.GenBuffer(), transform));
+            draws.Add(new(
+                obj,
+                obj.Mesh.Value,
+                GL.GenBuffer(),
+                GL.GenBuffer(),
+                GL.GenBuffer(),
+                transform));
         }
 
         foreach (AssetDatabaseSceneObject child in obj.Children)

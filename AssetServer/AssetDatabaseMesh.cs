@@ -13,6 +13,13 @@ public readonly record struct AssetDatabaseMesh(
     uint[] Indices,
     MeshVertexData[] Vertices)
 {
+    public MeshVertexData GetAttributes(VertexAttribute attr)
+    {
+        bool hasPosition = TryGetAttributes(VertexAttribute.Position, out MeshVertexData positionData);
+        Debug.Assert(hasPosition);
+        return positionData;
+    }
+
     public bool TryGetAttributes(VertexAttribute attr, out MeshVertexData data)
     {
         data = Vertices.FirstOrDefault(x => attr == x.Attribute);

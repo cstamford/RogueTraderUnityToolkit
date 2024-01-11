@@ -1,5 +1,6 @@
 ﻿using AssetServer;
 using RogueTraderUnityToolkit.Core;
+using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
@@ -13,8 +14,6 @@ List<FileInfo> files = Directory
     .ToList();
 
 AssetDatabase db = new(files);
-DebugSceneDisplay.DrawScene(db.LoadScene(AsciiString.From("Marazhai_Bloodright_Static")));
-
 TcpListener tcpListener = new (IPAddress.Loopback, 16253);
 tcpListener.Start();
 
@@ -34,48 +33,49 @@ async Task HandleClientAsync(TcpClient client)
     Memory<byte> buffer = new byte[4096];
     await SendManifest(stream, buffer);
 
-    while (client.Connected)
+    try
     {
-        int bytes = await stream.ReadAsync(buffer[..1]);
-        if (bytes != 1) break;
-
-        AssetDatabaseRequestType request = (AssetDatabaseRequestType)buffer.Span[0];
-
-        if (request == AssetDatabaseRequestType.Scene)
+        while (client.Connected)
         {
-            bytes = await stream.ReadAsync(buffer[..4]);
-            Debug.Assert(bytes == 4);
+            int bytes = await stream.ReadAsync(buffer[..1]);
+            if (bytes != 1) break;
 
-            int sceneLength = BinaryPrimitives.ReadInt32BigEndian(buffer[..4].Span);
-            bytes = await stream.ReadAsync(buffer[..sceneLength]);
-            Debug.Assert(bytes == sceneLength);
+            RequestType request = (RequestType)buffer.Span[0];
 
-            AsciiString sceneName = AsciiString.From(buffer[..sceneLength].Span);
-
-            Log.Write($"Received {request} for {sceneName}");
-
-            AssetDatabaseScene scene = db.LoadScene(sceneName);
-
-            Log.Write($"Sending {scene.RootObjects} objects, roots are {string.Join(", ", scene.RootObjects.Select(x => x.Name))}");
-
-            buffer.Span[0] = (byte)request;
-            await stream.WriteAsync(buffer[..1]);
-
-            BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.RootObjects.Length);
-            await stream.WriteAsync(buffer[..4]);
-
-            BufferedStream bufferedStream = new(stream, 1024*128);
-
-            foreach (AssetDatabaseSceneObject root in scene.RootObjects)
+            if (request == RequestType.Scene)
             {
-                await SendObject(bufferedStream, buffer, root);
+                bytes = await stream.ReadAsync(buffer[..4]);
+                Debug.Assert(bytes == 4);
+
+                int sceneLength = BinaryPrimitives.ReadInt32BigEndian(buffer[..4].Span);
+                bytes = await stream.ReadAsync(buffer[..sceneLength]);
+                Debug.Assert(bytes == sceneLength);
+
+                AsciiString sceneName = AsciiString.From(buffer[..sceneLength].Span);
+                Log.Write($"Received {request} for {sceneName}");
+                AssetDatabaseScene scene = db.LoadScene(sceneName);
+
+                buffer.Span[0] = (byte)request;
+                await stream.WriteAsync(buffer[..1]);
+
+                BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.RootObjects.Length);
+                await stream.WriteAsync(buffer[..4]);
+
+                BufferedStream bufferedStream = new(stream, 1024 * 128);
+
+                foreach (AssetDatabaseSceneObject root in scene.RootObjects)
+                {
+                    await SendObject(bufferedStream, buffer, root);
+                    await bufferedStream.FlushAsync();
+                }
+
                 await bufferedStream.FlushAsync();
             }
-
-            await bufferedStream.FlushAsync();
         }
-
-        Thread.Sleep(100);
+    }
+    catch (Exception ex)
+    {
+        Log.Write($"Network {ex}", ConsoleColor.Red);
     }
 }
 
@@ -83,94 +83,33 @@ async Task SendManifest(
     Stream stream,
     Memory<byte> buffer)
 {
-    IEnumerable<AsciiString> scenes = db.Scenes;
+    await stream.WriteAsync(buffer, db.Scenes.Count());
 
-    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scenes.Count());
-    await stream.WriteAsync(buffer[..4]);
-
-    foreach (AsciiString scene in scenes)
+    foreach (AsciiString scene in db.Scenes)
     {
-        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, scene.Length);
-        await stream.WriteAsync(buffer[..4]);
-        await stream.WriteAsync(scene.Memory);
+        await stream.WriteAsync(buffer, scene);
     }
 }
 
 async Task SendObject(Stream stream, Memory<byte> buffer, AssetDatabaseSceneObject obj)
 {
-    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, obj.Name.Length);
+    await stream.WriteAsync(buffer, obj.Name);
+    await stream.WriteAsync(buffer, obj.Transform);
+    await stream.WriteAsync(buffer, obj.Mesh.HasValue);
 
-    await stream.WriteAsync(buffer[..4]);
-    await stream.WriteAsync(obj.Name.Memory);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.x);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.y);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalPosition.z);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.x);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.y);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.z);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalRotation.w);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.x);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.y);
-    await stream.WriteAsync(buffer[..4]);
-
-    BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, obj.Transform.m_LocalScale.z);
-    await stream.WriteAsync(buffer[..4]);
-
-    bool hasMesh = obj.Mesh.HasValue;
-    buffer.Span[0] = (byte)(hasMesh ? 1 : 0);
-    await stream.WriteAsync(buffer[..1]);
-
-    if (hasMesh)
+    if (obj.Mesh.HasValue)
     {
-        AssetDatabaseMesh mesh = obj.Mesh!.Value;
-
-        // TODO: Send int16 indices if available
-
-        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, mesh.Indices.Length);
-        await stream.WriteAsync(buffer[..4]);
-
-        foreach (uint idx in mesh.Indices)
-        {
-            BinaryPrimitives.WriteUInt32BigEndian(buffer[..4].Span, idx);
-            await stream.WriteAsync(buffer[..4]);
-        }
-
-        bool hasPosition = mesh.TryGetAttributes(VertexAttribute.Position, out MeshVertexData positionData);
-        Debug.Assert(hasPosition);
-        Debug.Assert(positionData.Stride == 3);
-
-        int vertCount = positionData.Vertices.Length / positionData.Stride;
-        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, vertCount);
-        await stream.WriteAsync(buffer[..4]);
-
-        foreach (MeshVertex vtx in positionData.Vertices)
-        {
-            BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, vtx.f32);
-            await stream.WriteAsync(buffer[..4]);
-        }
-
-        // TODO: send submeshes
+        await stream.WriteAsync(buffer, obj.Mesh.Value);
     }
 
-    BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, obj.Children.Length);
-    await stream.WriteAsync(buffer[..4]);
+    await stream.WriteAsync(buffer, obj.MeshMaterials.Length);
+
+    foreach (AssetDatabaseMaterial material in obj.MeshMaterials)
+    {
+        await stream.WriteAsync(buffer, material);
+    }
+
+    await stream.WriteAsync(buffer, obj.Children.Length);
 
     foreach (AssetDatabaseSceneObject child in obj.Children)
     {
@@ -178,7 +117,115 @@ async Task SendObject(Stream stream, Memory<byte> buffer, AssetDatabaseSceneObje
     }
 }
 
-enum AssetDatabaseRequestType : byte
+internal static class Extensions
+{
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, int i32)
+    {
+        BinaryPrimitives.WriteInt32BigEndian(buffer[..4].Span, i32);
+        await stream.WriteAsync(buffer[..4]);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, uint u32)
+    {
+        BinaryPrimitives.WriteUInt32BigEndian(buffer[..4].Span, u32);
+        await stream.WriteAsync(buffer[..4]);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, float f32)
+    {
+        BinaryPrimitives.WriteSingleBigEndian(buffer[..4].Span, f32);
+        await stream.WriteAsync(buffer[..4]);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, bool b)
+    {
+        buffer.Span[0] = (byte)(b ? 1 : 0);
+        await stream.WriteAsync(buffer[..1]);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AsciiString str)
+    {
+        await stream.WriteAsync(buffer, str.Length);
+        await stream.WriteAsync(str.Memory);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, Transform transform)
+    {
+        await stream.WriteAsync(buffer, transform.m_LocalPosition.x);
+        await stream.WriteAsync(buffer, transform.m_LocalPosition.y);
+        await stream.WriteAsync(buffer, transform.m_LocalPosition.z);
+
+        await stream.WriteAsync(buffer, transform.m_LocalRotation.x);
+        await stream.WriteAsync(buffer, transform.m_LocalRotation.y);
+        await stream.WriteAsync(buffer, transform.m_LocalRotation.z);
+        await stream.WriteAsync(buffer, transform.m_LocalRotation.w);
+
+        await stream.WriteAsync(buffer, transform.m_LocalScale.x);
+        await stream.WriteAsync(buffer, transform.m_LocalScale.y);
+        await stream.WriteAsync(buffer, transform.m_LocalScale.z);
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AssetDatabaseMesh mesh)
+    {
+        // TODO:
+        // * 2 byte indices where appropriate
+        // * verts sent as the right type
+        // * submeshes
+
+        await stream.WriteAsync(buffer, mesh.Indices.Length);
+
+        foreach (uint idx in mesh.Indices)
+        {
+            await stream.WriteAsync(buffer, idx);
+        }
+
+        await stream.WriteAsync(buffer, mesh.Vertices.Length);
+
+        foreach (MeshVertexData data in mesh.Vertices)
+        {
+            await stream.WriteAsync(buffer, (int)data.Attribute);
+            await stream.WriteAsync(buffer, (int)data.Format);
+            await stream.WriteAsync(buffer, data.Stride);
+
+            await stream.WriteAsync(buffer, data.Vertices.Length / data.Stride);
+
+            foreach (MeshVertex vtx in data.Vertices)
+            {
+                await stream.WriteAsync(buffer, vtx.f32);
+            }
+        }
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AssetDatabaseMaterial mat)
+    {
+        await stream.WriteAsync(buffer, mat.Name);
+        await stream.WriteAsync(buffer, mat.Textures.Count);
+
+        foreach ((AsciiString name, AssetDatabaseTexture texture) in mat.Textures)
+        {
+            await stream.WriteAsync(buffer, name);
+            await stream.WriteAsync(buffer, texture);
+        }
+    }
+
+    public static async Task WriteAsync(this Stream stream, Memory<byte> buffer, AssetDatabaseTexture tex)
+    {
+        await stream.WriteAsync(buffer, tex.Name);
+        await stream.WriteAsync(buffer, tex.Width);
+        await stream.WriteAsync(buffer, tex.Height);
+        await stream.WriteAsync(buffer, (int)tex.Format);
+        await stream.WriteAsync(buffer, tex.Settings.m_FilterMode);
+        await stream.WriteAsync(buffer, tex.Settings.m_Aniso);
+        await stream.WriteAsync(buffer, tex.Settings.m_MipBias);
+        await stream.WriteAsync(buffer, tex.Settings.m_WrapU);
+        await stream.WriteAsync(buffer, tex.Settings.m_WrapV);
+        await stream.WriteAsync(buffer, tex.Settings.m_WrapW);
+        await stream.WriteAsync(buffer, tex.Data.Length);
+        await stream.WriteAsync(tex.Data);
+    }
+}
+
+enum RequestType : byte
 {
     Scene
 };
