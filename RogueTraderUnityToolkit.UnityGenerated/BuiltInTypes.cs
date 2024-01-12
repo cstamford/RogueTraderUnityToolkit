@@ -58,6 +58,8 @@ public static class BuiltInArray<T>
 {
     static BuiltInArray()
     {
+        _fnReadArray = typeof(T) == typeof(byte) ? (TypeReader.ReadFunc<T[]>)(object)TypeReaderPrimitive.ReadByteArray : ReadImpl;
+
         if (typeof(T).IsArray) // Nested array type
         {
             Type elementType = typeof(T).GetElementType()!;
@@ -73,8 +75,14 @@ public static class BuiltInArray<T>
         }
     }
 
-    public static T[] Read(EndianBinaryReader reader)
+    public static T[] Read(EndianBinaryReader reader) => _fnReadArray(reader);
+
+    private static readonly TypeReader.ReadFunc<T> _fnRead;
+    private static readonly TypeReader.ReadFunc<T[]> _fnReadArray;
+
+    public static T[] ReadImpl(EndianBinaryReader reader)
     {
+
         int arrayLen = reader.ReadS32();
         Debug.Assert(arrayLen >= 0);
 
@@ -87,10 +95,7 @@ public static class BuiltInArray<T>
 
         return array;
     }
-
-    private static TypeReader.ReadFunc<T> _fnRead;
 }
-
 
 public static class BuiltInMap<TKey, TValue> where TKey : notnull
 {
@@ -115,8 +120,8 @@ public static class BuiltInMap<TKey, TValue> where TKey : notnull
         return dict;
     }
 
-    private static TypeReader.ReadFunc<TKey> _fnReadKey = TypeReaderHolder<TKey>.FnRead;
-    private static TypeReader.ReadFunc<TValue> _fnReadValue = TypeReaderHolder<TValue>.FnRead;
+    private static readonly TypeReader.ReadFunc<TKey> _fnReadKey = TypeReaderHolder<TKey>.FnRead;
+    private static readonly TypeReader.ReadFunc<TValue> _fnReadValue = TypeReaderHolder<TValue>.FnRead;
 }
 
 public static class TypeReader
@@ -166,6 +171,22 @@ public static class TypeReaderPrimitive
         r.AlignTo(4);
         return str;
     };
+
+    public static readonly TypeReader.ReadFunc<byte[]> ReadByteArray = r =>
+    {
+        int arrayLength = r.ReadS32();
+        Debug.Assert(arrayLength >= 0);
+
+        if (GeneratedTypes.WithByteArrays.Value)
+        {
+            byte[] data = new byte[arrayLength];
+            r.ReadBytes(data.AsSpan());
+            return data;
+        }
+
+        r.Seek(arrayLength);
+        return Array.Empty<byte>();
+    };
 }
 
 public static class TypeReaderCodegenned<T>
@@ -177,5 +198,5 @@ public static class TypeReaderCodegenned<T>
         return ret;
     };
 
-    private static Func<EndianBinaryReader, T> _fn = typeof(T).GetReadFunc<T>();
+    private static readonly Func<EndianBinaryReader, T> _fn = typeof(T).GetReadFunc<T>();
 }

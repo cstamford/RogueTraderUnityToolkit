@@ -2,6 +2,7 @@
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.UnityGenerated.Types;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace AssetServer;
@@ -19,6 +20,11 @@ public readonly record struct AssetDatabaseMesh(
 {
     public static AssetDatabaseMesh Read(AssetDatabasePtr<Mesh> ptr)
     {
+        if (_cache.TryGetValue(ptr, out AssetDatabaseMesh assetMesh))
+        {
+            return assetMesh;
+        }
+
         Mesh mesh = ptr.Fetch();
 
         Debug.Assert(mesh.m_MeshCompression == 0, "We don't support compressed meshes yet.");
@@ -40,7 +46,7 @@ public readonly record struct AssetDatabaseMesh(
 
         ChannelInfo lastChannel = mesh.m_VertexData.m_Channels.MaxBy(x => x.offset);
 
-        return new(
+        assetMesh = new(
             mesh.m_Name,
             mesh.m_SubMeshes,
             mesh.m_IndexBuffer.Length / (mesh.m_IndexFormat == 0 ? 2 : 4),
@@ -50,7 +56,13 @@ public readonly record struct AssetDatabaseMesh(
             lastChannel.offset + ((VertexAttributeFormat)lastChannel.format).Size() * (lastChannel.dimension & 0xF),
             mesh.m_VertexData.m_Channels.Select((x, i) => (i, x)).Where(x => x.x.dimension != 0).ToArray(),
             vertexData);
+
+        _cache[ptr] = assetMesh;
+
+        return assetMesh;
     }
+
+    private static ConcurrentDictionary<AssetDatabasePtr<Mesh>, AssetDatabaseMesh> _cache = [];
 }
 
 // ref: https://docs.unity3d.com/ScriptReference/Rendering.VertexAttributeFormat.html

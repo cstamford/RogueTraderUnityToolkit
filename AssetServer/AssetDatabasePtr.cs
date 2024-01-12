@@ -1,6 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.UnityGenerated;
+using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Diagnostics;
 
 namespace AssetServer;
@@ -10,13 +11,15 @@ public readonly record struct AssetDatabasePtr<T>(SerializedFile File, long Path
     public AssetDatabasePtr(SerializedFile file, PPtr<T> pptr)
         : this(ResolvePPtrFileId(file, pptr.FileId), pptr.PathId)
     {
-        _valid = pptr.PathId != 0 || pptr.FileId != 0;
+        _valid = pptr.PathId != 0;
     }
 
-    public T Fetch() => Fetch<T>();
+    public T Fetch(bool withByteArrays = true) => Fetch<T>(withByteArrays);
 
-    public T2 Fetch<T2>()
+    public T2 Fetch<T2>(bool withByteArrays = true)
     {
+        Debug.Assert(_valid);
+
         if (AssetDatabaseStorage.ReadCache.TryGetValue(Retype<IUnityObject>(), out IUnityObject? createdObject))
         {
             return (T2)createdObject;
@@ -29,13 +32,23 @@ public readonly record struct AssetDatabasePtr<T>(SerializedFile File, long Path
         using Stream stream = File.Info.Open(File.Header.DataOffset + instance.Offset, instance.Size);
         EndianBinaryReader reader = new(stream, File.Header.IsBigEndian);
 
-        bool knownType = GeneratedTypes.TryCreateType(obj.Info.Hash, obj.Info.Type, reader, out createdObject);
+        bool knownType = GeneratedTypes.TryCreateType(
+            obj.Info.Hash,
+            obj.Info.Type,
+            reader,
+            out createdObject,
+            withByteArrays);
 
         Debug.Assert(knownType);
         Debug.Assert(reader.Remaining == 0);
         Debug.Assert(createdObject is T2);
 
-        AssetDatabaseStorage.AddAsset(this, createdObject);
+        if (createdObject is GameObject or Transform)
+        {
+            // Cache small, commonly (re)accessed objects.
+            AssetDatabaseStorage.AddAsset(this, createdObject);
+        }
+
         return (T2)createdObject;
     }
 

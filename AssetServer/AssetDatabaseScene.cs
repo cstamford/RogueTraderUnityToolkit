@@ -27,6 +27,26 @@ public readonly record struct AssetDatabaseScene(
 
         return new(name, [.. rootObjects]);
     }
+
+    public List<AssetDatabaseSceneObject> GetAllObjects()
+    {
+        List<AssetDatabaseSceneObject> list = [];
+        foreach (AssetDatabaseSceneObject obj in RootObjects)
+        {
+            GetAllObjectsInternal(obj, list);
+        }
+        return list;
+    }
+
+    private void GetAllObjectsInternal(AssetDatabaseSceneObject obj, List<AssetDatabaseSceneObject> list)
+    {
+        list.Add(obj);
+
+        foreach (AssetDatabaseSceneObject child in obj.Children)
+        {
+            GetAllObjectsInternal(child, list);
+        }
+    }
 }
 
 public record struct AssetDatabaseSceneObject(

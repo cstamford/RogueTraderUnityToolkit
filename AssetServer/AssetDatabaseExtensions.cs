@@ -6,6 +6,9 @@ namespace AssetServer;
 
 public static class AssetDatabaseExtensions
 {
+    public static T GetObject<T>(this SerializedFile file) =>
+        GetObjectPtrs(file, _ => true).Select(x => x.Fetch()).OfType<T>().First();
+
     public static IEnumerable<AssetDatabasePtr<T>> GetObjectPtrs<T>(
         this SerializedFile file,
         UnityObjectType type)

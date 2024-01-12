@@ -12,6 +12,8 @@ public interface IUnityGameStructure : IUnityRootStructure;
 
 public static class GeneratedTypes
 {
+    public static ThreadLocal<bool> WithByteArrays { get; } = new(() => throw new());
+
     static GeneratedTypes()
     {
         foreach (Type type in Assembly.GetExecutingAssembly().GetTypes()
@@ -33,7 +35,16 @@ public static class GeneratedTypes
         }
     }
 
-    public static bool TryCreateType(Hash128 hash, UnityObjectType type, EndianBinaryReader reader, out IUnityObject obj)
+    public static bool TryCreateType(Hash128 hash, UnityObjectType type, EndianBinaryReader reader, out IUnityObject obj, bool withByteArrays = true)
+    {
+        WithByteArrays.Value = withByteArrays;
+        return TryCreateTypeInternal(hash, type, reader, out obj);
+    }
+
+    private static readonly Dictionary<Hash128, Func<EndianBinaryReader, IUnityObject>> _fnReadHashLookup = [];
+    private static readonly Dictionary<UnityObjectType, Func<EndianBinaryReader, IUnityObject>> _fnReadObjectTypeLookup = [];
+
+    private static bool TryCreateTypeInternal(Hash128 hash, UnityObjectType type, EndianBinaryReader reader, out IUnityObject obj)
     {
         if (_fnReadHashLookup.TryGetValue(hash, out Func<EndianBinaryReader, IUnityObject>? fnRead))
         {
@@ -50,9 +61,6 @@ public static class GeneratedTypes
         obj = default!;
         return false;
     }
-
-    private static readonly Dictionary<Hash128, Func<EndianBinaryReader, IUnityObject>> _fnReadHashLookup = [];
-    private static readonly Dictionary<UnityObjectType, Func<EndianBinaryReader, IUnityObject>> _fnReadObjectTypeLookup = [];
 }
 
 public static class GeneratedTypesExtensions

@@ -2,8 +2,10 @@
 using RogueTraderUnityToolkit.Unity;
 using RogueTraderUnityToolkit.Unity.File;
 using RogueTraderUnityToolkit.UnityGenerated;
+using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
 using System.Collections.Concurrent;
 using System.IO.MemoryMappedFiles;
+using AssetBundle = RogueTraderUnityToolkit.Unity.File.AssetBundle;
 
 namespace AssetServer;
 
@@ -13,6 +15,7 @@ public static class AssetDatabaseStorage
     public static IReadOnlyDictionary<ISerializedAsset, Dictionary<long, int>> PathIdToIdx => _pathIdToIdx;
     public static IReadOnlyDictionary<ISerializedAsset, List<long>> IdxToPathId => _idxToPathId;
     public static IReadOnlyDictionary<AssetDatabasePtr<IUnityObject>, IUnityObject> ReadCache => _readCache;
+    public static IReadOnlyDictionary<AssetDatabasePtr<Shader>, AsciiString> ShaderNames => _shaderNames;
 
     public static void Load(IEnumerable<FileInfo> files)
     {
@@ -20,8 +23,17 @@ public static class AssetDatabaseStorage
         Parallel.ForEach(_assets.Values, CreatePathIdLookup);
     }
 
+    public static void AddShader(AssetDatabasePtr<Shader> shader, AsciiString name) =>
+        _shaderNames[shader] = name;
+
     public static void AddAsset<T>(AssetDatabasePtr<T> ptr, IUnityObject obj) =>
         _readCache[ptr.Retype<IUnityObject>()] = obj;
+
+    private static readonly ConcurrentDictionary<string, ISerializedAsset> _assets = [];
+    private static readonly ConcurrentDictionary<ISerializedAsset, Dictionary<long, int>> _pathIdToIdx = [];
+    private static readonly ConcurrentDictionary<ISerializedAsset, List<long>> _idxToPathId = [];
+    private static readonly ConcurrentDictionary<AssetDatabasePtr<IUnityObject>, IUnityObject> _readCache = [];
+    private static readonly ConcurrentDictionary<AssetDatabasePtr<Shader>, AsciiString> _shaderNames = [];
 
     private static void LoadFile(FileInfo file)
     {
@@ -86,9 +98,4 @@ public static class AssetDatabaseStorage
         _pathIdToIdx[asset] = idxLookup;
         _idxToPathId[asset] = pathIdLookup;
     }
-
-    private static readonly ConcurrentDictionary<string, ISerializedAsset> _assets = [];
-    private static readonly ConcurrentDictionary<ISerializedAsset, Dictionary<long, int>> _pathIdToIdx = [];
-    private static readonly ConcurrentDictionary<ISerializedAsset, List<long>> _idxToPathId = [];
-    private static readonly ConcurrentDictionary<AssetDatabasePtr<IUnityObject>, IUnityObject> _readCache = [];
 }
