@@ -1,6 +1,7 @@
 ﻿using RogueTraderUnityToolkit.Core;
 using RogueTraderUnityToolkit.UnityGenerated.Types;
 using RogueTraderUnityToolkit.UnityGenerated.Types.Engine;
+using System.Collections.Concurrent;
 
 namespace AssetServer;
 
@@ -25,17 +26,22 @@ public readonly record struct AssetDatabaseMaterial(
         }
 
         AssetDatabasePtr<Shader> shaderPtr = new(ptr.File, material.m_Shader);
-        Shader shader = shaderPtr.Fetch(withByteArrays: false);
 
-        AsciiString shaderName = shader.m_ParsedForm.m_Name;
-        if (shaderName == "")
+        if (!_shaderNameCache.TryGetValue(shaderPtr, out AsciiString shaderName))
         {
-            if (!AssetDatabaseStorage.ShaderNames.TryGetValue(shaderPtr, out shaderName))
+            shaderName = shaderPtr.Fetch(withByteArrays: false).m_ParsedForm.m_Name;
+            if (shaderName == "")
             {
-                Log.Write($"Couldn't find shader for {material.m_Name}", ConsoleColor.Yellow);
+                if (!AssetDatabaseStorage.ShaderNames.TryGetValue(shaderPtr, out shaderName))
+                {
+                    Log.Write($"Couldn't find shader for {material.m_Name}", ConsoleColor.Yellow);
+                }
             }
+            _shaderNameCache[shaderPtr] = shaderName;
         }
 
         return new(material.m_Name, shaderName, textures);
     }
+
+    private static readonly ConcurrentDictionary<AssetDatabasePtr<Shader>, AsciiString> _shaderNameCache = [];
 }
