@@ -40,7 +40,7 @@ public readonly record struct AssetDatabasePtr<T>(SerializedFile File, long Path
             withByteArrays);
 
         Debug.Assert(knownType);
-        Debug.Assert(reader.Remaining == 0);
+        Debug.Assert(reader.Remaining == 0 || createdObject is MonoBehaviour); // MonoBehaviour without game structs only does base class
         Debug.Assert(createdObject is T2);
 
         if (createdObject is GameObject or Transform)

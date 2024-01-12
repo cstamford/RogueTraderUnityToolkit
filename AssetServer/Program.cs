@@ -127,6 +127,12 @@ void MainLoop(Stream readStream, Stream writeStream)
                 .Select((x, i) => (x, i))
                 .ToDictionary(x => x.x, x => x.i);
 
+            Dictionary<AssetDatabaseMaterial, int> materials = allObjects
+                .SelectMany(x => x.MeshMaterials)
+                .Distinct()
+                .Select((x, i) => (x, i))
+                .ToDictionary(x => x.x, x => x.i);
+
             Dictionary<AssetDatabaseTexture, int> textures = allObjects
                 .SelectMany(x => x.MeshMaterials)
                 .SelectMany(x => x.Textures)
@@ -140,13 +146,19 @@ void MainLoop(Stream readStream, Stream writeStream)
 
             foreach (AssetDatabaseSceneObject root in scene.RootObjects)
             {
-                SendObject(writeStream, buffer, root, meshes, textures);
+                SendObject(writeStream, buffer, root, meshes, materials);
             }
 
             writeStream.Write(buffer, meshes.Count);
             foreach (AssetDatabaseMesh mesh in meshes.Keys)
             {
                 writeStream.Write(buffer, mesh);
+            }
+
+            writeStream.Write(buffer, materials.Count);
+            foreach (AssetDatabaseMaterial material in materials.Keys)
+            {
+                writeStream.Write(buffer, textures, material);
             }
 
             writeStream.Write(buffer, textures.Count);
@@ -175,7 +187,7 @@ void SendObject(Stream stream,
     Span<byte> buffer,
     AssetDatabaseSceneObject obj,
     Dictionary<AssetDatabaseMesh, int> meshes,
-    Dictionary<AssetDatabaseTexture, int> textures)
+    Dictionary<AssetDatabaseMaterial, int> materials)
 {
     stream.Write(buffer, obj.Name);
     stream.Write(buffer, obj.Transform);
@@ -190,14 +202,14 @@ void SendObject(Stream stream,
 
     foreach (AssetDatabaseMaterial material in obj.MeshMaterials)
     {
-        stream.Write(buffer, material, textures);
+        stream.Write(buffer, materials[material]);
     }
 
     stream.Write(buffer, obj.Children.Length);
 
     foreach (AssetDatabaseSceneObject child in obj.Children)
     {
-        SendObject(stream, buffer, child, meshes, textures);
+        SendObject(stream, buffer, child, meshes, materials);
     }
 }
 
@@ -289,20 +301,68 @@ internal static class Extensions
         stream.Write(mesh.VertexStreamData);
     }
 
-    public static void Write(
-        this Stream stream,
-        Span<byte> buffer,
-        AssetDatabaseMaterial mat,
-        Dictionary<AssetDatabaseTexture, int> textures)
+    public static void Write( this Stream stream, Span<byte> buffer, Dictionary<AssetDatabaseTexture, int> textures, AssetDatabaseMaterial mat)
     {
         stream.Write(buffer, mat.Name);
         stream.Write(buffer, mat.ShaderName);
-        stream.Write(buffer, mat.Textures.Count);
+        stream.Write(buffer, mat.CustomRenderQueue);
+        stream.Write(buffer, mat.DoubleSidedGI);
+        stream.Write(buffer, mat.EnableInstancingVariants);
 
+        stream.Write(buffer, mat.Colors.Count);
+        foreach ((AsciiString name, ColorRGBA_1 color) in mat.Colors)
+        {
+            stream.Write(buffer, name);
+            stream.Write(buffer, color.r);
+            stream.Write(buffer, color.g);
+            stream.Write(buffer, color.b);
+            stream.Write(buffer, color.a);
+        }
+
+        stream.Write(buffer, mat.Floats.Count);
+        foreach ((AsciiString name, float flt) in mat.Floats)
+        {
+            stream.Write(buffer, name);
+            stream.Write(buffer, flt);
+        }
+
+        stream.Write(buffer, mat.Ints.Count);
+        foreach ((AsciiString name, int integer) in mat.Ints)
+        {
+            stream.Write(buffer, name);
+            stream.Write(buffer, integer);
+        }
+
+        stream.Write(buffer, mat.Textures.Count);
         foreach ((AsciiString name, AssetDatabaseTexture texture) in mat.Textures)
         {
             stream.Write(buffer, name);
             stream.Write(buffer, textures[texture]);
+        }
+
+        stream.Write(buffer, mat.DisabledShaderPasses.Length);
+        foreach (AsciiString name in mat.DisabledShaderPasses)
+        {
+            stream.Write(buffer, name);
+        }
+
+        stream.Write(buffer, mat.InvalidKeywords.Length);
+        foreach (AsciiString name in mat.InvalidKeywords)
+        {
+            stream.Write(buffer, name);
+        }
+
+        stream.Write(buffer, mat.ValidKeywords.Length);
+        foreach (AsciiString name in mat.ValidKeywords)
+        {
+            stream.Write(buffer, name);
+        }
+
+        stream.Write(buffer, mat.StringTagMap.Count);
+        foreach ((AsciiString name, AsciiString tag) in mat.StringTagMap)
+        {
+            stream.Write(buffer, name);
+            stream.Write(buffer, tag);
         }
     }
 
