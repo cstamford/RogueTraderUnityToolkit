@@ -40,7 +40,7 @@ public sealed class AssetDatabase
 
     private void LoadShaderNames()
     {
-        SerializedFile gameManagers = AssetDatabaseStorage.Assets["globalgamemanagers"] as SerializedFile;
+        SerializedFile? gameManagers = AssetDatabaseStorage.Assets["globalgamemanagers"] as SerializedFile;
         Debug.Assert(gameManagers != null);
 
         ShaderNameRegistry registry = gameManagers.GetObject<ShaderNameRegistry>();

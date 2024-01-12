@@ -110,12 +110,13 @@ void MainLoop(Stream readStream, Stream writeStream)
             Debug.Assert(bytes == sceneLength);
 
             AsciiString sceneName = AsciiString.From(buffer[..sceneLength]);
-
             Log.Write($"Received RequestType {request} for {sceneName}");
-            AssetDatabaseScene scene = db.LoadScene(sceneName);
-            Log.Write($"Scene {sceneName} loaded");
 
             Stopwatch sw = Stopwatch.StartNew();
+            AssetDatabaseScene scene = db.LoadScene(sceneName);
+            Log.Write($"Scene {sceneName} loaded in {sw.Elapsed.TotalSeconds:F2} seconds");
+
+            sw.Restart();
 
             List<AssetDatabaseSceneObject> allObjects = scene.GetAllObjects();
 

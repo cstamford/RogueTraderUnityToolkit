@@ -57,7 +57,7 @@ public readonly record struct AssetDatabaseTexture(
         return false;
     }
 
-    private static ConcurrentDictionary<AssetDatabasePtr<Texture>, AssetDatabaseTexture> _cache = [];
+    private static readonly ConcurrentDictionary<AssetDatabasePtr<Texture>, AssetDatabaseTexture> _cache = [];
 }
 
 // ref: https://docs.unity3d.com/ScriptReference/TextureFormat.html

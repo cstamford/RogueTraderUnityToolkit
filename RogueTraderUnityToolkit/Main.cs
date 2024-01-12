@@ -137,11 +137,11 @@ Parallel.ForEach(
             Interlocked.Add(ref assetCountFailed, failed);
         }
     }
-    //catch (Exception e)
-    //{
-    //    Debugger.Break();
-    //    Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
-    //}
+    catch (Exception e)
+    {
+        Debugger.Break();
+        Log.Write($"{fileInfo.Name}: {e.Message}", ConsoleColor.Red);
+    }
     finally
     {
         assetFile?.Dispose();

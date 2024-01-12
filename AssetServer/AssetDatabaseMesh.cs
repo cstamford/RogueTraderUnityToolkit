@@ -62,7 +62,7 @@ public readonly record struct AssetDatabaseMesh(
         return assetMesh;
     }
 
-    private static ConcurrentDictionary<AssetDatabasePtr<Mesh>, AssetDatabaseMesh> _cache = [];
+    private static readonly ConcurrentDictionary<AssetDatabasePtr<Mesh>, AssetDatabaseMesh> _cache = [];
 }
 
 // ref: https://docs.unity3d.com/ScriptReference/Rendering.VertexAttributeFormat.html
