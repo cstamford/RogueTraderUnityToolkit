@@ -73,14 +73,18 @@ public record struct AssetDatabaseSceneObject(
 
         if (meshFilterPtr.Valid && meshRendererPtr.Valid)
         {
-            databaseMesh = AssetDatabaseMesh.Read(new(meshFilterPtr.File, meshFilterPtr.Fetch<MeshFilter>().m_Mesh));
-
-            MeshRenderer meshRenderer = meshRendererPtr.Fetch<MeshRenderer>();
-            databaseMeshMaterials = new AssetDatabaseMaterial[meshRenderer.m_Materials.Length];
-
-            for (int i = 0; i < meshRenderer.m_Materials.Length; ++i)
+            AssetDatabasePtr<Mesh> meshPtr = new(meshFilterPtr.File, meshFilterPtr.Fetch<MeshFilter>().m_Mesh);
+            if (meshPtr.Valid)
             {
-                databaseMeshMaterials[i] = AssetDatabaseMaterial.Read(new(meshRendererPtr.File, meshRenderer.m_Materials[i]));
+                databaseMesh = AssetDatabaseMesh.Read(meshPtr);
+
+                MeshRenderer meshRenderer = meshRendererPtr.Fetch<MeshRenderer>();
+                databaseMeshMaterials = new AssetDatabaseMaterial[meshRenderer.m_Materials.Length];
+
+                for (int i = 0; i < meshRenderer.m_Materials.Length; ++i)
+                {
+                    databaseMeshMaterials[i] = AssetDatabaseMaterial.Read(new(meshRendererPtr.File, meshRenderer.m_Materials[i]));
+                }
             }
         }
 
