@@ -17,7 +17,7 @@ public record class CodeGeneration : IAssetProcessor
         Args args,
         IReadOnlyList<FileInfo> files)
     {
-        FileInfo? typeTreesPath = files.FirstOrDefault(x => x.Name == "dumped_20223f7.json");
+        FileInfo? typeTreesPath = files.FirstOrDefault(x => x.Name == "2022.3.44f1.json");
 
         if (typeTreesPath != null)
         {

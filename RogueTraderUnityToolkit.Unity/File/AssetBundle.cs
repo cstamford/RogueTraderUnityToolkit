@@ -129,7 +129,7 @@ public readonly record struct AssetBundleHeader(
 
     private static readonly byte[] _magicBytes = [ .. Encoding.ASCII.GetBytes("UnityFS"), 0 ];
     private const int _version = 8;
-    private const string _unityVersion = "2022.3.7f1";
+    private const string _unityVersion = "2022.3.44f1";
 }
 
 public readonly record struct AssetBundleManifest(

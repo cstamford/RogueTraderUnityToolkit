@@ -293,6 +293,7 @@ public enum UnityObjectType
     StreamingManager = 1403656975,
     LowerResBlitTexture = 1480428607,
     VideoBuildInfo = 1521398425,
+    C4DImporter = 1541671625,
     StreamingController = 1542919678,
     ShaderContainer = 1557264870,
     RoslynAdditionalFileAsset = 1597193336,
