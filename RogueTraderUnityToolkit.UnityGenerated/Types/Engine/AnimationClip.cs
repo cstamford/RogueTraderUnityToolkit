@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $AnimationClip (20 fields) AnimationClip C993F02E1B44698504D469FE44275C6A */
+/* $AnimationClip (20 fields) AnimationClip 9E7C37B43D90ECCDC6E35C98AA8F3069 */
 public record class AnimationClip (
     AsciiString m_Name,
     bool m_Legacy,
@@ -28,7 +28,7 @@ public record class AnimationClip (
     AnimationEvent[] m_Events) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.AnimationClip;
-    public static Hash128 Hash => new("C993F02E1B44698504D469FE44275C6A");
+    public static Hash128 Hash => new("9E7C37B43D90ECCDC6E35C98AA8F3069");
     public static AnimationClip Read(EndianBinaryReader reader)
     {
         AsciiString m_Name_ = BuiltInString.Read(reader);

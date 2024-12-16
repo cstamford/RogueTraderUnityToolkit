@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $Terrain (35 fields) Terrain 913BC14CC1927ED00BCD8F7304EBFB4F */
+/* $Terrain (36 fields) Terrain 0C62301AC09C5AD16AEB068D40D462CD */
 public record class Terrain (
     PPtr<GameObject> m_GameObject,
     byte m_Enabled,
@@ -17,6 +17,7 @@ public record class Terrain (
     float m_DetailObjectDensity,
     float m_HeightmapPixelError,
     float m_SplatMapDistance,
+    int m_HeightmapMinimumLODSimplification,
     int m_HeightmapMaximumLOD,
     int m_ShadowCastingMode,
     bool m_DrawHeightmap,
@@ -43,7 +44,7 @@ public record class Terrain (
     int m_TreeMotionVectorModeOverride) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.Terrain;
-    public static Hash128 Hash => new("913BC14CC1927ED00BCD8F7304EBFB4F");
+    public static Hash128 Hash => new("0C62301AC09C5AD16AEB068D40D462CD");
     public static Terrain Read(EndianBinaryReader reader)
     {
         PPtr<GameObject> m_GameObject_ = PPtr<GameObject>.Read(reader);
@@ -58,6 +59,7 @@ public record class Terrain (
         float m_DetailObjectDensity_ = reader.ReadF32();
         float m_HeightmapPixelError_ = reader.ReadF32();
         float m_SplatMapDistance_ = reader.ReadF32();
+        int m_HeightmapMinimumLODSimplification_ = reader.ReadS32();
         int m_HeightmapMaximumLOD_ = reader.ReadS32();
         int m_ShadowCastingMode_ = reader.ReadS32();
         bool m_DrawHeightmap_ = reader.ReadBool();
@@ -99,6 +101,7 @@ public record class Terrain (
             m_DetailObjectDensity_,
             m_HeightmapPixelError_,
             m_SplatMapDistance_,
+            m_HeightmapMinimumLODSimplification_,
             m_HeightmapMaximumLOD_,
             m_ShadowCastingMode_,
             m_DrawHeightmap_,
@@ -167,6 +170,7 @@ public record class Terrain (
         ToString_Field32(sb, indent, indent_);
         ToString_Field33(sb, indent, indent_);
         ToString_Field34(sb, indent, indent_);
+        ToString_Field35(sb, indent, indent_);
 
         return sb.ToString();
     }
@@ -228,120 +232,125 @@ public record class Terrain (
 
     public void ToString_Field11(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_HeightmapMaximumLOD: {m_HeightmapMaximumLOD}");
+        sb.AppendLine($"{indent_}m_HeightmapMinimumLODSimplification: {m_HeightmapMinimumLODSimplification}");
     }
 
     public void ToString_Field12(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_ShadowCastingMode: {m_ShadowCastingMode}");
+        sb.AppendLine($"{indent_}m_HeightmapMaximumLOD: {m_HeightmapMaximumLOD}");
     }
 
     public void ToString_Field13(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_DrawHeightmap: {m_DrawHeightmap}");
+        sb.AppendLine($"{indent_}m_ShadowCastingMode: {m_ShadowCastingMode}");
     }
 
     public void ToString_Field14(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_DrawInstanced: {m_DrawInstanced}");
+        sb.AppendLine($"{indent_}m_DrawHeightmap: {m_DrawHeightmap}");
     }
 
     public void ToString_Field15(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_DrawTreesAndFoliage: {m_DrawTreesAndFoliage}");
+        sb.AppendLine($"{indent_}m_DrawInstanced: {m_DrawInstanced}");
     }
 
     public void ToString_Field16(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_StaticShadowCaster: {m_StaticShadowCaster}");
+        sb.AppendLine($"{indent_}m_DrawTreesAndFoliage: {m_DrawTreesAndFoliage}");
     }
 
     public void ToString_Field17(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_IgnoreQualitySettings: {m_IgnoreQualitySettings}");
+        sb.AppendLine($"{indent_}m_StaticShadowCaster: {m_StaticShadowCaster}");
     }
 
     public void ToString_Field18(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_ReflectionProbeUsage: {m_ReflectionProbeUsage}");
+        sb.AppendLine($"{indent_}m_IgnoreQualitySettings: {m_IgnoreQualitySettings}");
     }
 
     public void ToString_Field19(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MaterialTemplate: {m_MaterialTemplate}");
+        sb.AppendLine($"{indent_}m_ReflectionProbeUsage: {m_ReflectionProbeUsage}");
     }
 
     public void ToString_Field20(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_LightmapIndex: {m_LightmapIndex}");
+        sb.AppendLine($"{indent_}m_MaterialTemplate: {m_MaterialTemplate}");
     }
 
     public void ToString_Field21(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_LightmapIndexDynamic: {m_LightmapIndexDynamic}");
+        sb.AppendLine($"{indent_}m_LightmapIndex: {m_LightmapIndex}");
     }
 
     public void ToString_Field22(StringBuilder sb, int indent, string indent_)
     {
-        sb.Append($"{indent_}m_LightmapTilingOffset: {{ x: {m_LightmapTilingOffset.x}, y: {m_LightmapTilingOffset.y}, z: {m_LightmapTilingOffset.z}, w: {m_LightmapTilingOffset.w} }}\n");
+        sb.AppendLine($"{indent_}m_LightmapIndexDynamic: {m_LightmapIndexDynamic}");
     }
 
     public void ToString_Field23(StringBuilder sb, int indent, string indent_)
     {
-        sb.Append($"{indent_}m_LightmapTilingOffsetDynamic: {{ x: {m_LightmapTilingOffsetDynamic.x}, y: {m_LightmapTilingOffsetDynamic.y}, z: {m_LightmapTilingOffsetDynamic.z}, w: {m_LightmapTilingOffsetDynamic.w} }}\n");
+        sb.Append($"{indent_}m_LightmapTilingOffset: {{ x: {m_LightmapTilingOffset.x}, y: {m_LightmapTilingOffset.y}, z: {m_LightmapTilingOffset.z}, w: {m_LightmapTilingOffset.w} }}\n");
     }
 
     public void ToString_Field24(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_ExplicitProbeSetHash: {m_ExplicitProbeSetHash}");
+        sb.Append($"{indent_}m_LightmapTilingOffsetDynamic: {{ x: {m_LightmapTilingOffsetDynamic.x}, y: {m_LightmapTilingOffsetDynamic.y}, z: {m_LightmapTilingOffsetDynamic.z}, w: {m_LightmapTilingOffsetDynamic.w} }}\n");
     }
 
     public void ToString_Field25(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_BakeLightProbesForTrees: {m_BakeLightProbesForTrees}");
+        sb.AppendLine($"{indent_}m_ExplicitProbeSetHash: {m_ExplicitProbeSetHash}");
     }
 
     public void ToString_Field26(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_PreserveTreePrototypeLayers: {m_PreserveTreePrototypeLayers}");
+        sb.AppendLine($"{indent_}m_BakeLightProbesForTrees: {m_BakeLightProbesForTrees}");
     }
 
     public void ToString_Field27(StringBuilder sb, int indent, string indent_)
     {
-        sb.Append($"{indent_}m_DynamicUVST: {{ x: {m_DynamicUVST.x}, y: {m_DynamicUVST.y}, z: {m_DynamicUVST.z}, w: {m_DynamicUVST.w} }}\n");
+        sb.AppendLine($"{indent_}m_PreserveTreePrototypeLayers: {m_PreserveTreePrototypeLayers}");
     }
 
     public void ToString_Field28(StringBuilder sb, int indent, string indent_)
     {
-        sb.Append($"{indent_}m_ChunkDynamicUVST: {{ x: {m_ChunkDynamicUVST.x}, y: {m_ChunkDynamicUVST.y}, z: {m_ChunkDynamicUVST.z}, w: {m_ChunkDynamicUVST.w} }}\n");
+        sb.Append($"{indent_}m_DynamicUVST: {{ x: {m_DynamicUVST.x}, y: {m_DynamicUVST.y}, z: {m_DynamicUVST.z}, w: {m_DynamicUVST.w} }}\n");
     }
 
     public void ToString_Field29(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_GroupingID: {m_GroupingID}");
+        sb.Append($"{indent_}m_ChunkDynamicUVST: {{ x: {m_ChunkDynamicUVST.x}, y: {m_ChunkDynamicUVST.y}, z: {m_ChunkDynamicUVST.z}, w: {m_ChunkDynamicUVST.w} }}\n");
     }
 
     public void ToString_Field30(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_RenderingLayerMask: {m_RenderingLayerMask}");
+        sb.AppendLine($"{indent_}m_GroupingID: {m_GroupingID}");
     }
 
     public void ToString_Field31(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_AllowAutoConnect: {m_AllowAutoConnect}");
+        sb.AppendLine($"{indent_}m_RenderingLayerMask: {m_RenderingLayerMask}");
     }
 
     public void ToString_Field32(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_EnableHeightmapRayTracing: {m_EnableHeightmapRayTracing}");
+        sb.AppendLine($"{indent_}m_AllowAutoConnect: {m_AllowAutoConnect}");
     }
 
     public void ToString_Field33(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_EnableTreesAndDetailsRayTracing: {m_EnableTreesAndDetailsRayTracing}");
+        sb.AppendLine($"{indent_}m_EnableHeightmapRayTracing: {m_EnableHeightmapRayTracing}");
     }
 
     public void ToString_Field34(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}m_EnableTreesAndDetailsRayTracing: {m_EnableTreesAndDetailsRayTracing}");
+    }
+
+    public void ToString_Field35(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}m_TreeMotionVectorModeOverride: {m_TreeMotionVectorModeOverride}");
     }

@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $PhysicsManager (31 fields) PhysicsManager C99F640154DD6EB9FF6CD5EFD89BF79B */
+/* $PhysicsManager (32 fields) PhysicsManager 1D16AAA9354E60D9E85DBFDFE3F95BB8 */
 public record class PhysicsManager (
     Vector3f m_Gravity,
     PPtr<PhysicMaterial> m_DefaultMaterial,
@@ -36,10 +36,11 @@ public record class PhysicsManager (
     bool m_EnableUnifiedHeightmaps,
     bool m_ImprovedPatchFriction,
     int m_SolverType,
-    float m_DefaultMaxAngularSpeed) : IUnityEngineStructure
+    float m_DefaultMaxAngularSpeed,
+    float m_FastMotionThreshold) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.PhysicsManager;
-    public static Hash128 Hash => new("C99F640154DD6EB9FF6CD5EFD89BF79B");
+    public static Hash128 Hash => new("1D16AAA9354E60D9E85DBFDFE3F95BB8");
     public static PhysicsManager Read(EndianBinaryReader reader)
     {
         Vector3f m_Gravity_ = Vector3f.Read(reader);
@@ -80,6 +81,7 @@ public record class PhysicsManager (
         int m_SolverType_ = reader.ReadS32();
         reader.AlignTo(4); /* m_SolverType */
         float m_DefaultMaxAngularSpeed_ = reader.ReadF32();
+        float m_FastMotionThreshold_ = reader.ReadF32();
         
         return new(m_Gravity_,
             m_DefaultMaterial_,
@@ -111,7 +113,8 @@ public record class PhysicsManager (
             m_EnableUnifiedHeightmaps_,
             m_ImprovedPatchFriction_,
             m_SolverType_,
-            m_DefaultMaxAngularSpeed_);
+            m_DefaultMaxAngularSpeed_,
+            m_FastMotionThreshold_);
     }
 
     public override string ToString() => $"PhysicsManager\n{ToString(4)}";
@@ -152,6 +155,7 @@ public record class PhysicsManager (
         ToString_Field28(sb, indent, indent_);
         ToString_Field29(sb, indent, indent_);
         ToString_Field30(sb, indent, indent_);
+        ToString_Field31(sb, indent, indent_);
 
         return sb.ToString();
     }
@@ -318,6 +322,11 @@ public record class PhysicsManager (
     public void ToString_Field30(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}m_DefaultMaxAngularSpeed: {m_DefaultMaxAngularSpeed}");
+    }
+
+    public void ToString_Field31(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}m_FastMotionThreshold: {m_FastMotionThreshold}");
     }
 }
 

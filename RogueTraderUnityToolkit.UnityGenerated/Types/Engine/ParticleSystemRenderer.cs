@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $ParticleSystemRenderer (55 fields) ParticleSystemRenderer BD86D2D2ED9B6B6865ECFCD70C8C364F */
+/* $ParticleSystemRenderer (57 fields) ParticleSystemRenderer 28FC782F1510F920711F90C4C01CBE20 */
 public record class ParticleSystemRenderer (
     PPtr<GameObject> m_GameObject,
     bool m_Enabled,
@@ -45,13 +45,15 @@ public record class ParticleSystemRenderer (
     int m_RenderAlignment,
     Vector3f m_Pivot,
     Vector3f m_Flip,
-    bool m_UseCustomVertexStreams,
     bool m_EnableGPUInstancing,
     bool m_ApplyActiveColorSpace,
     bool m_AllowRoll,
     bool m_FreeformStretching,
     bool m_RotateWithStretchDirection,
+    bool m_UseCustomVertexStreams,
     byte[] m_VertexStreams,
+    bool m_UseCustomTrailVertexStreams,
+    byte[] m_TrailVertexStreams,
     PPtr<Mesh> m_Mesh,
     PPtr<Mesh> m_Mesh1,
     PPtr<Mesh> m_Mesh2,
@@ -63,7 +65,7 @@ public record class ParticleSystemRenderer (
     int m_MaskInteraction) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.ParticleSystemRenderer;
-    public static Hash128 Hash => new("BD86D2D2ED9B6B6865ECFCD70C8C364F");
+    public static Hash128 Hash => new("28FC782F1510F920711F90C4C01CBE20");
     public static ParticleSystemRenderer Read(EndianBinaryReader reader)
     {
         PPtr<GameObject> m_GameObject_ = PPtr<GameObject>.Read(reader);
@@ -109,15 +111,20 @@ public record class ParticleSystemRenderer (
         int m_RenderAlignment_ = reader.ReadS32();
         Vector3f m_Pivot_ = Vector3f.Read(reader);
         Vector3f m_Flip_ = Vector3f.Read(reader);
-        bool m_UseCustomVertexStreams_ = reader.ReadBool();
         bool m_EnableGPUInstancing_ = reader.ReadBool();
         bool m_ApplyActiveColorSpace_ = reader.ReadBool();
         bool m_AllowRoll_ = reader.ReadBool();
         bool m_FreeformStretching_ = reader.ReadBool();
         bool m_RotateWithStretchDirection_ = reader.ReadBool();
         reader.AlignTo(4); /* m_RotateWithStretchDirection */
+        bool m_UseCustomVertexStreams_ = reader.ReadBool();
+        reader.AlignTo(4); /* m_UseCustomVertexStreams */
         byte[] m_VertexStreams_ = BuiltInArray<byte>.Read(reader);
         reader.AlignTo(4); /* m_VertexStreams */
+        bool m_UseCustomTrailVertexStreams_ = reader.ReadBool();
+        reader.AlignTo(4); /* m_UseCustomTrailVertexStreams */
+        byte[] m_TrailVertexStreams_ = BuiltInArray<byte>.Read(reader);
+        reader.AlignTo(4); /* m_TrailVertexStreams */
         PPtr<Mesh> m_Mesh_ = PPtr<Mesh>.Read(reader);
         PPtr<Mesh> m_Mesh1_ = PPtr<Mesh>.Read(reader);
         PPtr<Mesh> m_Mesh2_ = PPtr<Mesh>.Read(reader);
@@ -167,13 +174,15 @@ public record class ParticleSystemRenderer (
             m_RenderAlignment_,
             m_Pivot_,
             m_Flip_,
-            m_UseCustomVertexStreams_,
             m_EnableGPUInstancing_,
             m_ApplyActiveColorSpace_,
             m_AllowRoll_,
             m_FreeformStretching_,
             m_RotateWithStretchDirection_,
+            m_UseCustomVertexStreams_,
             m_VertexStreams_,
+            m_UseCustomTrailVertexStreams_,
+            m_TrailVertexStreams_,
             m_Mesh_,
             m_Mesh1_,
             m_Mesh2_,
@@ -247,6 +256,8 @@ public record class ParticleSystemRenderer (
         ToString_Field52(sb, indent, indent_);
         ToString_Field53(sb, indent, indent_);
         ToString_Field54(sb, indent, indent_);
+        ToString_Field55(sb, indent, indent_);
+        ToString_Field56(sb, indent, indent_);
 
         return sb.ToString();
     }
@@ -457,32 +468,32 @@ public record class ParticleSystemRenderer (
 
     public void ToString_Field39(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_UseCustomVertexStreams: {m_UseCustomVertexStreams}");
+        sb.AppendLine($"{indent_}m_EnableGPUInstancing: {m_EnableGPUInstancing}");
     }
 
     public void ToString_Field40(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_EnableGPUInstancing: {m_EnableGPUInstancing}");
+        sb.AppendLine($"{indent_}m_ApplyActiveColorSpace: {m_ApplyActiveColorSpace}");
     }
 
     public void ToString_Field41(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_ApplyActiveColorSpace: {m_ApplyActiveColorSpace}");
+        sb.AppendLine($"{indent_}m_AllowRoll: {m_AllowRoll}");
     }
 
     public void ToString_Field42(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_AllowRoll: {m_AllowRoll}");
+        sb.AppendLine($"{indent_}m_FreeformStretching: {m_FreeformStretching}");
     }
 
     public void ToString_Field43(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_FreeformStretching: {m_FreeformStretching}");
+        sb.AppendLine($"{indent_}m_RotateWithStretchDirection: {m_RotateWithStretchDirection}");
     }
 
     public void ToString_Field44(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_RotateWithStretchDirection: {m_RotateWithStretchDirection}");
+        sb.AppendLine($"{indent_}m_UseCustomVertexStreams: {m_UseCustomVertexStreams}");
     }
 
     public void ToString_Field45(StringBuilder sb, int indent, string indent_)
@@ -501,45 +512,64 @@ public record class ParticleSystemRenderer (
 
     public void ToString_Field46(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_Mesh: {m_Mesh}");
+        sb.AppendLine($"{indent_}m_UseCustomTrailVertexStreams: {m_UseCustomTrailVertexStreams}");
     }
 
     public void ToString_Field47(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_Mesh1: {m_Mesh1}");
+        sb.Append($"{indent_}m_TrailVertexStreams[{m_TrailVertexStreams.Length}] = {{");
+        if (m_TrailVertexStreams.Length > 0) sb.AppendLine();
+        int _4i = 0;
+        foreach (byte _4 in m_TrailVertexStreams)
+        {
+            sb.AppendLine($"{indent_ + ' '.Repeat(4)}[{_4i}] = {_4}");
+            ++_4i;
+        }
+        if (m_TrailVertexStreams.Length > 0) sb.Append(indent_);
+        sb.AppendLine("}");
     }
 
     public void ToString_Field48(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_Mesh2: {m_Mesh2}");
+        sb.AppendLine($"{indent_}m_Mesh: {m_Mesh}");
     }
 
     public void ToString_Field49(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_Mesh3: {m_Mesh3}");
+        sb.AppendLine($"{indent_}m_Mesh1: {m_Mesh1}");
     }
 
     public void ToString_Field50(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MeshWeighting: {m_MeshWeighting}");
+        sb.AppendLine($"{indent_}m_Mesh2: {m_Mesh2}");
     }
 
     public void ToString_Field51(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MeshWeighting1: {m_MeshWeighting1}");
+        sb.AppendLine($"{indent_}m_Mesh3: {m_Mesh3}");
     }
 
     public void ToString_Field52(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MeshWeighting2: {m_MeshWeighting2}");
+        sb.AppendLine($"{indent_}m_MeshWeighting: {m_MeshWeighting}");
     }
 
     public void ToString_Field53(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MeshWeighting3: {m_MeshWeighting3}");
+        sb.AppendLine($"{indent_}m_MeshWeighting1: {m_MeshWeighting1}");
     }
 
     public void ToString_Field54(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}m_MeshWeighting2: {m_MeshWeighting2}");
+    }
+
+    public void ToString_Field55(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}m_MeshWeighting3: {m_MeshWeighting3}");
+    }
+
+    public void ToString_Field56(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}m_MaskInteraction: {m_MaskInteraction}");
     }

@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $PlayerSettings (158 fields) PlayerSettings D2D3AF88ADFC2C6F3B5555C4959F094D */
+/* $PlayerSettings (165 fields) PlayerSettings 7A53941E478F615EB33A22ED6E9E4FFE */
 public record class PlayerSettings (
     GUID productGUID,
     bool AndroidProfiler,
@@ -43,6 +43,7 @@ public record class PlayerSettings (
     int defaultScreenHeightWeb,
     int m_StereoRenderingPath,
     int m_ActiveColorSpace,
+    int unsupportedMSAAFallback,
     int m_SpriteBatchVertexThreshold,
     bool m_MTRendering,
     bool mobileMTRenderingBaked,
@@ -73,6 +74,7 @@ public record class PlayerSettings (
     int androidMinimumWindowWidth,
     int androidMinimumWindowHeight,
     int androidFullscreenMode,
+    int androidAutoRotationBehavior,
     bool defaultIsNativeResolution,
     bool macRetinaSupport,
     bool runInBackground,
@@ -84,6 +86,7 @@ public record class PlayerSettings (
     bool hideHomeButton,
     bool submitAnalytics,
     bool usePlayerLog,
+    bool dedicatedServerOptimizations,
     bool bakeCollisionMeshes,
     bool forceSingleInstance,
     bool useFlipModelSwapchain,
@@ -123,6 +126,7 @@ public record class PlayerSettings (
     int switchNVNMaxPublicTextureIDCount,
     int switchNVNMaxPublicSamplerIDCount,
     int switchNVNGraphicsFirmwareMemory,
+    int switchMaxWorkerMultiple,
     int stadiaPresentMode,
     int stadiaTargetFramerate,
     uint vulkanNumSwapchainBuffers,
@@ -132,6 +136,8 @@ public record class PlayerSettings (
     bool vulkanEnableCommandBufferRecycling,
     bool loadStoreDebugModeEnabled,
     PPtr<Texture2D> invalidatedPatternTexture,
+    AsciiString visionOSBundleVersion,
+    AsciiString tvOSBundleVersion,
     AsciiString bundleVersion,
     PPtr<Object>[] preloadedAssets,
     int metroInputSource,
@@ -143,6 +149,7 @@ public record class PlayerSettings (
     bool isWsaHolographicRemotingEnabled,
     bool enableFrameTimingStats,
     bool enableOpenGLProfilerGPURecorders,
+    bool allowHDRDisplaySupport,
     bool useHDRDisplay,
     int hdrBitDepth,
     int[] m_ColorGamuts,
@@ -166,7 +173,7 @@ public record class PlayerSettings (
     int insecureHttpOption) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.PlayerSettings;
-    public static Hash128 Hash => new("D2D3AF88ADFC2C6F3B5555C4959F094D");
+    public static Hash128 Hash => new("7A53941E478F615EB33A22ED6E9E4FFE");
     public static PlayerSettings Read(EndianBinaryReader reader)
     {
         GUID productGUID_ = GUID.Read(reader);
@@ -215,6 +222,7 @@ public record class PlayerSettings (
         int defaultScreenHeightWeb_ = reader.ReadS32();
         int m_StereoRenderingPath_ = reader.ReadS32();
         int m_ActiveColorSpace_ = reader.ReadS32();
+        int unsupportedMSAAFallback_ = reader.ReadS32();
         int m_SpriteBatchVertexThreshold_ = reader.ReadS32();
         bool m_MTRendering_ = reader.ReadBool();
         bool mobileMTRenderingBaked_ = reader.ReadBool();
@@ -252,6 +260,7 @@ public record class PlayerSettings (
         int androidMinimumWindowWidth_ = reader.ReadS32();
         int androidMinimumWindowHeight_ = reader.ReadS32();
         int androidFullscreenMode_ = reader.ReadS32();
+        int androidAutoRotationBehavior_ = reader.ReadS32();
         bool defaultIsNativeResolution_ = reader.ReadBool();
         bool macRetinaSupport_ = reader.ReadBool();
         bool runInBackground_ = reader.ReadBool();
@@ -264,6 +273,7 @@ public record class PlayerSettings (
         bool hideHomeButton_ = reader.ReadBool();
         bool submitAnalytics_ = reader.ReadBool();
         bool usePlayerLog_ = reader.ReadBool();
+        bool dedicatedServerOptimizations_ = reader.ReadBool();
         bool bakeCollisionMeshes_ = reader.ReadBool();
         bool forceSingleInstance_ = reader.ReadBool();
         bool useFlipModelSwapchain_ = reader.ReadBool();
@@ -314,6 +324,7 @@ public record class PlayerSettings (
         int switchNVNMaxPublicTextureIDCount_ = reader.ReadS32();
         int switchNVNMaxPublicSamplerIDCount_ = reader.ReadS32();
         int switchNVNGraphicsFirmwareMemory_ = reader.ReadS32();
+        int switchMaxWorkerMultiple_ = reader.ReadS32();
         int stadiaPresentMode_ = reader.ReadS32();
         int stadiaTargetFramerate_ = reader.ReadS32();
         reader.AlignTo(4); /* stadiaTargetFramerate */
@@ -327,6 +338,10 @@ public record class PlayerSettings (
         reader.AlignTo(4); /* loadStoreDebugModeEnabled */
         PPtr<Texture2D> invalidatedPatternTexture_ = PPtr<Texture2D>.Read(reader);
         reader.AlignTo(4); /* invalidatedPatternTexture */
+        AsciiString visionOSBundleVersion_ = BuiltInString.Read(reader);
+        reader.AlignTo(4); /* visionOSBundleVersion */
+        AsciiString tvOSBundleVersion_ = BuiltInString.Read(reader);
+        reader.AlignTo(4); /* tvOSBundleVersion */
         AsciiString bundleVersion_ = BuiltInString.Read(reader);
         reader.AlignTo(4); /* bundleVersion */
         PPtr<Object>[] preloadedAssets_ = BuiltInArray<PPtr<Object>>.Read(reader);
@@ -345,6 +360,8 @@ public record class PlayerSettings (
         bool enableFrameTimingStats_ = reader.ReadBool();
         bool enableOpenGLProfilerGPURecorders_ = reader.ReadBool();
         reader.AlignTo(4); /* enableOpenGLProfilerGPURecorders */
+        bool allowHDRDisplaySupport_ = reader.ReadBool();
+        reader.AlignTo(4); /* allowHDRDisplaySupport */
         bool useHDRDisplay_ = reader.ReadBool();
         reader.AlignTo(4); /* useHDRDisplay */
         int hdrBitDepth_ = reader.ReadS32();
@@ -414,6 +431,7 @@ public record class PlayerSettings (
             defaultScreenHeightWeb_,
             m_StereoRenderingPath_,
             m_ActiveColorSpace_,
+            unsupportedMSAAFallback_,
             m_SpriteBatchVertexThreshold_,
             m_MTRendering_,
             mobileMTRenderingBaked_,
@@ -444,6 +462,7 @@ public record class PlayerSettings (
             androidMinimumWindowWidth_,
             androidMinimumWindowHeight_,
             androidFullscreenMode_,
+            androidAutoRotationBehavior_,
             defaultIsNativeResolution_,
             macRetinaSupport_,
             runInBackground_,
@@ -455,6 +474,7 @@ public record class PlayerSettings (
             hideHomeButton_,
             submitAnalytics_,
             usePlayerLog_,
+            dedicatedServerOptimizations_,
             bakeCollisionMeshes_,
             forceSingleInstance_,
             useFlipModelSwapchain_,
@@ -494,6 +514,7 @@ public record class PlayerSettings (
             switchNVNMaxPublicTextureIDCount_,
             switchNVNMaxPublicSamplerIDCount_,
             switchNVNGraphicsFirmwareMemory_,
+            switchMaxWorkerMultiple_,
             stadiaPresentMode_,
             stadiaTargetFramerate_,
             vulkanNumSwapchainBuffers_,
@@ -503,6 +524,8 @@ public record class PlayerSettings (
             vulkanEnableCommandBufferRecycling_,
             loadStoreDebugModeEnabled_,
             invalidatedPatternTexture_,
+            visionOSBundleVersion_,
+            tvOSBundleVersion_,
             bundleVersion_,
             preloadedAssets_,
             metroInputSource_,
@@ -514,6 +537,7 @@ public record class PlayerSettings (
             isWsaHolographicRemotingEnabled_,
             enableFrameTimingStats_,
             enableOpenGLProfilerGPURecorders_,
+            allowHDRDisplaySupport_,
             useHDRDisplay_,
             hdrBitDepth_,
             m_ColorGamuts_,
@@ -702,6 +726,13 @@ public record class PlayerSettings (
         ToString_Field155(sb, indent, indent_);
         ToString_Field156(sb, indent, indent_);
         ToString_Field157(sb, indent, indent_);
+        ToString_Field158(sb, indent, indent_);
+        ToString_Field159(sb, indent, indent_);
+        ToString_Field160(sb, indent, indent_);
+        ToString_Field161(sb, indent, indent_);
+        ToString_Field162(sb, indent, indent_);
+        ToString_Field163(sb, indent, indent_);
+        ToString_Field164(sb, indent, indent_);
 
         return sb.ToString();
     }
@@ -902,40 +933,45 @@ public record class PlayerSettings (
 
     public void ToString_Field37(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_SpriteBatchVertexThreshold: {m_SpriteBatchVertexThreshold}");
+        sb.AppendLine($"{indent_}unsupportedMSAAFallback: {unsupportedMSAAFallback}");
     }
 
     public void ToString_Field38(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MTRendering: {m_MTRendering}");
+        sb.AppendLine($"{indent_}m_SpriteBatchVertexThreshold: {m_SpriteBatchVertexThreshold}");
     }
 
     public void ToString_Field39(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}mobileMTRenderingBaked: {mobileMTRenderingBaked}");
+        sb.AppendLine($"{indent_}m_MTRendering: {m_MTRendering}");
     }
 
     public void ToString_Field40(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}AID: {AID}");
+        sb.AppendLine($"{indent_}mobileMTRenderingBaked: {mobileMTRenderingBaked}");
     }
 
     public void ToString_Field41(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}playerMinOpenGLESVersion: {playerMinOpenGLESVersion}");
+        sb.AppendLine($"{indent_}AID: {AID}");
     }
 
     public void ToString_Field42(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}mipStripping: {mipStripping}");
+        sb.AppendLine($"{indent_}playerMinOpenGLESVersion: {playerMinOpenGLESVersion}");
     }
 
     public void ToString_Field43(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}numberOfMipsStripped: {numberOfMipsStripped}");
+        sb.AppendLine($"{indent_}mipStripping: {mipStripping}");
     }
 
     public void ToString_Field44(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}numberOfMipsStripped: {numberOfMipsStripped}");
+    }
+
+    public void ToString_Field45(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}numberOfMipsStrippedPerMipmapLimitGroup[{numberOfMipsStrippedPerMipmapLimitGroup.Count}] = {{");
         if (numberOfMipsStrippedPerMipmapLimitGroup.Count > 0) sb.AppendLine();
@@ -949,7 +985,7 @@ public record class PlayerSettings (
         sb.AppendLine("}");
     }
 
-    public void ToString_Field45(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field46(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}m_StackTraceTypes[{m_StackTraceTypes.Length}] = {{");
         if (m_StackTraceTypes.Length > 0) sb.AppendLine();
@@ -963,412 +999,437 @@ public record class PlayerSettings (
         sb.AppendLine("}");
     }
 
-    public void ToString_Field46(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field47(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}iosShowActivityIndicatorOnLoading: {iosShowActivityIndicatorOnLoading}");
     }
 
-    public void ToString_Field47(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field48(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidShowActivityIndicatorOnLoading: {androidShowActivityIndicatorOnLoading}");
     }
 
-    public void ToString_Field48(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field49(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}iosUseCustomAppBackgroundBehavior: {iosUseCustomAppBackgroundBehavior}");
     }
 
-    public void ToString_Field49(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field50(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}allowedAutorotateToPortrait: {allowedAutorotateToPortrait}");
     }
 
-    public void ToString_Field50(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field51(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}allowedAutorotateToPortraitUpsideDown: {allowedAutorotateToPortraitUpsideDown}");
     }
 
-    public void ToString_Field51(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field52(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}allowedAutorotateToLandscapeRight: {allowedAutorotateToLandscapeRight}");
     }
 
-    public void ToString_Field52(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field53(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}allowedAutorotateToLandscapeLeft: {allowedAutorotateToLandscapeLeft}");
     }
 
-    public void ToString_Field53(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field54(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}useOSAutorotation: {useOSAutorotation}");
     }
 
-    public void ToString_Field54(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field55(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}use32BitDisplayBuffer: {use32BitDisplayBuffer}");
     }
 
-    public void ToString_Field55(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field56(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}preserveFramebufferAlpha: {preserveFramebufferAlpha}");
     }
 
-    public void ToString_Field56(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field57(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}disableDepthAndStencilBuffers: {disableDepthAndStencilBuffers}");
     }
 
-    public void ToString_Field57(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field58(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidStartInFullscreen: {androidStartInFullscreen}");
     }
 
-    public void ToString_Field58(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field59(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidRenderOutsideSafeArea: {androidRenderOutsideSafeArea}");
     }
 
-    public void ToString_Field59(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field60(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidUseSwappy: {androidUseSwappy}");
     }
 
-    public void ToString_Field60(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field61(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidBlitType: {androidBlitType}");
     }
 
-    public void ToString_Field61(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field62(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidResizableWindow: {androidResizableWindow}");
     }
 
-    public void ToString_Field62(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field63(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidDefaultWindowWidth: {androidDefaultWindowWidth}");
     }
 
-    public void ToString_Field63(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field64(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidDefaultWindowHeight: {androidDefaultWindowHeight}");
     }
 
-    public void ToString_Field64(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field65(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidMinimumWindowWidth: {androidMinimumWindowWidth}");
     }
 
-    public void ToString_Field65(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field66(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidMinimumWindowHeight: {androidMinimumWindowHeight}");
     }
 
-    public void ToString_Field66(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field67(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidFullscreenMode: {androidFullscreenMode}");
     }
 
-    public void ToString_Field67(StringBuilder sb, int indent, string indent_)
-    {
-        sb.AppendLine($"{indent_}defaultIsNativeResolution: {defaultIsNativeResolution}");
-    }
-
     public void ToString_Field68(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}macRetinaSupport: {macRetinaSupport}");
+        sb.AppendLine($"{indent_}androidAutoRotationBehavior: {androidAutoRotationBehavior}");
     }
 
     public void ToString_Field69(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}runInBackground: {runInBackground}");
+        sb.AppendLine($"{indent_}defaultIsNativeResolution: {defaultIsNativeResolution}");
     }
 
     public void ToString_Field70(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}captureSingleScreen: {captureSingleScreen}");
+        sb.AppendLine($"{indent_}macRetinaSupport: {macRetinaSupport}");
     }
 
     public void ToString_Field71(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}muteOtherAudioSources: {muteOtherAudioSources}");
+        sb.AppendLine($"{indent_}runInBackground: {runInBackground}");
     }
 
     public void ToString_Field72(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}Prepare_IOS_For_Recording: {Prepare_IOS_For_Recording}");
+        sb.AppendLine($"{indent_}captureSingleScreen: {captureSingleScreen}");
     }
 
     public void ToString_Field73(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}Force_IOS_Speakers_When_Recording: {Force_IOS_Speakers_When_Recording}");
+        sb.AppendLine($"{indent_}muteOtherAudioSources: {muteOtherAudioSources}");
     }
 
     public void ToString_Field74(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}deferSystemGesturesMode: {deferSystemGesturesMode}");
+        sb.AppendLine($"{indent_}Prepare_IOS_For_Recording: {Prepare_IOS_For_Recording}");
     }
 
     public void ToString_Field75(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}hideHomeButton: {hideHomeButton}");
+        sb.AppendLine($"{indent_}Force_IOS_Speakers_When_Recording: {Force_IOS_Speakers_When_Recording}");
     }
 
     public void ToString_Field76(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}submitAnalytics: {submitAnalytics}");
+        sb.AppendLine($"{indent_}deferSystemGesturesMode: {deferSystemGesturesMode}");
     }
 
     public void ToString_Field77(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}usePlayerLog: {usePlayerLog}");
+        sb.AppendLine($"{indent_}hideHomeButton: {hideHomeButton}");
     }
 
     public void ToString_Field78(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}bakeCollisionMeshes: {bakeCollisionMeshes}");
+        sb.AppendLine($"{indent_}submitAnalytics: {submitAnalytics}");
     }
 
     public void ToString_Field79(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}forceSingleInstance: {forceSingleInstance}");
+        sb.AppendLine($"{indent_}usePlayerLog: {usePlayerLog}");
     }
 
     public void ToString_Field80(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}useFlipModelSwapchain: {useFlipModelSwapchain}");
+        sb.AppendLine($"{indent_}dedicatedServerOptimizations: {dedicatedServerOptimizations}");
     }
 
     public void ToString_Field81(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}resizableWindow: {resizableWindow}");
+        sb.AppendLine($"{indent_}bakeCollisionMeshes: {bakeCollisionMeshes}");
     }
 
     public void ToString_Field82(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}useMacAppStoreValidation: {useMacAppStoreValidation}");
+        sb.AppendLine($"{indent_}forceSingleInstance: {forceSingleInstance}");
     }
 
     public void ToString_Field83(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}macAppStoreCategory: \"{macAppStoreCategory}\"");
+        sb.AppendLine($"{indent_}useFlipModelSwapchain: {useFlipModelSwapchain}");
     }
 
     public void ToString_Field84(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}gpuSkinning: {gpuSkinning}");
+        sb.AppendLine($"{indent_}resizableWindow: {resizableWindow}");
     }
 
     public void ToString_Field85(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxPIXTextureCapture: {xboxPIXTextureCapture}");
+        sb.AppendLine($"{indent_}useMacAppStoreValidation: {useMacAppStoreValidation}");
     }
 
     public void ToString_Field86(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableAvatar: {xboxEnableAvatar}");
+        sb.AppendLine($"{indent_}macAppStoreCategory: \"{macAppStoreCategory}\"");
     }
 
     public void ToString_Field87(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableKinect: {xboxEnableKinect}");
+        sb.AppendLine($"{indent_}gpuSkinning: {gpuSkinning}");
     }
 
     public void ToString_Field88(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableKinectAutoTracking: {xboxEnableKinectAutoTracking}");
+        sb.AppendLine($"{indent_}xboxPIXTextureCapture: {xboxPIXTextureCapture}");
     }
 
     public void ToString_Field89(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableFitness: {xboxEnableFitness}");
+        sb.AppendLine($"{indent_}xboxEnableAvatar: {xboxEnableAvatar}");
     }
 
     public void ToString_Field90(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}visibleInBackground: {visibleInBackground}");
+        sb.AppendLine($"{indent_}xboxEnableKinect: {xboxEnableKinect}");
     }
 
     public void ToString_Field91(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}allowFullscreenSwitch: {allowFullscreenSwitch}");
+        sb.AppendLine($"{indent_}xboxEnableKinectAutoTracking: {xboxEnableKinectAutoTracking}");
     }
 
     public void ToString_Field92(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}fullscreenMode: {fullscreenMode}");
+        sb.AppendLine($"{indent_}xboxEnableFitness: {xboxEnableFitness}");
     }
 
     public void ToString_Field93(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxSpeechDB: {xboxSpeechDB}");
+        sb.AppendLine($"{indent_}visibleInBackground: {visibleInBackground}");
     }
 
     public void ToString_Field94(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableHeadOrientation: {xboxEnableHeadOrientation}");
+        sb.AppendLine($"{indent_}allowFullscreenSwitch: {allowFullscreenSwitch}");
     }
 
     public void ToString_Field95(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnableGuest: {xboxEnableGuest}");
+        sb.AppendLine($"{indent_}fullscreenMode: {fullscreenMode}");
     }
 
     public void ToString_Field96(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxEnablePIXSampling: {xboxEnablePIXSampling}");
+        sb.AppendLine($"{indent_}xboxSpeechDB: {xboxSpeechDB}");
     }
 
     public void ToString_Field97(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}metalFramebufferOnly: {metalFramebufferOnly}");
+        sb.AppendLine($"{indent_}xboxEnableHeadOrientation: {xboxEnableHeadOrientation}");
     }
 
     public void ToString_Field98(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneResolution: {xboxOneResolution}");
+        sb.AppendLine($"{indent_}xboxEnableGuest: {xboxEnableGuest}");
     }
 
     public void ToString_Field99(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneSResolution: {xboxOneSResolution}");
+        sb.AppendLine($"{indent_}xboxEnablePIXSampling: {xboxEnablePIXSampling}");
     }
 
     public void ToString_Field100(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneXResolution: {xboxOneXResolution}");
+        sb.AppendLine($"{indent_}metalFramebufferOnly: {metalFramebufferOnly}");
     }
 
     public void ToString_Field101(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneMonoLoggingLevel: {xboxOneMonoLoggingLevel}");
+        sb.AppendLine($"{indent_}xboxOneResolution: {xboxOneResolution}");
     }
 
     public void ToString_Field102(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneLoggingLevel: {xboxOneLoggingLevel}");
+        sb.AppendLine($"{indent_}xboxOneSResolution: {xboxOneSResolution}");
     }
 
     public void ToString_Field103(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneDisableEsram: {xboxOneDisableEsram}");
+        sb.AppendLine($"{indent_}xboxOneXResolution: {xboxOneXResolution}");
     }
 
     public void ToString_Field104(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOneEnableTypeOptimization: {xboxOneEnableTypeOptimization}");
+        sb.AppendLine($"{indent_}xboxOneMonoLoggingLevel: {xboxOneMonoLoggingLevel}");
     }
 
     public void ToString_Field105(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}xboxOnePresentImmediateThreshold: {xboxOnePresentImmediateThreshold}");
+        sb.AppendLine($"{indent_}xboxOneLoggingLevel: {xboxOneLoggingLevel}");
     }
 
     public void ToString_Field106(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchQueueCommandMemory: {switchQueueCommandMemory}");
+        sb.AppendLine($"{indent_}xboxOneDisableEsram: {xboxOneDisableEsram}");
     }
 
     public void ToString_Field107(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchQueueControlMemory: {switchQueueControlMemory}");
+        sb.AppendLine($"{indent_}xboxOneEnableTypeOptimization: {xboxOneEnableTypeOptimization}");
     }
 
     public void ToString_Field108(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchQueueComputeMemory: {switchQueueComputeMemory}");
+        sb.AppendLine($"{indent_}xboxOnePresentImmediateThreshold: {xboxOnePresentImmediateThreshold}");
     }
 
     public void ToString_Field109(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNShaderPoolsGranularity: {switchNVNShaderPoolsGranularity}");
+        sb.AppendLine($"{indent_}switchQueueCommandMemory: {switchQueueCommandMemory}");
     }
 
     public void ToString_Field110(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNDefaultPoolsGranularity: {switchNVNDefaultPoolsGranularity}");
+        sb.AppendLine($"{indent_}switchQueueControlMemory: {switchQueueControlMemory}");
     }
 
     public void ToString_Field111(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNOtherPoolsGranularity: {switchNVNOtherPoolsGranularity}");
+        sb.AppendLine($"{indent_}switchQueueComputeMemory: {switchQueueComputeMemory}");
     }
 
     public void ToString_Field112(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchGpuScratchPoolGranularity: {switchGpuScratchPoolGranularity}");
+        sb.AppendLine($"{indent_}switchNVNShaderPoolsGranularity: {switchNVNShaderPoolsGranularity}");
     }
 
     public void ToString_Field113(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchAllowGpuScratchShrinking: {switchAllowGpuScratchShrinking}");
+        sb.AppendLine($"{indent_}switchNVNDefaultPoolsGranularity: {switchNVNDefaultPoolsGranularity}");
     }
 
     public void ToString_Field114(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNMaxPublicTextureIDCount: {switchNVNMaxPublicTextureIDCount}");
+        sb.AppendLine($"{indent_}switchNVNOtherPoolsGranularity: {switchNVNOtherPoolsGranularity}");
     }
 
     public void ToString_Field115(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNMaxPublicSamplerIDCount: {switchNVNMaxPublicSamplerIDCount}");
+        sb.AppendLine($"{indent_}switchGpuScratchPoolGranularity: {switchGpuScratchPoolGranularity}");
     }
 
     public void ToString_Field116(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}switchNVNGraphicsFirmwareMemory: {switchNVNGraphicsFirmwareMemory}");
+        sb.AppendLine($"{indent_}switchAllowGpuScratchShrinking: {switchAllowGpuScratchShrinking}");
     }
 
     public void ToString_Field117(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}stadiaPresentMode: {stadiaPresentMode}");
+        sb.AppendLine($"{indent_}switchNVNMaxPublicTextureIDCount: {switchNVNMaxPublicTextureIDCount}");
     }
 
     public void ToString_Field118(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}stadiaTargetFramerate: {stadiaTargetFramerate}");
+        sb.AppendLine($"{indent_}switchNVNMaxPublicSamplerIDCount: {switchNVNMaxPublicSamplerIDCount}");
     }
 
     public void ToString_Field119(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}vulkanNumSwapchainBuffers: {vulkanNumSwapchainBuffers}");
+        sb.AppendLine($"{indent_}switchNVNGraphicsFirmwareMemory: {switchNVNGraphicsFirmwareMemory}");
     }
 
     public void ToString_Field120(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}vulkanEnableSetSRGBWrite: {vulkanEnableSetSRGBWrite}");
+        sb.AppendLine($"{indent_}switchMaxWorkerMultiple: {switchMaxWorkerMultiple}");
     }
 
     public void ToString_Field121(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}vulkanEnablePreTransform: {vulkanEnablePreTransform}");
+        sb.AppendLine($"{indent_}stadiaPresentMode: {stadiaPresentMode}");
     }
 
     public void ToString_Field122(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}vulkanEnableLateAcquireNextImage: {vulkanEnableLateAcquireNextImage}");
+        sb.AppendLine($"{indent_}stadiaTargetFramerate: {stadiaTargetFramerate}");
     }
 
     public void ToString_Field123(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}vulkanEnableCommandBufferRecycling: {vulkanEnableCommandBufferRecycling}");
+        sb.AppendLine($"{indent_}vulkanNumSwapchainBuffers: {vulkanNumSwapchainBuffers}");
     }
 
     public void ToString_Field124(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}loadStoreDebugModeEnabled: {loadStoreDebugModeEnabled}");
+        sb.AppendLine($"{indent_}vulkanEnableSetSRGBWrite: {vulkanEnableSetSRGBWrite}");
     }
 
     public void ToString_Field125(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}invalidatedPatternTexture: {invalidatedPatternTexture}");
+        sb.AppendLine($"{indent_}vulkanEnablePreTransform: {vulkanEnablePreTransform}");
     }
 
     public void ToString_Field126(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}bundleVersion: \"{bundleVersion}\"");
+        sb.AppendLine($"{indent_}vulkanEnableLateAcquireNextImage: {vulkanEnableLateAcquireNextImage}");
     }
 
     public void ToString_Field127(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}vulkanEnableCommandBufferRecycling: {vulkanEnableCommandBufferRecycling}");
+    }
+
+    public void ToString_Field128(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}loadStoreDebugModeEnabled: {loadStoreDebugModeEnabled}");
+    }
+
+    public void ToString_Field129(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}invalidatedPatternTexture: {invalidatedPatternTexture}");
+    }
+
+    public void ToString_Field130(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}visionOSBundleVersion: \"{visionOSBundleVersion}\"");
+    }
+
+    public void ToString_Field131(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}tvOSBundleVersion: \"{tvOSBundleVersion}\"");
+    }
+
+    public void ToString_Field132(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}bundleVersion: \"{bundleVersion}\"");
+    }
+
+    public void ToString_Field133(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}preloadedAssets[{preloadedAssets.Length}] = {{");
         if (preloadedAssets.Length > 0) sb.AppendLine();
@@ -1382,62 +1443,67 @@ public record class PlayerSettings (
         sb.AppendLine("}");
     }
 
-    public void ToString_Field128(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field134(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}metroInputSource: {metroInputSource}");
     }
 
-    public void ToString_Field129(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field135(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}wsaTransparentSwapchain: {wsaTransparentSwapchain}");
     }
 
-    public void ToString_Field130(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field136(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}m_HolographicPauseOnTrackingLoss: {m_HolographicPauseOnTrackingLoss}");
     }
 
-    public void ToString_Field131(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field137(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}xboxOneDisableKinectGpuReservation: {xboxOneDisableKinectGpuReservation}");
     }
 
-    public void ToString_Field132(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field138(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}xboxOneEnable7thCore: {xboxOneEnable7thCore}");
     }
 
-    public void ToString_Field133(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field139(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}vrSettings: {{ enable360StereoCapture: {vrSettings.enable360StereoCapture} }}\n");
     }
 
-    public void ToString_Field134(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field140(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}isWsaHolographicRemotingEnabled: {isWsaHolographicRemotingEnabled}");
     }
 
-    public void ToString_Field135(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field141(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}enableFrameTimingStats: {enableFrameTimingStats}");
     }
 
-    public void ToString_Field136(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field142(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}enableOpenGLProfilerGPURecorders: {enableOpenGLProfilerGPURecorders}");
     }
 
-    public void ToString_Field137(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field143(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}allowHDRDisplaySupport: {allowHDRDisplaySupport}");
+    }
+
+    public void ToString_Field144(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}useHDRDisplay: {useHDRDisplay}");
     }
 
-    public void ToString_Field138(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field145(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}hdrBitDepth: {hdrBitDepth}");
     }
 
-    public void ToString_Field139(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field146(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}m_ColorGamuts[{m_ColorGamuts.Length}] = {{");
         if (m_ColorGamuts.Length > 0) sb.AppendLine();
@@ -1451,52 +1517,52 @@ public record class PlayerSettings (
         sb.AppendLine("}");
     }
 
-    public void ToString_Field140(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field147(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}targetPixelDensity: {targetPixelDensity}");
     }
 
-    public void ToString_Field141(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field148(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}resolutionScalingMode: {resolutionScalingMode}");
     }
 
-    public void ToString_Field142(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field149(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}resetResolutionOnWindowResize: {resetResolutionOnWindowResize}");
     }
 
-    public void ToString_Field143(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field150(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidSupportedAspectRatio: {androidSupportedAspectRatio}");
     }
 
-    public void ToString_Field144(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field151(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}androidMaxAspectRatio: {androidMaxAspectRatio}");
     }
 
-    public void ToString_Field145(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field152(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}activeInputHandler: {activeInputHandler}");
     }
 
-    public void ToString_Field146(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field153(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}windowsGamepadBackendHint: {windowsGamepadBackendHint}");
     }
 
-    public void ToString_Field147(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field154(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}cloudProjectId: \"{cloudProjectId}\"");
     }
 
-    public void ToString_Field148(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field155(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}framebufferDepthMemorylessMode: {framebufferDepthMemorylessMode}");
     }
 
-    public void ToString_Field149(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field156(StringBuilder sb, int indent, string indent_)
     {
         sb.Append($"{indent_}qualitySettingsNames[{qualitySettingsNames.Length}] = {{");
         if (qualitySettingsNames.Length > 0) sb.AppendLine();
@@ -1510,42 +1576,42 @@ public record class PlayerSettings (
         sb.AppendLine("}");
     }
 
-    public void ToString_Field150(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field157(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}projectName: \"{projectName}\"");
     }
 
-    public void ToString_Field151(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field158(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}organizationId: \"{organizationId}\"");
     }
 
-    public void ToString_Field152(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field159(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}cloudEnabled: {cloudEnabled}");
     }
 
-    public void ToString_Field153(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field160(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}legacyClampBlendShapeWeights: {legacyClampBlendShapeWeights}");
     }
 
-    public void ToString_Field154(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field161(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}hmiLoadingImage: {hmiLoadingImage}");
     }
 
-    public void ToString_Field155(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field162(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}platformRequiresReadableAssets: {platformRequiresReadableAssets}");
     }
 
-    public void ToString_Field156(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field163(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}virtualTexturingSupportEnabled: {virtualTexturingSupportEnabled}");
     }
 
-    public void ToString_Field157(StringBuilder sb, int indent, string indent_)
+    public void ToString_Field164(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}insecureHttpOption: {insecureHttpOption}");
     }

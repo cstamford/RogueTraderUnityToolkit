@@ -4,12 +4,13 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $VFXManager (12 fields) VFXManager 6BB91ED030F54C04B25E68474082794A */
+/* $VFXManager (13 fields) VFXManager 12DE9473D4C50E07A8FBDEC8AEEBAA00 */
 public record class VFXManager (
     PPtr<ComputeShader> m_IndirectShader,
     PPtr<ComputeShader> m_CopyBufferShader,
     PPtr<ComputeShader> m_SortShader,
     PPtr<ComputeShader> m_StripUpdateShader,
+    PPtr<Shader> m_EmptyShader,
     AsciiString m_RenderPipeSettingsPath,
     float m_FixedTimeStep,
     float m_MaxDeltaTime,
@@ -20,13 +21,14 @@ public record class VFXManager (
     uint m_BatchEmptyLifetime) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.VFXManager;
-    public static Hash128 Hash => new("6BB91ED030F54C04B25E68474082794A");
+    public static Hash128 Hash => new("12DE9473D4C50E07A8FBDEC8AEEBAA00");
     public static VFXManager Read(EndianBinaryReader reader)
     {
         PPtr<ComputeShader> m_IndirectShader_ = PPtr<ComputeShader>.Read(reader);
         PPtr<ComputeShader> m_CopyBufferShader_ = PPtr<ComputeShader>.Read(reader);
         PPtr<ComputeShader> m_SortShader_ = PPtr<ComputeShader>.Read(reader);
         PPtr<ComputeShader> m_StripUpdateShader_ = PPtr<ComputeShader>.Read(reader);
+        PPtr<Shader> m_EmptyShader_ = PPtr<Shader>.Read(reader);
         AsciiString m_RenderPipeSettingsPath_ = BuiltInString.Read(reader);
         reader.AlignTo(4); /* m_RenderPipeSettingsPath */
         float m_FixedTimeStep_ = reader.ReadF32();
@@ -41,6 +43,7 @@ public record class VFXManager (
             m_CopyBufferShader_,
             m_SortShader_,
             m_StripUpdateShader_,
+            m_EmptyShader_,
             m_RenderPipeSettingsPath_,
             m_FixedTimeStep_,
             m_MaxDeltaTime_,
@@ -70,6 +73,7 @@ public record class VFXManager (
         ToString_Field9(sb, indent, indent_);
         ToString_Field10(sb, indent, indent_);
         ToString_Field11(sb, indent, indent_);
+        ToString_Field12(sb, indent, indent_);
 
         return sb.ToString();
     }
@@ -96,40 +100,45 @@ public record class VFXManager (
 
     public void ToString_Field4(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_RenderPipeSettingsPath: \"{m_RenderPipeSettingsPath}\"");
+        sb.AppendLine($"{indent_}m_EmptyShader: {m_EmptyShader}");
     }
 
     public void ToString_Field5(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_FixedTimeStep: {m_FixedTimeStep}");
+        sb.AppendLine($"{indent_}m_RenderPipeSettingsPath: \"{m_RenderPipeSettingsPath}\"");
     }
 
     public void ToString_Field6(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MaxDeltaTime: {m_MaxDeltaTime}");
+        sb.AppendLine($"{indent_}m_FixedTimeStep: {m_FixedTimeStep}");
     }
 
     public void ToString_Field7(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_MaxScrubTime: {m_MaxScrubTime}");
+        sb.AppendLine($"{indent_}m_MaxDeltaTime: {m_MaxDeltaTime}");
     }
 
     public void ToString_Field8(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_CompiledVersion: {m_CompiledVersion}");
+        sb.AppendLine($"{indent_}m_MaxScrubTime: {m_MaxScrubTime}");
     }
 
     public void ToString_Field9(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_RuntimeVersion: {m_RuntimeVersion}");
+        sb.AppendLine($"{indent_}m_CompiledVersion: {m_CompiledVersion}");
     }
 
     public void ToString_Field10(StringBuilder sb, int indent, string indent_)
     {
-        sb.AppendLine($"{indent_}m_RuntimeResources: {m_RuntimeResources}");
+        sb.AppendLine($"{indent_}m_RuntimeVersion: {m_RuntimeVersion}");
     }
 
     public void ToString_Field11(StringBuilder sb, int indent, string indent_)
+    {
+        sb.AppendLine($"{indent_}m_RuntimeResources: {m_RuntimeResources}");
+    }
+
+    public void ToString_Field12(StringBuilder sb, int indent, string indent_)
     {
         sb.AppendLine($"{indent_}m_BatchEmptyLifetime: {m_BatchEmptyLifetime}");
     }

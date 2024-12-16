@@ -4,7 +4,7 @@ using Core;
 using System.Text;
 using Unity;
 
-/* $MonoBehaviour (4 fields) MonoBehaviour AE5B1E758872312AD658ABC22B098766 */
+/* $MonoBehaviour (4 fields) MonoBehaviour 010870D965DB3BACF528A442C657F3E8 */
 public record class MonoBehaviour (
     PPtr<GameObject> m_GameObject,
     byte m_Enabled,
@@ -12,7 +12,7 @@ public record class MonoBehaviour (
     AsciiString m_Name) : IUnityEngineStructure
 {
     public static UnityObjectType ObjectType => UnityObjectType.MonoBehaviour;
-    public static Hash128 Hash => new("AE5B1E758872312AD658ABC22B098766");
+    public static Hash128 Hash => new("010870D965DB3BACF528A442C657F3E8");
     public static MonoBehaviour Read(EndianBinaryReader reader)
     {
         PPtr<GameObject> m_GameObject_ = PPtr<GameObject>.Read(reader);
